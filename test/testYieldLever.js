@@ -81,48 +81,6 @@ contract('YieldLever', async accounts => {
         assert.notEqual(balances.ink, 0);
         assert.notEqual(balances.art, 0);
     });
-    
-    it('should be possible to invest and unwind (directly)', async () => {
-        const USDC100 = '25000000000';
-        const borrowed = '75000000000';
-        const maxFy = '90000000000';
-        const seriesId = '0x303230360000';
-
-        await buyUsdc(USDC100);
-
-        const yieldLever = await YieldLever.deployed();
-
-        const approval = USDC.methods.approve(yieldLever.address, USDC100);
-        const params = { from: accounts[0] };
-        const approvalGas = await approval.estimateGas(params);
-        await USDC.methods.approve(yieldLever.address, USDC100).send({
-            ...params, gas: 2 * approvalGas
-        });
-        
-        await yieldLever.invest(USDC100, borrowed, maxFy, seriesId);
-
-
-        await buyUsdc(maxFy);
-
-        const approval2 = USDC.methods.approve(yieldLever.address, maxFy);
-        const approval2Gas = await approval.estimateGas(params);
-        await approval2.send({
-            ...params, gas: 2 * approval2Gas
-        });
-
-        const transfer = USDC.methods.transfer(yieldLever.address, maxFy);
-        const transferGas = await transfer.estimateGas(params);
-        await transfer.send({
-            ...params, gas: 2 * transferGas
-        });
-
-        const vaultId = await yieldLever.addressToVaultId(accounts[0]);
-        const balances = await Cauldron.methods.balances(vaultId).call();
-        const ink = -balances.ink;
-        console.log(ink);
-    
-        await yieldLever.doRepay(accounts[0], ink);
-    });
 
     it('should be possible to invest and unwind', async () => {
         const USDC100 = '25000000000';
@@ -143,14 +101,7 @@ contract('YieldLever', async accounts => {
         
         await yieldLever.invest(USDC100, borrowed, maxFy, seriesId);
 
-        // Check whether a vault was created correctly
-        const vaultId = await yieldLever.addressToVaultId(accounts[0]);
-        const balances = await Cauldron.methods.balances(vaultId).call();
-        const toBorrow = balances.art;
-        const ink = -balances.ink;
-        console.log(ink);
-
-        const pool = '0xEf82611C6120185D3BF6e020D1993B49471E7da0';
-        await yieldLever.unwind(toBorrow, ink, toBorrow);
+        const toBorrow = borrowed;
+        await yieldLever.unwind(toBorrow, 0);
     });
 });
