@@ -37,6 +37,9 @@ interface YieldLadle {
   function close(bytes12 vaultId_, address to, int128 ink, int128 art)
         external payable
         returns (uint128 base);
+  function give(bytes12 vaultId_, address receiver)
+        external payable
+        returns(Vault memory vault);
 }
 
 interface IERC20 {
@@ -74,6 +77,9 @@ interface Cauldron {
   function debtToBase(bytes6 seriesId, uint128 art)
         external
         returns (uint128 base);
+  function give(bytes12 vaultId, address receiver)
+        external
+        returns(Vault memory vault);
 }
 
 contract YieldLever {
@@ -85,13 +91,6 @@ contract YieldLever {
   YieldLadle constant Ladle = YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
   address constant yvUSDCJoin = address(0x403ae7384E89b086Ea2935d5fAFed07465242B38);
   Cauldron constant cauldron = Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
-
-  bytes4 private constant BUILD_SELECTOR = bytes4(keccak256("build(bytes6,bytes6,uint8)"));
-  bytes4 private constant SERVE_SELECTOR = bytes4(keccak256("serve(bytes12,address,uint128,uint128,uint128)"));
-  bytes4 private constant REPAY_SELECTOR = bytes4(keccak256("repayVault(bytes12,address,int128,uint128)"));
-  bytes4 private constant CLOSE_SELECTOR = bytes4(keccak256("close(bytes12,address,int128,int128)"));
-
-  mapping (address => bytes12) public addressToVaultId;
 
   /// @notice Invest `baseAmount` and borrow an additional `borrowAmount`.
   ///   Use this to obtain a maximum of `maxFyAmount` to repay the flash loan.
@@ -112,26 +111,26 @@ contract YieldLever {
     bytes6 seriesId
   ) external {
     USDC.transferFrom(msg.sender, address(this), baseAmount);
-    address vaultOwner = msg.sender;
+    (bytes12 vaultId, ) = Ladle.build(seriesId, ilkId, 0);
     iUSDC.flashBorrow(
         borrowAmount,
         address(this),
         address(this),
         "",
-        abi.encodeWithSignature("doInvest(bytes6,uint128,uint128,address)", seriesId, borrowAmount, maxFyAmount, vaultOwner)
+        abi.encodeWithSignature("doInvest(uint128,uint128,bytes12)", borrowAmount, maxFyAmount, vaultId)
     );
+    
+    // Finally, give the vault to the sender
+    Ladle.give(vaultId, msg.sender);
   }
 
   /// @notice This function is called inside the flash loan and handles the
   ///   actual investment.
-  /// @param seriesId - The series to invest in.
   /// @param borrowAmount - The amount borrowed using a flash loan.
-  /// @param owner - The to-be owner of the leverage. Only this address can withdraw.
   function doInvest(
-    bytes6 seriesId, 
     uint128 borrowAmount,
     uint128 maxFyAmount,
-    address owner
+    bytes12 vaultId
   ) external {
     // Deposit USDC.
     /// totalBalance >= baseAmount + borrowAmount
@@ -144,52 +143,53 @@ contract YieldLever {
     IERC20(address(yvUSDC)).transfer(yvUSDCJoin, yvUSDCBalance);
 
     // Create a Yield vault
-    (bytes12 vaultId, ) = Ladle.build(seriesId, ilkId, 0);
     // Add collateral and borrow enough to repay the flash loan.
     Ladle.serve(vaultId, address(this), yvUSDCBalance, borrowAmount, maxFyAmount);
-
-    // Set the vault owner
-    addressToVaultId[owner] = vaultId;
 
     // Repay flash loan
     USDC.transfer(address(iUSDC), borrowAmount); // repay
   }
 
   /// @notice Empty a vault.
-  /// @param maxAmount - The amount of USDC to borrow at a maximum to repay the loan
-  function unwind(uint256 maxAmount, int128 art) external {
-    bytes12 vaultId = addressToVaultId[msg.sender];
+  /// @param vaultId - The id of the vault that should be emptied.
+  function unwind(bytes12 vaultId, uint256 maxAmount) external {
     Vault memory vault_ = cauldron.vaults(vaultId);
     Series memory series_ = cauldron.series(vault_.seriesId);
-    if (uint32(block.timestamp) >= series_.maturity) {
-      // Series is past maturity,
-      iUSDC.flashBorrow(
-        uint256(uint128(art)),
-        address(this),
-        address(this),
-        "",
-        abi.encodeWithSignature("doClose(address)", msg.sender)
-      );
-    } else {
+    
+    // Test that the caller is the owner of the vault
+    assert(vault_.owner == msg.sender);
+
+    // Give the vault to the contract
+    cauldron.give(vaultId, address(this));
+
+    if (uint32(block.timestamp) < series_.maturity) {
       // Series is not past maturity
       iUSDC.flashBorrow(
         maxAmount,
         address(this),
         address(this),
         "",
-        abi.encodeWithSignature("doRepay(address)", msg.sender)
+        abi.encodeWithSignature("doRepay(address,bytes12)", msg.sender, vaultId)
       );
+    } else {
+      /*// Series is past maturity,
+      iUSDC.flashBorrow(
+        uint256(uint128(art)),
+        address(this),
+        address(this),
+        "",
+        abi.encodeWithSignature("doClose(address)", msg.sender)
+      );*/
     }
   }
 
   /// @notice Repay a vault after having borrowed a suitable amount using a
   ///   flash loan. Will only succeed if the pool hasn't reached its expiration
   ///   date yet.
-  /// @param addr - The address of the owner. This is the address that will be
+  /// @param owner - The address of the owner. This is the address that will be
   ///   used to obtain certain parameters, and it is also the destination for
   ///   the profit that was obtained.
-  function doRepay(address addr) external {
-    bytes12 vaultId = addressToVaultId[addr];  
+  function doRepay(address owner, bytes12 vaultId) external {
     // The amount borrowed in the flash loan.
     uint256 borrowAmount = USDC.balanceOf(address(this));
     // Transfer it to the pool.
@@ -204,18 +204,14 @@ contract YieldLever {
     // Repay the flash loan
     USDC.transfer(address(iUSDC), borrowAmount);
     // Send the remaining USDC balance to the user.
-    USDC.transfer(addr, USDC.balanceOf(address(this)));
+    USDC.transfer(owner, USDC.balanceOf(address(this)));
   }
 
   /// @notice Close a vault that has already reached its expiration date.
-  /// @param addr - The address of the owner. This is the address that will be
-  ///   used to obtain certain parameters, and it is also the destination for
-  ///   the profit that was obtained.
-  function doClose(address addr) external {
-    bytes12 vaultId = addressToVaultId[addr];
+  function doClose() external {
+    /*// The amount borrowed in the flash loan.
+    uint256 maxBasePaid = USDC.balanceOf(address(this));
 
-    // The amount borrowed in the flash loan.
-    uint256 borrowAmount = USDC.balanceOf(address(this));
     // Close the vault
     uint128 ink = cauldron.balances(vaultId).ink;
     uint128 art = cauldron.balances(vaultId).art;
@@ -226,6 +222,6 @@ contract YieldLever {
     // Repay flash loan
     USDC.transfer(address(iUSDC), borrowAmount);
     // Send the remainder to user
-    USDC.transfer(addr, USDC.balanceOf(address(this)));
+    USDC.transfer(addr, USDC.balanceOf(address(this)));*/
   }
 }
