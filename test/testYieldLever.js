@@ -13,6 +13,11 @@ web3.extend({
         call: 'evm_setAccountBalance',
         params: 2,
         inputFormatter: [web3.extend.formatters.inputAddressFormatter, null]
+    },
+    {
+        name: 'mine',
+        call: 'evm_mine',
+        params: 1
     }]
 });
 
@@ -77,7 +82,7 @@ contract('YieldLever', async accounts => {
 
     before(grantYieldLeverAccess);
 
-    it('should be possible to invest', async () => {
+    async function buildVault() {
         const USDC100 = '25000000000';
         const borrowed = '75000000000';
         const maxFy = '90000000000';
@@ -113,47 +118,18 @@ contract('YieldLever', async accounts => {
         const balances = await Cauldron.methods.balances(vaultId).call();
         assert.notEqual(balances.ink, 0);
         assert.notEqual(balances.art, 0);
-    });
+        return vaultId;
+    }
+
+    it('should be possible to invest', buildVault);
 
     it('should be possible to invest and unwind', async () => {
-        const USDC100 = '25000000000';
+        const vaultId = await buildVault();
+
         const borrowed = '75000000000';
-        const maxFy = '90000000000';
-        const seriesId = '0x303230360000';
-
-        await buyUsdc(USDC100);
-
-        const yieldLever = await YieldLever.deployed();
-
-        const approval = USDC.methods.approve(yieldLever.address, USDC100);
-        const params = { from: accounts[0] };
-        const approvalGas = await approval.estimateGas(params);
-        await USDC.methods.approve(yieldLever.address, USDC100).send({
-            ...params, gas: 2 * approvalGas
-        });
-        
-        const tx = await yieldLever.invest(USDC100, borrowed, maxFy, seriesId);
-
-        const events = await Cauldron.getPastEvents('VaultGiven', {
-            filter: { receiver: accounts[0] },
-            fromBlock: tx.blockNumber,
-            toBlock: tx.blockNumber
-        });
-        assert.equal(events.length, 1);
-        const event = events[0];
-
-        // Check whether a vault was created correctly
-        const vaultId = event.returnValues.vaultId.substring(0,26);
-        const vault = await Cauldron.methods.vaults(vaultId).call();
-        assert.equal(vault.owner, accounts[0]);
-        assert.equal(vault.seriesId, seriesId);
-        assert.equal(vault.ilkId, ilkId);
-        const balances = await Cauldron.methods.balances(vaultId).call();
-        assert.notEqual(balances.ink, 0);
-        assert.notEqual(balances.art, 0);
-
         const repayAmount = web3.utils.toBN(borrowed).mul(web3.utils.toBN(2));
     
+        const yieldLever = await YieldLever.deployed();
         await yieldLever.unwind(vaultId, repayAmount);
 
         const newBalances = await Cauldron.methods.balances(vaultId).call();
@@ -163,48 +139,32 @@ contract('YieldLever', async accounts => {
 
     
     it('should be possible to invest and close after maturity', async () => {
-        const USDC100 = '25000000000';
-        const borrowed = '75000000000';
-        const maxFy = '90000000000';
+        const vaultId = await buildVault();
         const seriesId = '0x303230360000';
 
-        await buyUsdc(USDC100);
-
-        const yieldLever = await YieldLever.deployed();
-
-        const approval = USDC.methods.approve(yieldLever.address, USDC100);
-        const params = { from: accounts[0] };
-        const approvalGas = await approval.estimateGas(params);
-        await USDC.methods.approve(yieldLever.address, USDC100).send({
-            ...params, gas: 2 * approvalGas
-        });
+        // Advance time past series maturity
+        const { maturity } = await Cauldron.methods.series(seriesId).call();
+        await web3.mine(web3.utils.numberToHex(maturity));
         
-        const tx = await yieldLever.invest(USDC100, borrowed, maxFy, seriesId);
+        const yieldLever = await YieldLever.deployed();
+        await yieldLever.unwind(vaultId, 0);
+        
+        /*const newBalances = await Cauldron.methods.balances(vaultId).call();
+        const ink = newBalances.ink;
+        const art = newBalances.art;
+        const base = await Cauldron.methods.debtToBase(seriesId, art).call();
+        console.log(vaultId, accounts[0], -ink, -base);
 
-        const events = await Cauldron.getPastEvents('VaultGiven', {
-            filter: { receiver: accounts[0] },
-            fromBlock: tx.blockNumber,
-            toBlock: tx.blockNumber
-        });
-        assert.equal(events.length, 1);
-        const event = events[0];
+        //await buyUsdc(base);
 
-        // Check whether a vault was created correctly
-        const vaultId = event.returnValues.vaultId.substring(0,26);
-        const vault = await Cauldron.methods.vaults(vaultId).call();
-        assert.equal(vault.owner, accounts[0]);
-        assert.equal(vault.seriesId, seriesId);
-        assert.equal(vault.ilkId, ilkId);
-        const balances = await Cauldron.methods.balances(vaultId).call();
-        assert.notEqual(balances.ink, 0);
-        assert.notEqual(balances.art, 0);
+        //const params = { from: accounts[0] };
 
-        const repayAmount = web3.utils.toBN(borrowed).mul(web3.utils.toBN(2));
-    
-        await yieldLever.unwind(vaultId, repayAmount);
-
-        const newBalances = await Cauldron.methods.balances(vaultId).call();
-        assert.equal(newBalances.ink, 0);
-        assert.equal(newBalances.art, 0);
+        /*const allow = USDC.methods.approve('0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4', base);
+        const gas = await allow.estimateGas(params);
+        await allow.send({...params, gas: gas * 2});*/
+        /*
+        const close = Ladle.methods.close(vaultId, accounts[0], -ink, -base);
+        const gas2 = await close.estimateGas(params);
+        await close.send({...params, gas: 2 * gas2});*/
     });
 });

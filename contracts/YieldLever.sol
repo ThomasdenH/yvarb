@@ -172,14 +172,16 @@ contract YieldLever {
         abi.encodeWithSignature("doRepay(address,bytes12)", msg.sender, vaultId)
       );
     } else {
-      /*// Series is past maturity,
+      // Series is past maturity,
+      uint128 art = cauldron.balances(vaultId).art;
+      uint128 base = cauldron.debtToBase(vault_.seriesId, art);
       iUSDC.flashBorrow(
-        uint256(uint128(art)),
+        base,
         address(this),
         address(this),
         "",
-        abi.encodeWithSignature("doClose(address)", msg.sender)
-      );*/
+        abi.encodeWithSignature("doClose(address,bytes12,uint128)", msg.sender, vaultId, base)
+      );
     }
   }
 
@@ -208,20 +210,19 @@ contract YieldLever {
   }
 
   /// @notice Close a vault that has already reached its expiration date.
-  function doClose() external {
-    /*// The amount borrowed in the flash loan.
-    uint256 maxBasePaid = USDC.balanceOf(address(this));
+  function doClose(address owner, bytes12 vaultId, uint128 base) external {
+    // Approve transer of USDC
+    USDC.approve(USDCJoin, base);
 
     // Close the vault
     uint128 ink = cauldron.balances(vaultId).ink;
-    uint128 art = cauldron.balances(vaultId).art;
-    Ladle.close(vaultId, address(this), -int128(ink), int128(art));
+    Ladle.close(vaultId, address(this), -int128(ink), -int128(base));
 
     // Withdraw from yvUSDC
     yvUSDC.withdraw();
     // Repay flash loan
-    USDC.transfer(address(iUSDC), borrowAmount);
+    USDC.transfer(address(iUSDC), base);
     // Send the remainder to user
-    USDC.transfer(addr, USDC.balanceOf(address(this)));*/
+    USDC.transfer(owner, USDC.balanceOf(address(this)));
   }
 }
