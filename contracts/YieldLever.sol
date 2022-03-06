@@ -216,8 +216,7 @@ contract YieldLever {
 
     // Close the vault
     uint128 ink = cauldron.balances(vaultId).ink;
-    uint128 art = cauldron.balances(vaultId).art;
-    Ladle.close(vaultId, address(this), -int128(ink), -int128(art));
+    Ladle.close(vaultId, address(this), -int128(ink), -int128(base));
 
     // Withdraw from yvUSDC
     yvUSDC.withdraw();

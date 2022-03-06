@@ -155,47 +155,10 @@ contract('YieldLever', async accounts => {
         const block = await web3.eth.getBlock(blockNumber);
         const timestamp = block.timestamp;
         const secondsDiff = web3.utils.toBN(series.maturity).sub(web3.utils.toBN(timestamp));
-        console.log(secondsDiff);
         await web3.increaseTime(web3.utils.toHex(secondsDiff));
         await web3.mine(web3.utils.numberToHex(series.maturity));
         
         const yieldLever = await YieldLever.deployed();
-
-        //assert.isAtLeast(timestamp, series.maturity);
-        
-        //const newBalances = await Cauldron.methods.balances(vaultId).call();
-        //const ink = newBalances.ink;
-        //const art = newBalances.art;
-        //const base = await Cauldron.methods.debtToBase(seriesId, art).call();
-        //await buyUsdc(base);
-
-        //const params = {from: accounts[0]};
-        //const transfer = USDC.methods.transfer(yieldLever.address, base);
-        //const g = await transfer.estimateGas(params);
-        //await transfer.send({...params, gas: 2 * g});
-
         await yieldLever.unwind(vaultId, 0);
-
-
-
-        //await buyUsdc(base);
-        /*
-        const params = { from: accounts[0] };
-
-        const allow = USDC.methods.approve('0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4', base);
-        const gas = await allow.estimateGas(params);
-        await allow.send({...params, gas: gas * 2});
-        
-        const close = Ladle.methods.close(vaultId, accounts[0], -ink, -base);
-        const gas2 = await close.estimateGas(params);
-        await close.send({...params, gas: 2 * gas2});
-
-        const withdraw = YVUSDC.methods.withdraw();
-        const gasWithdraw = await withdraw.estimateGas(params);
-        await withdraw.send({...params, gas: 2 * gasWithdraw});
-
-        console.log(base);
-        console.log('25000000000');
-        console.log(await USDC.methods.balanceOf(accounts[0]).call());*/
     });
 });
