@@ -47,8 +47,7 @@ interface IERC20 {
     event Transfer(address indexed from, address indexed to, uint value);
 
     function balanceOf(address owner) external view returns (uint);
-    function allowance(address owner, address spender) external view returns (uint);
-
+  
     function approve(address spender, uint value) external returns (bool);
     function transfer(address to, uint value) external returns (bool);
     function transferFrom(address from, address to, uint value) external returns (bool);
@@ -127,6 +126,8 @@ contract YieldLever {
   /// @notice This function is called inside the flash loan and handles the
   ///   actual investment.
   /// @param borrowAmount - The amount borrowed using a flash loan.
+  /// @param maxFyAmount - The maximum amount of fyTokens to sell.
+  /// @param vaultId - The vault id to invest in.
   function doInvest(
     uint128 borrowAmount,
     uint128 maxFyAmount,
@@ -152,6 +153,9 @@ contract YieldLever {
 
   /// @notice Empty a vault.
   /// @param vaultId - The id of the vault that should be emptied.
+  /// @param maxAmount - The maximum amount of USDC to borrow. If past
+  ///   maturity, this parameter is unused as the amount can be determined
+  ///   precisely.
   function unwind(bytes12 vaultId, uint256 maxAmount) external {
     Vault memory vault_ = cauldron.vaults(vaultId);
     Series memory series_ = cauldron.series(vault_.seriesId);
@@ -191,6 +195,7 @@ contract YieldLever {
   /// @param owner - The address of the owner. This is the address that will be
   ///   used to obtain certain parameters, and it is also the destination for
   ///   the profit that was obtained.
+  /// @param vaultId - The vault id to repay.
   function doRepay(address owner, bytes12 vaultId) external {
     // The amount borrowed in the flash loan.
     uint256 borrowAmount = USDC.balanceOf(address(this));
@@ -210,6 +215,11 @@ contract YieldLever {
   }
 
   /// @notice Close a vault that has already reached its expiration date.
+  /// @param owner - The address of the owner. This is the address that will be
+  ///   used to obtain certain parameters, and it is also the destination for
+  ///   the profit that was obtained.
+  /// @param vaultId - The vault id to repay.
+  /// @param base - The size of the debt in USDC.
   function doClose(address owner, bytes12 vaultId, uint128 base) external {
     // Approve transer of USDC
     USDC.approve(USDCJoin, base);
