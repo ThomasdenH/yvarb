@@ -53,6 +53,7 @@ interface IERC20 {
     function transferFrom(address from, address to, uint value) external returns (bool);
 }
 
+// You can make this interface inherit from IERC20, and will be useful later on
 interface yVault {
   function deposit(uint amount) external returns (uint256);
   function withdraw() external returns (uint);
@@ -85,8 +86,11 @@ contract YieldLever {
   yVault constant yvUSDC = yVault(0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE);
   bytes6 constant ilkId = bytes6(0x303900000000); // for yvUSDC
   IToken constant iUSDC = IToken(0x32E4c68B3A4a813b710595AebA7f6B7604Ab9c15); 
+  // Variable names are lowerCamelCase. Acronyms are kept all in the same case. The variable below would be `usdc`
   IERC20 constant USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+  // Below would be `usdcJoin`
   address constant USDCJoin = address(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4);
+  // Below would be `ladle`
   YieldLadle constant Ladle = YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
   address constant yvUSDCJoin = address(0x403ae7384E89b086Ea2935d5fAFed07465242B38);
   Cauldron constant cauldron = Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
@@ -135,11 +139,16 @@ contract YieldLever {
   ) external {
     // Deposit USDC.
     /// totalBalance >= baseAmount + borrowAmount
+    // You can use `borrowBalance` and remove the line below.
     uint totalBalance = USDC.balanceOf(address(this));
+    // You can approve for MAX on the constructor, and remove the line below.
     USDC.approve(address(yvUSDC), totalBalance);
+
+    // `deposit` is overloaded. You can call `deposit(borrowAmount, yvUSDCJoin)` and remove the transfer below.
     yvUSDC.deposit(totalBalance);
 
     // And withdraw yvUSDC
+    // The return value for `deposit` is the number of yvUSDC received. You can take it in the previous line, and remove the line below.
     uint128 yvUSDCBalance = uint128(IERC20(address(yvUSDC)).balanceOf(address(this)));
     IERC20(address(yvUSDC)).transfer(yvUSDCJoin, yvUSDCBalance);
 
@@ -148,6 +157,7 @@ contract YieldLever {
     Ladle.serve(vaultId, address(this), yvUSDCBalance, borrowAmount, maxFyAmount);
 
     // Repay flash loan
+    // You can use `address(iUSDC)` as the second parameter in `serve`, and remove the line below.
     USDC.transfer(address(iUSDC), borrowAmount); // repay
   }
 
