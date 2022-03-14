@@ -62,8 +62,8 @@ interface IERC20 {
     function transferFrom(address from, address to, uint value) external returns (bool);
 }
 
-interface yVault {
-  function deposit(uint amount) external returns (uint256);
+interface yVault is IERC20 {
+  function deposit(uint amount, address to) external returns (uint256);
   function withdraw() external returns (uint);
 }
 
@@ -94,9 +94,9 @@ contract YieldLever {
   yVault constant yvUSDC = yVault(0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE);
   bytes6 constant ilkId = bytes6(0x303900000000); // for yvUSDC
   IToken constant iUSDC = IToken(0x32E4c68B3A4a813b710595AebA7f6B7604Ab9c15); 
-  IERC20 constant USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-  address constant USDCJoin = address(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4);
-  YieldLadle constant Ladle = YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
+  IERC20 constant usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+  address constant usdcJoin = address(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4);
+  YieldLadle constant ladle = YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
   address constant yvUSDCJoin = address(0x403ae7384E89b086Ea2935d5fAFed07465242B38);
   Cauldron constant cauldron = Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
 
@@ -112,24 +112,37 @@ contract YieldLever {
   ///   enough to cover the flash loan.
   /// @param seriesId - The series Id to invest in. For example, 0x303230360000
   ///   for FYUSDC06LP.
-  function invest(
+   function invest(
     uint256 baseAmount,
     uint128 borrowAmount,
     uint128 maxFyAmount,
     bytes6 seriesId
   ) external {
-    USDC.transferFrom(msg.sender, address(this), baseAmount);
-    (bytes12 vaultId, ) = Ladle.build(seriesId, ilkId, 0);
+    // Take USDC from the msg sender
+    usdc.transferFrom(msg.sender, address(this), baseAmount);
+    // Build a Yield Vault
+    (bytes12 vaultId, ) = ladle.build(seriesId, ilkId, 0);
+
+    uint256 investAmount = baseAmount + borrowAmount;
+    usdc.approve(address(yvUSDC), investAmount);
+
+    // Flash borrow USDC
     iUSDC.flashBorrow(
         borrowAmount,
         address(this),
         address(this),
         "",
-        abi.encodeWithSignature("doInvest(uint128,uint128,bytes12)", borrowAmount, maxFyAmount, vaultId)
+        abi.encodeWithSignature(
+          "doInvest(uint256,uint128,uint128,bytes12)",
+          investAmount,
+          borrowAmount,
+          maxFyAmount,
+          vaultId
+        )
     );
     
     // Finally, give the vault to the sender
-    Ladle.give(vaultId, msg.sender);
+    ladle.give(vaultId, msg.sender);
   }
 
   /// @notice This function is called inside the flash loan and handles the
@@ -138,26 +151,20 @@ contract YieldLever {
   /// @param maxFyAmount - The maximum amount of fyTokens to sell.
   /// @param vaultId - The vault id to invest in.
   function doInvest(
+    uint256 investAmount,
     uint128 borrowAmount,
     uint128 maxFyAmount,
     bytes12 vaultId
   ) external {
-    // Deposit USDC.
-    /// totalBalance >= baseAmount + borrowAmount
-    uint totalBalance = USDC.balanceOf(address(this));
-    USDC.approve(address(yvUSDC), totalBalance);
-    yvUSDC.deposit(totalBalance);
+    // Deposit USDC and obtain yvUSDC.
+    // Send it to the yvUSDCJoin to use as collateral in the vault.
+    // Returned is the amount of yvUSDC obtained.
+    uint128 yvUSDCBalance = uint128(yvUSDC.deposit(investAmount, yvUSDCJoin));
 
-    // And withdraw yvUSDC
-    uint128 yvUSDCBalance = uint128(IERC20(address(yvUSDC)).balanceOf(address(this)));
-    IERC20(address(yvUSDC)).transfer(yvUSDCJoin, yvUSDCBalance);
-
-    // Create a Yield vault
-    // Add collateral and borrow enough to repay the flash loan.
-    Ladle.serve(vaultId, address(this), yvUSDCBalance, borrowAmount, maxFyAmount);
-
-    // Repay flash loan
-    USDC.transfer(address(iUSDC), borrowAmount); // repay
+    // Add collateral to the Yield vault.
+    // Borrow enough to repay the flash loan.
+    // Transfer it to `address(iUSDC)` to repay the loan.
+    ladle.serve(vaultId, address(iUSDC), yvUSDCBalance, borrowAmount, maxFyAmount);
   }
 
   /// @notice Empty a vault.
@@ -207,20 +214,20 @@ contract YieldLever {
   /// @param vaultId - The vault id to repay.
   function doRepay(address owner, bytes12 vaultId) external {
     // The amount borrowed in the flash loan.
-    uint256 borrowAmount = USDC.balanceOf(address(this));
+    uint256 borrowAmount = usdc.balanceOf(address(this));
     // Transfer it to the pool.
     bytes6 seriesId = cauldron.vaults(vaultId).seriesId;
-    address pool = Ladle.pools(seriesId);
-    USDC.transfer(pool, borrowAmount);
+    address pool = ladle.pools(seriesId);
+    usdc.transfer(pool, borrowAmount);
     // Repay Yield vault debt
     uint128 ink = cauldron.balances(vaultId).ink;
-    Ladle.repayVault(vaultId, address(this), -int128(ink), uint128(borrowAmount));
+    ladle.repayVault(vaultId, address(this), -int128(ink), uint128(borrowAmount));
     // withdraw from yvUSDC
     yvUSDC.withdraw();
     // Repay the flash loan
-    USDC.transfer(address(iUSDC), borrowAmount);
+    usdc.transfer(address(iUSDC), borrowAmount);
     // Send the remaining USDC balance to the user.
-    USDC.transfer(owner, USDC.balanceOf(address(this)));
+    usdc.transfer(owner, usdc.balanceOf(address(this)));
   }
 
   /// @notice Close a vault that has already reached its expiration date.
@@ -231,17 +238,17 @@ contract YieldLever {
   /// @param base - The size of the debt in USDC.
   function doClose(address owner, bytes12 vaultId, uint128 base) external {
     // Approve transer of USDC
-    USDC.approve(USDCJoin, base);
+    usdc.approve(usdcJoin, base);
 
     // Close the vault
     uint128 ink = cauldron.balances(vaultId).ink;
-    Ladle.close(vaultId, address(this), -int128(ink), -int128(base));
+    ladle.close(vaultId, address(this), -int128(ink), -int128(base));
 
     // Withdraw from yvUSDC
     yvUSDC.withdraw();
     // Repay flash loan
-    USDC.transfer(address(iUSDC), base);
+    usdc.transfer(address(iUSDC), base);
     // Send the remainder to user
-    USDC.transfer(owner, USDC.balanceOf(address(this)));
+    usdc.transfer(owner, usdc.balanceOf(address(this)));
   }
 }

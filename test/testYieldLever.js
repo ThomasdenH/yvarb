@@ -106,6 +106,7 @@ contract('YieldLever', async accounts => {
         });
         
         const tx = await yieldLever.invest(USDC100, borrowed, maxFy, seriesId);
+        console.log('invest', tx.receipt.gasUsed);
 
         const events = await Cauldron.getPastEvents('VaultGiven', {
             filter: { receiver: accounts[0] },
@@ -136,7 +137,8 @@ contract('YieldLever', async accounts => {
         const repayAmount = web3.utils.toBN(borrowed).mul(web3.utils.toBN(2));
     
         const yieldLever = await YieldLever.deployed();
-        await yieldLever.unwind(vaultId, repayAmount);
+        const tx = await yieldLever.unwind(vaultId, repayAmount);
+        console.log('unwind', tx.receipt.gasUsed);
 
         const newBalances = await Cauldron.methods.balances(vaultId).call();
         assert.equal(newBalances.ink, 0);
@@ -159,6 +161,7 @@ contract('YieldLever', async accounts => {
         await web3.mine(web3.utils.numberToHex(series.maturity));
         
         const yieldLever = await YieldLever.deployed();
-        await yieldLever.unwind(vaultId, 0);
+        const tx = await yieldLever.unwind(vaultId, 0);
+        console.log('unwind after maturity', tx.receipt.gasUsed);
     });
 });
