@@ -1,4 +1,13 @@
 // SPDX-License-Identifier: MIT
+
+/// # Security of this contract
+/// This contract owns nothing between transactions. Any funds or vaults owned
+/// by it may very well be extractable. The security comes from the fact that
+/// after any interaction, the user (re-)obtains ownership of their assets. In
+/// `doInvest`, this happens by transferring the vault at the end. In `unwind`
+/// the contract can actually take ownership of a vault, but only when called
+/// by the owner of the vault in the first place.
+
 pragma solidity ^0.8.11;
 
 struct Vault {
