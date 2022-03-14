@@ -138,9 +138,10 @@ contract('YieldLever', async accounts => {
         const repayAmount = web3.utils.toBN(borrowed).mul(web3.utils.toBN(2));
 
         const poolAddress = await Ladle.methods.pools(seriesId).call();
+        const balances = await Cauldron.methods.balances(vaultId).call();
     
         const yieldLever = await YieldLever.deployed();
-        const tx = await yieldLever.unwind(vaultId, repayAmount, poolAddress);
+        const tx = await yieldLever.unwind(vaultId, repayAmount, poolAddress, balances.ink, balances.art, seriesId);
         console.log('unwind', tx.receipt.gasUsed);
 
         const newBalances = await Cauldron.methods.balances(vaultId).call();
@@ -164,9 +165,10 @@ contract('YieldLever', async accounts => {
         await web3.mine(web3.utils.numberToHex(series.maturity));
         
         const poolAddress = await Ladle.methods.pools(seriesId).call();
+        const balances = await Cauldron.methods.balances(vaultId).call();
 
         const yieldLever = await YieldLever.deployed();
-        const tx = await yieldLever.unwind(vaultId, 0, poolAddress);
+        const tx = await yieldLever.unwind(vaultId, 0, poolAddress, balances.ink, balances.art, seriesId);
         console.log('unwind after maturity', tx.receipt.gasUsed);
     });
 });

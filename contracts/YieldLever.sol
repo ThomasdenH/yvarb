@@ -174,9 +174,13 @@ contract YieldLever {
   ///   precisely.
   /// @param pool - The pool to deposit USDC into. This can be obtained via the
   ///   seriesId, and calling `address pool = ladle.pools(seriesId);`
-  function unwind(bytes12 vaultId, uint256 maxAmount, address pool) external {
+  /// @param ink - The amount of collateral in the vault. Together with art,
+  ///   this value can be obtained using `cauldron.balances(vaultId);`, which
+  ///   will return an object containing both `art` and `ink`.
+  /// @param art - The amount of debt taken from the vault.
+  function unwind(bytes12 vaultId, uint256 maxAmount, address pool, uint128 ink, uint128 art, bytes6 seriesId) external {
     Vault memory vault_ = cauldron.vaults(vaultId);
-    Series memory series_ = cauldron.series(vault_.seriesId);
+    Series memory series_ = cauldron.series(seriesId);
     
     // Test that the caller is the owner of the vault.
     // This is important as we will take the vault from the user.
@@ -184,26 +188,26 @@ contract YieldLever {
 
     // Give the vault to the contract
     cauldron.give(vaultId, address(this));
-
-    Balances memory balances = cauldron.balances(vaultId);
+  
     if (uint32(block.timestamp) < series_.maturity) {
       // Series is not past maturity
+      // Borrow to repay debt, move directly to the pool.
       iUSDC.flashBorrow(
         maxAmount,
-        address(this),
+        pool,
         address(this),
         "",
-        abi.encodeWithSignature("doRepay(address,bytes12,uint256,address,uint128)", msg.sender, vaultId, maxAmount, pool, balances.ink)
+        abi.encodeWithSignature("doRepay(address,bytes12,uint256,uint128)", msg.sender, vaultId, maxAmount, ink)
       );
     } else {
       // Series is past maturity,
-      uint128 base = cauldron.debtToBase(vault_.seriesId, balances.art);
+      uint128 base = cauldron.debtToBase(seriesId, art);
       iUSDC.flashBorrow(
         base,
         address(this),
         address(this),
         "",
-        abi.encodeWithSignature("doClose(address,bytes12,uint128,uint128)", msg.sender, vaultId, base, balances.ink)
+        abi.encodeWithSignature("doClose(address,bytes12,uint128,uint128,uint128)", msg.sender, vaultId, base, ink, art)
       );
     }
   }
@@ -215,9 +219,7 @@ contract YieldLever {
   ///   used to obtain certain parameters, and it is also the destination for
   ///   the profit that was obtained.
   /// @param vaultId - The vault id to repay.
-  function doRepay(address owner, bytes12 vaultId, uint256 borrowAmount, address pool, uint128 ink) external {
-    // Transfer it to the pool.
-    usdc.transfer(pool, borrowAmount);
+  function doRepay(address owner, bytes12 vaultId, uint256 borrowAmount, uint128 ink) external {
     // Repay Yield vault debt
     ladle.repayVault(vaultId, address(this), -int128(ink), uint128(borrowAmount));
     // withdraw from yvUSDC
@@ -234,12 +236,12 @@ contract YieldLever {
   ///   the profit that was obtained.
   /// @param vaultId - The vault id to repay.
   /// @param base - The size of the debt in USDC.
-  function doClose(address owner, bytes12 vaultId, uint128 base, uint128 ink) external {
+  function doClose(address owner, bytes12 vaultId, uint128 base, uint128 ink, uint128 art) external {
     // Approve transer of USDC
     usdc.approve(usdcJoin, base);
 
     // Close the vault
-    ladle.close(vaultId, address(this), -int128(ink), -int128(base));
+    ladle.close(vaultId, address(this), -int128(ink), -int128(art));
 
     // Withdraw from yvUSDC
     yvUSDC.withdraw();
