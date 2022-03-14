@@ -132,12 +132,15 @@ contract('YieldLever', async accounts => {
 
     it('should be possible to invest and unwind', async () => {
         const vaultId = await buildVault();
+        const seriesId = '0x303230360000';
 
         const borrowed = '75000000000';
         const repayAmount = web3.utils.toBN(borrowed).mul(web3.utils.toBN(2));
+
+        const poolAddress = await Ladle.methods.pools(seriesId).call();
     
         const yieldLever = await YieldLever.deployed();
-        const tx = await yieldLever.unwind(vaultId, repayAmount);
+        const tx = await yieldLever.unwind(vaultId, repayAmount, poolAddress);
         console.log('unwind', tx.receipt.gasUsed);
 
         const newBalances = await Cauldron.methods.balances(vaultId).call();
@@ -160,8 +163,10 @@ contract('YieldLever', async accounts => {
         await web3.increaseTime(web3.utils.toHex(secondsDiff));
         await web3.mine(web3.utils.numberToHex(series.maturity));
         
+        const poolAddress = await Ladle.methods.pools(seriesId).call();
+
         const yieldLever = await YieldLever.deployed();
-        const tx = await yieldLever.unwind(vaultId, 0);
+        const tx = await yieldLever.unwind(vaultId, 0, poolAddress);
         console.log('unwind after maturity', tx.receipt.gasUsed);
     });
 });
