@@ -142,7 +142,7 @@ contract YieldLever {
     );
     
     // Finally, give the vault to the sender
-    ladle.give(vaultId, msg.sender);
+    cauldron.give(vaultId, msg.sender);
   }
 
   /// @notice This function is called inside the flash loan and handles the
@@ -184,7 +184,7 @@ contract YieldLever {
     
     // Test that the caller is the owner of the vault.
     // This is important as we will take the vault from the user.
-    assert(vault_.owner == msg.sender);
+    require(vault_.owner == msg.sender);
 
     // Give the vault to the contract
     cauldron.give(vaultId, address(this));
@@ -210,6 +210,9 @@ contract YieldLever {
         abi.encodeWithSignature("doClose(address,bytes12,uint128,uint128,uint128)", msg.sender, vaultId, base, ink, art)
       );
     }
+
+    // Give the vault back to the sender, just in case there is anything left
+    cauldron.give(vaultId, msg.sender);
   }
 
   /// @notice Repay a vault after having borrowed a suitable amount using a
