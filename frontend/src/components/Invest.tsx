@@ -11,6 +11,7 @@ interface Properties {
     usdcContract: ethers.Contract,
     account: string,
     yieldLeverContract: ethers.Contract;
+    poolContract: ethers.Contract;
 }
 
 enum ApprovalState {
@@ -32,6 +33,7 @@ export default class Invest extends React.Component<Properties> {
 
     private readonly usdcContract: ethers.Contract;
     private readonly yieldLeverContract: ethers.Contract;
+    private readonly poolContract: ethers.Contract;
     private readonly account: string;
 
     constructor(props: Properties) {
@@ -39,6 +41,7 @@ export default class Invest extends React.Component<Properties> {
         this.account = props.account;
         this.usdcContract = props.usdcContract;
         this.yieldLeverContract = props.yieldLeverContract;
+        this.poolContract = props.poolContract;
         this.state = {
             usdcBalance: props.usdcBalance,
             usdcToInvest: props.usdcBalance,
@@ -64,6 +67,7 @@ export default class Invest extends React.Component<Properties> {
                 component = (<input
                     type="button"
                     value="Transact!"
+                    onClick={() => this.transact()}
                 />);
                 break;
         }
@@ -107,7 +111,7 @@ export default class Invest extends React.Component<Properties> {
 
     private totalToInvest(): BigNumber {
         try {
-            return this.state.usdcToInvest.mul(this.state.leverage);
+            return this.state.usdcToInvest.mul(this.state.leverage).div(100);
         } catch (e) {
             return BigNumber.from(0);
         }
@@ -115,6 +119,7 @@ export default class Invest extends React.Component<Properties> {
     
     private async checkApprovalState() {
         const allowance: BigNumber = await this.usdcContract.allowance(this.account, this.yieldLeverContract.address);
+        console.log('Allowance: ' + allowance);
         if (allowance >= this.totalToInvest()) {
             this.setState({ approvalState: ApprovalState.Transactable });
         } else {
@@ -123,12 +128,17 @@ export default class Invest extends React.Component<Properties> {
     }
 
     private async approve() {
-        await this.usdcContract.approve(this.yieldLeverContract.address, this.totalToInvest());
-        this.checkApprovalState();
+        const tx = await this.usdcContract.approve(this.yieldLeverContract.address, this.state.usdcToInvest);
+        await tx.wait();
+        await this.checkApprovalState();
     }
 
     private async transact() {
         const leverage = this.totalToInvest().sub(this.state.usdcToInvest);
-        await this.yieldLeverContract.invest(this.state.usdcToInvest, leverage, , SERIES_ID);
+        // TODO: Flexible
+        const maxYv = (await this.poolContract.buyBasePreview(leverage)).mul(2);
+        console.log(this.state.usdcToInvest.toString(), leverage.toString(), maxYv.toString(), SERIES_ID);
+        const tx = await this.yieldLeverContract.invest(this.state.usdcToInvest, leverage, maxYv, SERIES_ID);
+        await tx.wait();
     }
 }

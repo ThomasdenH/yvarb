@@ -4,7 +4,6 @@ const cauldronAbi = require('./ABI/Cauldron.json');
 const ladleAbi = require('./ABI/Ladle.json');
 const timelockAbi = require('./ABI/TimeLock.json');
 const yvUsdcAbi = require('./ABI/YVUSDC.json');
-const { web3 } = require('@openzeppelin/test-helpers/src/setup');
 
 const YieldLever = artifacts.require("YieldLever");
 
