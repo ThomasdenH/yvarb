@@ -90,16 +90,19 @@ export class App extends React.Component<{}, State> {
 
     const elements = [
       <Invest
+        key="invest"
         label="Invest"
         usdcBalance={this.state.usdcBalance}
         usdcContract={this.contracts.usdcContract}
         poolContract={this.contracts.poolContract}
         yieldLeverContract={this.contracts.yieldLeverContract}
+        cauldronContract={this.contracts.cauldronContract}
         account={this.state.selectedAddress}
       />,
       ...vaultIds.map((vaultId) => (
         <VaultComponent
-          label={"Vault: " + vaultId}
+          key={vaultId}
+          label={"Vault: " + vaultId.substring(0, 8) + "..."}
           vaultId={vaultId}
           balance={this.state.vaults.balances[vaultId]}
           vault={this.state.vaults.vaults[vaultId]}
@@ -268,22 +271,18 @@ export class App extends React.Component<{}, State> {
       ]);
       const vaults = Object.create(null);
       const balances = Object.create(null);
-      this.vaultsToMonitor
-        .map((value, i) => [
-          value,
-          vaultAndBalances[i][0],
-          vaultAndBalances[i][1],
-        ])
-        .forEach(([vaultId, vault, balance]) => {
-          vaults[vaultId] = vault;
-          balances[vaultId] = balance;
-        });
+      this.vaultsToMonitor.forEach((vaultId, i) => {
+        if (vaultAndBalances[i] !== undefined) {
+          vaults[vaultId] = vaultAndBalances[i][0];
+          balances[vaultId] = vaultAndBalances[i][1];
+        }
+      });
       this.setState({
         usdcBalance,
         vaults: {
           vaults,
           balances,
-        },
+        }
       });
     }
   }

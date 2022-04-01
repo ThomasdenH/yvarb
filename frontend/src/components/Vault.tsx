@@ -30,14 +30,18 @@ export default class Vault extends React.Component<Properties, State> {
     super(props);
     this.state = {
       ...props,
-      slippage: 1
+      slippage: 1,
     };
   }
 
   render(): React.ReactNode {
     return (
       <div className="vault">
-        <p>Vault ID: {this.props.vaultId}</p>
+        <ValueDisplay
+          label="Vault ID:"
+          value={this.props.vaultId}
+          valueType={ValueType.Literal}
+        />
         <ValueDisplay
           label="Collateral:"
           valueType={ValueType.Usdc}
@@ -49,14 +53,16 @@ export default class Vault extends React.Component<Properties, State> {
           value={this.props.balance.art}
         />
         <Slippage
-            value={this.state.slippage}
-            onChange={(s) => this.onSlippageChange(s)}
+          value={this.state.slippage}
+          onChange={(s) => this.onSlippageChange(s)}
         />
-        {this.state.toBorrow !== undefined ? <ValueDisplay
+        {this.state.toBorrow !== undefined ? (
+          <ValueDisplay
             label="To borrow:"
             valueType={ValueType.Usdc}
             value={this.state.toBorrow}
-            /> : null}
+          />
+        ) : null}
         <input
           className="button"
           value="Unwind"
@@ -67,21 +73,32 @@ export default class Vault extends React.Component<Properties, State> {
     );
   }
 
+  componentDidMount() {
+    this.updateToBorrow();
+  }
+
   private async onSlippageChange(slippage: number) {
     this.setState({ slippage });
-    this.setState({ toBorrow: await this.computeToBorrow() })
+    await this.updateToBorrow();
+  }
+
+  private async updateToBorrow() {
+    this.setState({ toBorrow: await this.computeToBorrow() });
   }
 
   private async computeToBorrow(): Promise<BigNumber> {
     const balance = await this.props.cauldron.balances(this.props.vaultId);
+    if (balance.art.eq(0)) return BigNumber.from(0);
     try {
-        return (await this.props.pool.buyFYTokenPreview(balance.art)).mul(this.state.slippage).div(1000);
-      } catch (e) {
-        // Past maturity
-        console.log("Past maturity?");
-        console.log(e);
-        return BigNumber.from(0);
-      }
+      return (await this.props.pool.buyFYTokenPreview(balance.art))
+        .mul(1000 + this.state.slippage)
+        .div(1000);
+    } catch (e) {
+      // Past maturity
+      console.log("Past maturity?");
+      console.log(e);
+      return BigNumber.from(0);
+    }
   }
 
   private async unwind() {
@@ -104,7 +121,7 @@ export default class Vault extends React.Component<Properties, State> {
         SERIES_ID
       );
       await tx.wait();
-      await this.props.pollData();
+      await Promise.all([this.props.pollData(), this.updateToBorrow()]);
     }
   }
 }

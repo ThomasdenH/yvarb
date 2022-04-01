@@ -1,9 +1,15 @@
-$background: #283133;
-$main: #5b8266;
-$light: #aef6c7;
-$alt: #855a5c;
-$alt-light: #d8829d;
+$color-primary: rgb(52, 51, 129);
+$color-secondary: rgb(155, 37, 37);
+
+$background: $color-primary;
+$main: desaturate($color-primary, 20%);
+$light: lighten($color-primary, 20%);
+$alt: $color-secondary;
+$alt-light: lighten($color-secondary, 20%);
+
+$whiteish: #f3f3f3;
 
 $main-border: darken($main, 10%);
+$border-color: darken($alt, 10%);
 
-$shadow: rgba(0, 0, 0, 0.2) 0px 8px 16px;
+$shadow: rgba(0, 0, 0, 0.2) 0px 8px 32px;

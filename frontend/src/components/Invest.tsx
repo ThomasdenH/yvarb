@@ -1,7 +1,6 @@
 import { BigNumber, ethers, utils } from "ethers";
 import React from "react";
 import { SERIES_ID } from "../App";
-import { formatUSDC } from "../utils";
 import "./Invest.scss";
 import Slippage from "./Slippage";
 import UsdcInput from "./UsdcInput";
@@ -15,6 +14,7 @@ interface Properties {
   usdcContract: ethers.Contract;
   account: string;
   yieldLeverContract: ethers.Contract;
+  cauldronContract: ethers.Contract;
   poolContract: ethers.Contract;
   label: string;
 }
@@ -25,6 +25,12 @@ enum ApprovalState {
   Transactable,
 }
 
+interface Series {
+  fyToken: BigNumber;
+  baseId: string;
+  maturity: number;
+}
+
 interface State {
   usdcBalance: BigNumber;
   usdcToInvest: BigNumber;
@@ -32,13 +38,16 @@ interface State {
   approvalState: ApprovalState;
   fyTokens?: BigNumber;
   slippage: number;
+  interest?: number;
 }
 
 export default class Invest extends React.Component<Properties, State> {
   private readonly usdcContract: ethers.Contract;
   private readonly yieldLeverContract: ethers.Contract;
+  private readonly cauldronContract: ethers.Contract;
   private readonly poolContract: ethers.Contract;
   private readonly account: string;
+  private series?: Series;
 
   constructor(props: Properties) {
     super(props);
@@ -46,6 +55,7 @@ export default class Invest extends React.Component<Properties, State> {
     this.usdcContract = props.usdcContract;
     this.yieldLeverContract = props.yieldLeverContract;
     this.poolContract = props.poolContract;
+    this.cauldronContract = props.cauldronContract;
     this.state = {
       usdcBalance: props.usdcBalance,
       usdcToInvest: props.usdcBalance,
@@ -59,11 +69,12 @@ export default class Invest extends React.Component<Properties, State> {
     let component;
     switch (this.state.approvalState) {
       case ApprovalState.Loading:
-        component = <p>Loading</p>;
+        component = <p key="loading">Loading</p>;
         break;
       case ApprovalState.ApprovalRequired:
         component = (
           <input
+            key="approve"
             className="button"
             type="button"
             value="Approve"
@@ -74,6 +85,7 @@ export default class Invest extends React.Component<Properties, State> {
       case ApprovalState.Transactable:
         component = (
           <input
+            key="transact"
             className="button"
             type="button"
             value="Transact!"
@@ -92,14 +104,15 @@ export default class Invest extends React.Component<Properties, State> {
         />
         <label htmlFor="invest_amount">Amount to invest:</label>
         <UsdcInput
-        max={this.state.usdcBalance}
-        defaultValue={this.state.usdcBalance}
-        onValueChange={(v) => this.onUsdcInputChange(v)}
+          max={this.state.usdcBalance}
+          defaultValue={this.state.usdcBalance}
+          onValueChange={(v) => this.onUsdcInputChange(v)}
         />
         <label htmlFor="leverage">
           Leverage: ({utils.formatUnits(this.state.leverage, 2)}×)
         </label>
         <input
+          className="leverage"
           name="leverage"
           type="range"
           min="1.01"
@@ -119,13 +132,19 @@ export default class Invest extends React.Component<Properties, State> {
         />
         {this.state.fyTokens !== undefined ? (
           <ValueDisplay
+            key="fytokens"
             label="To borrow:"
             valueType={ValueType.FyUsdc}
             value={this.state.fyTokens}
           />
-        ) : (
-          <></>
-        )}
+        ) : null}
+        {this.state.interest !== undefined ? (
+          <ValueDisplay
+          label="Interest:"
+          value={this.state.interest + '% APR'}
+          valueType={ValueType.Literal}
+        />
+        ) : null}
         {component}
       </div>
     );
@@ -180,6 +199,10 @@ export default class Invest extends React.Component<Properties, State> {
     this.setState({
       fyTokens,
     });
+
+    this.setState({
+      interest: await this.computeInterest()
+    });
   }
 
   private async approve() {
@@ -192,6 +215,7 @@ export default class Invest extends React.Component<Properties, State> {
   }
 
   private async fyTokens(): Promise<BigNumber> {
+    if (this.totalToInvest().eq(0)) return BigNumber.from(0);
     const leverage = this.totalToInvest().sub(this.state.usdcToInvest);
     return (await this.poolContract.buyBasePreview(leverage))
       .mul(1000 + this.state.slippage)
@@ -200,7 +224,6 @@ export default class Invest extends React.Component<Properties, State> {
 
   private async transact() {
     const leverage = this.totalToInvest().sub(this.state.usdcToInvest);
-    // TODO: Flexible
     const maxFy = await this.fyTokens();
     console.log(
       this.state.usdcToInvest.toString(),
@@ -215,5 +238,19 @@ export default class Invest extends React.Component<Properties, State> {
       SERIES_ID
     );
     await tx.wait();
+  }
+
+  private async computeInterest(): Promise<number> {
+    if (this.series === undefined) {
+      this.series = await this.cauldronContract.series(SERIES_ID) as Series;
+    }
+    const currentTime = Date.now() / 1000;
+    const maturityTime = this.series.maturity;
+    const toBorrow = this.totalToInvest().sub(this.state.usdcToInvest);
+    const fyTokens = await this.poolContract.buyBasePreview(toBorrow);
+    const year = 356.2425 * 24 * 60 * 60;
+    const result_in_period = toBorrow.mul(1_000_000).div(fyTokens).toNumber() / 1_000_000;
+    const interest_per_year = Math.pow(result_in_period, year / (maturityTime - currentTime));
+    return Math.round(10000*(1 - interest_per_year)) / 100;
   }
 }

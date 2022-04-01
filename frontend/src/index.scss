@@ -6,8 +6,13 @@ body {
 }
 
 body {
-  background: colors.$background;
-  color: #eee;
+  background: rgb(55, 108, 91);
+  background: radial-gradient(
+    circle,
+    lighten(colors.$background, 20%) 0%,
+    colors.$background 100%
+  );
+  color: colors.$whiteish;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -17,10 +22,17 @@ body {
 
 .button {
   margin-top: metrics.$padding-large;
-  color: #eee;
+  color: colors.$whiteish;
   background-color: colors.$alt;
-  border: 1px solid colors.$alt-light;
+  border: metrics.$border-width solid colors.$border-color;
   padding: metrics.$padding;
   border-radius: metrics.$padding;
   cursor: pointer;
+  user-select: none;
+  &:active {
+    background: colors.$border-color;
+  }
+  &:hover {
+    background-color: colors.$alt-light;
+  }
 }

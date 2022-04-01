@@ -5,6 +5,7 @@ import "./ValueDisplay.scss";
 export enum ValueType {
   Usdc,
   FyUsdc,
+  Literal,
 }
 
 type Value =
@@ -17,6 +18,11 @@ type Value =
       valueType: ValueType.FyUsdc;
       value: BigNumber;
       label: string;
+    }
+  | {
+      valueType: ValueType.Literal;
+      value: string;
+      label: string;
     };
 
 export default function ValueDisplay(value: Value): JSX.Element {
@@ -25,6 +31,8 @@ export default function ValueDisplay(value: Value): JSX.Element {
     val = formatUSDC(value.value);
   } else if (value.valueType === ValueType.FyUsdc) {
     val = formatNumber(value.value, 6, 2) + " FYUSDC";
+  } else if (value.valueType === ValueType.Literal) {
+    val = value.value;
   }
   return (
     <div className="value_display">
