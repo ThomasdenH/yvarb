@@ -24,7 +24,6 @@ export async function loadVaults(
   account: string,
   provider: ethers.providers.Web3Provider
 ) {
-  console.log("call");
   const currentBlock: number = await provider.getBlockNumber();
   const vaultsBuiltFilter = cauldron.filters.VaultBuilt(null, account, null);
   const vaultsReceivedFilter = cauldron.filters.VaultGiven(null, account);
