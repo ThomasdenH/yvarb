@@ -7,17 +7,15 @@ import Invest from "./components/Invest";
 import yieldLever from "./abi/YieldLever.json";
 import poolAbi from "./abi/Pool.json";
 import cauldronAbi from "./abi/Cauldron.json";
-import {
-  Balance,
-  emptyVaults,
-  Vault,
-  Vaults,
-} from "./objects/Vault";
+import ladleAbi from "./abi/Ladle.json";
+import { emptyVaults, Vaults } from "./objects/Vault";
 import VaultComponent from "./components/Vault";
 import { Tabs } from "./components/Tabs";
 
 const YIELD_LEVER_CONTRACT_ADDRESS: string =
   "0xe4e6A1CE0B36CcF0b920b6b57Df0f922915450Ee";
+
+export const SERIES_ID: string = "0x303230360000";
 
 interface State {
   selectedAddress?: string;
@@ -38,7 +36,10 @@ export class App extends React.Component<{}, State> {
     yieldLeverContract: ethers.Contract;
     poolContract: ethers.Contract;
     cauldronContract: ethers.Contract;
+    ladleContract: ethers.Contract;
   }>;
+
+  private vaultsToMonitor: string[] = [];
 
   constructor(properties: {}) {
     super(properties);
@@ -78,29 +79,40 @@ export class App extends React.Component<{}, State> {
       return <p>Loading</p>;
     }
 
+    const {
+      cauldronContract,
+      yieldLeverContract,
+      ladleContract,
+      poolContract,
+    } = this.contracts;
+
     const vaultIds = Object.keys(this.state.vaults.vaults);
 
     const elements = [
-        <Invest
-          label='Invest'
-          usdcBalance={this.state.usdcBalance}
-          usdcContract={this.contracts.usdcContract}
-          poolContract={this.contracts.poolContract}
-          yieldLeverContract={this.contracts.yieldLeverContract}
-          account={this.state.selectedAddress}
-        />,
-        ...vaultIds.map((vaultId) => (
-          <VaultComponent
-            label={'Vault: ' + vaultId}
-            vaultId={vaultId}
-            balance={this.state.vaults.balances[vaultId]}
-            vault={this.state.vaults.vaults[vaultId]}
-          />))
+      <Invest
+        label="Invest"
+        usdcBalance={this.state.usdcBalance}
+        usdcContract={this.contracts.usdcContract}
+        poolContract={this.contracts.poolContract}
+        yieldLeverContract={this.contracts.yieldLeverContract}
+        account={this.state.selectedAddress}
+      />,
+      ...vaultIds.map((vaultId) => (
+        <VaultComponent
+          label={"Vault: " + vaultId}
+          vaultId={vaultId}
+          balance={this.state.vaults.balances[vaultId]}
+          vault={this.state.vaults.vaults[vaultId]}
+          cauldron={cauldronContract}
+          yieldLever={yieldLeverContract}
+          ladle={ladleContract}
+          pollData={() => this.pollData()}
+          pool={poolContract}
+        />
+      )),
     ];
 
-    return <Tabs>
-        {elements}
-    </Tabs>;
+    return <Tabs>{elements}</Tabs>;
   }
 
   async _connectWallet() {
@@ -184,6 +196,11 @@ export class App extends React.Component<{}, State> {
         cauldronAbi,
         this._provider
       ),
+      ladleContract: new Contract(
+        "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A",
+        ladleAbi,
+        this._provider
+      ),
     };
 
     // if (this.state.selectedAddress !== undefined)
@@ -239,11 +256,34 @@ export class App extends React.Component<{}, State> {
 
   private async pollData() {
     if (this.contracts !== undefined && this._provider !== undefined) {
-      const usdcBalance = await this.contracts.usdcContract.balanceOf(
-        this.state.selectedAddress
-      );
+      const { cauldronContract } = this.contracts;
+      const [usdcBalance, ...vaultAndBalances] = await Promise.all([
+        this.contracts.usdcContract.balanceOf(this.state.selectedAddress),
+        ...this.vaultsToMonitor.map((vaultId: string) =>
+          Promise.all([
+            cauldronContract.vaults(vaultId),
+            cauldronContract.balances(vaultId),
+          ])
+        ),
+      ]);
+      const vaults = Object.create(null);
+      const balances = Object.create(null);
+      this.vaultsToMonitor
+        .map((value, i) => [
+          value,
+          vaultAndBalances[i][0],
+          vaultAndBalances[i][1],
+        ])
+        .forEach(([vaultId, vault, balance]) => {
+          vaults[vaultId] = vault;
+          balances[vaultId] = balance;
+        });
       this.setState({
         usdcBalance,
+        vaults: {
+          vaults,
+          balances,
+        },
       });
     }
   }
@@ -253,17 +293,9 @@ export class App extends React.Component<{}, State> {
   }
 
   private async addVault(vaultId: string) {
-    if (this.contracts === undefined) throw Error();
-    const [vault, balance]: [Vault, Balance] = await Promise.all([
-      this.contracts.cauldronContract.vaults(vaultId),
-      this.contracts.cauldronContract.balances(vaultId),
-    ]);
-    this.setState({
-      vaults: {
-        vaults: { ...this.state.vaults.vaults, [vaultId]: vault },
-        balances: { ...this.state.vaults.balances, [vaultId]: balance },
-      },
-    });
+    if (!this.vaultsToMonitor.includes(vaultId))
+      this.vaultsToMonitor.push(vaultId);
+    await this.pollData();
   }
 }
 

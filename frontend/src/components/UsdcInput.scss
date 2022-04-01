@@ -1,0 +1,12 @@
+@use '../metrics.scss';
+
+.usdc_input {
+    padding: metrics.$padding;
+    border-radius: metrics.$padding;
+    border: none;
+    text-align: end;
+    background-color: #eee;
+    &.invalid {
+        border: 2px solid red;
+    }
+}

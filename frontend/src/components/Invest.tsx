@@ -1,11 +1,14 @@
 import { BigNumber, ethers, utils } from "ethers";
 import React from "react";
-import './Invest.scss';
+import { SERIES_ID } from "../App";
+import { formatUSDC } from "../utils";
+import "./Invest.scss";
+import Slippage from "./Slippage";
+import UsdcInput from "./UsdcInput";
+import ValueDisplay, { ValueType } from "./ValueDisplay";
 
 const UNITS_USDC: number = 6;
 const UNITS_LEVERAGE: number = 2;
-
-const SERIES_ID: string = "0x303230360000";
 
 interface Properties {
   usdcBalance: BigNumber;
@@ -13,7 +16,7 @@ interface Properties {
   account: string;
   yieldLeverContract: ethers.Contract;
   poolContract: ethers.Contract;
-  label: string
+  label: string;
 }
 
 enum ApprovalState {
@@ -27,6 +30,8 @@ interface State {
   usdcToInvest: BigNumber;
   leverage: BigNumber;
   approvalState: ApprovalState;
+  fyTokens?: BigNumber;
+  slippage: number;
 }
 
 export default class Invest extends React.Component<Properties, State> {
@@ -46,6 +51,7 @@ export default class Invest extends React.Component<Properties, State> {
       usdcToInvest: props.usdcBalance,
       leverage: BigNumber.from(300),
       approvalState: ApprovalState.Loading,
+      slippage: 1,
     };
   }
 
@@ -57,8 +63,12 @@ export default class Invest extends React.Component<Properties, State> {
         break;
       case ApprovalState.ApprovalRequired:
         component = (
-          <input 
-          className="button" type="button" value="Approve" onClick={() => this.approve()} />
+          <input
+            className="button"
+            type="button"
+            value="Approve"
+            onClick={() => this.approve()}
+          />
         );
         break;
       case ApprovalState.Transactable:
@@ -74,47 +84,66 @@ export default class Invest extends React.Component<Properties, State> {
     }
 
     return (
-      <div className='invest'>
-        <p>Balance: {utils.formatUnits(this.state.usdcBalance, UNITS_USDC)} USDC</p>
-        <label htmlFor='invest_amount'>Amount to invest:</label>
-        <input
-          name='invest_amount'
-          type="number"
-          min="0"
-          max={this.state.usdcBalance.toNumber()}
-          value={utils.formatUnits(this.state.usdcToInvest, UNITS_USDC)}
-          onChange={(el) => this.onUsdcInputChange(el.target.value)}
+      <div className="invest">
+        <ValueDisplay
+          label="Balance:"
+          valueType={ValueType.Usdc}
+          value={this.state.usdcBalance}
         />
-        <label htmlFor='leverage'>Leverage: ({utils.formatUnits(this.state.leverage, 2)}×)</label>
+        <label htmlFor="invest_amount">Amount to invest:</label>
+        <UsdcInput
+        max={this.state.usdcBalance}
+        defaultValue={this.state.usdcBalance}
+        onValueChange={(v) => this.onUsdcInputChange(v)}
+        />
+        <label htmlFor="leverage">
+          Leverage: ({utils.formatUnits(this.state.leverage, 2)}×)
+        </label>
         <input
-          name='leverage'
+          name="leverage"
           type="range"
-          min="0"
+          min="1.01"
           max="10"
           step="0.01"
           value={utils.formatUnits(this.state.leverage, 2)}
           onChange={(el) => this.onLeverageChange(el.target.value)}
         />
+        <Slippage
+          value={this.state.slippage}
+          onChange={(val: number) => this.onSlippageChange(val)}
+        />
+        <ValueDisplay
+          label="Total collateral:"
+          valueType={ValueType.Usdc}
+          value={this.totalToInvest()}
+        />
+        {this.state.fyTokens !== undefined ? (
+          <ValueDisplay
+            label="To borrow:"
+            valueType={ValueType.FyUsdc}
+            value={this.state.fyTokens}
+          />
+        ) : (
+          <></>
+        )}
         {component}
       </div>
     );
   }
 
-  private onUsdcInputChange(val: string) {
-    if (val === "") {
-      this.setState({
-        usdcToInvest: BigNumber.from(0),
-        approvalState: ApprovalState.Loading,
-      });
-    } else {
-      const usdcToInvest = utils.parseUnits(val, UNITS_USDC);
-      this.setState({ usdcToInvest, approvalState: ApprovalState.Loading });
-    }
+  private async onSlippageChange(slippage: number) {
+    this.setState({ slippage });
+    await this.checkApprovalState();
+  }
+
+  private onUsdcInputChange(usdcToInvest: BigNumber) {
+    this.setState({ usdcToInvest, approvalState: ApprovalState.Loading });
     this.checkApprovalState();
   }
 
-  private onLeverageChange(leverage: string) {
+  private async onLeverageChange(leverage: string) {
     this.setState({ leverage: utils.parseUnits(leverage, UNITS_LEVERAGE) });
+    await this.checkApprovalState();
   }
 
   public componentDidMount() {
@@ -145,6 +174,12 @@ export default class Invest extends React.Component<Properties, State> {
     } else {
       this.setState({ approvalState: ApprovalState.ApprovalRequired });
     }
+
+    // Compute the amount of Fytokens
+    const fyTokens = await this.fyTokens();
+    this.setState({
+      fyTokens,
+    });
   }
 
   private async approve() {
@@ -156,20 +191,27 @@ export default class Invest extends React.Component<Properties, State> {
     await this.checkApprovalState();
   }
 
+  private async fyTokens(): Promise<BigNumber> {
+    const leverage = this.totalToInvest().sub(this.state.usdcToInvest);
+    return (await this.poolContract.buyBasePreview(leverage))
+      .mul(1000 + this.state.slippage)
+      .div(1000);
+  }
+
   private async transact() {
     const leverage = this.totalToInvest().sub(this.state.usdcToInvest);
     // TODO: Flexible
-    const maxYv = (await this.poolContract.buyBasePreview(leverage)).mul(2);
+    const maxFy = await this.fyTokens();
     console.log(
       this.state.usdcToInvest.toString(),
       leverage.toString(),
-      maxYv.toString(),
+      maxFy.toString(),
       SERIES_ID
     );
     const tx = await this.yieldLeverContract.invest(
       this.state.usdcToInvest,
       leverage,
-      maxYv,
+      maxFy,
       SERIES_ID
     );
     await tx.wait();

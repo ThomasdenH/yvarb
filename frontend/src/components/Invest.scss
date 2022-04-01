@@ -1,10 +1,11 @@
-@use '../metrics.scss';
+@use "../metrics.scss";
 
 .invest {
-    display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
+  gap: metrics.$padding;
 }
 
 label {
-    margin-top: metrics.$padding;
+  margin-top: metrics.$padding;
 }

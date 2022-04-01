@@ -1,5 +1,5 @@
 import React from "react";
-import './Tabs.scss';
+import "./Tabs.scss";
 
 interface State {
   selectedTab: number;
@@ -25,7 +25,7 @@ export class Tabs extends React.Component<Props, State> {
     const tabNames = this.props.children.map((child) => child.props.label);
     return (
       <div>
-        <div className='tabs'>
+        <div className="tabs">
           {tabNames.map((value, index) => (
             <p
               key={value}
@@ -38,7 +38,9 @@ export class Tabs extends React.Component<Props, State> {
             </p>
           ))}
         </div>
-        <div className='tabcontainer'>{this.props.children[this.state.selectedTab]}</div>
+        <div className="tabcontainer">
+          {this.props.children[this.state.selectedTab]}
+        </div>
       </div>
     );
   }

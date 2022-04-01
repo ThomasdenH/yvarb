@@ -1,37 +1,37 @@
-@use '../colors.scss';
-@use '../metrics.scss';
+@use "../colors.scss";
+@use "../metrics.scss";
 
 $border-color: darken(colors.$alt, 10%);
 
 .tabs {
-    display: flex;
+  display: flex;
 }
 
 .tab {
-    padding: metrics.$padding;
-    background-color: colors.$alt;
-    border: 2px solid $border-color;
-    cursor: pointer;
-    margin: 0;
+  padding: metrics.$padding;
+  background-color: colors.$alt;
+  border: 2px solid $border-color;
+  cursor: pointer;
+  margin: 0;
 
-    &:first-child {
-        border-top-left-radius: metrics.$padding;
-    }
-    &:last-child {
-        border-top-right-radius: metrics.$padding;
-    }
+  &:first-child {
+    border-top-left-radius: metrics.$padding;
+  }
+  &:last-child {
+    border-top-right-radius: metrics.$padding;
+  }
 }
 
 .tab.selected {
-    background-color: colors.$alt-light;
+  background-color: colors.$alt-light;
 }
 
 .tabcontainer {
-    background: colors.$main;
-    border: 1px solid colors.$main-border;
-    border-radius: metrics.$padding;
-    padding: metrics.$padding-large;
-    box-shadow: colors.$shadow;
-    min-width: 400px;
-    min-height: 240px;
+  background: colors.$main;
+  border: 1px solid colors.$main-border;
+  border-radius: metrics.$padding;
+  padding: metrics.$padding-large;
+  box-shadow: colors.$shadow;
+  min-width: 400px;
+  min-height: 240px;
 }

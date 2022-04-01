@@ -1,24 +1,26 @@
-@use './colors.scss';
-@use './metrics.scss';
-
-body { min-height: 100vh; }
+@use "./colors.scss";
+@use "./metrics.scss";
 
 body {
-    background: colors.$background;
-    color: #eee;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    margin: 0;
+  min-height: 100vh;
+}
+
+body {
+  background: colors.$background;
+  color: #eee;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
 }
 
 .button {
-    margin-top: metrics.$padding-large;
-    color: #eee;
-    background-color: colors.$alt;
-    border: 1px solid colors.$alt-light;
-    padding: metrics.$padding;
-    border-radius: metrics.$padding;
-    cursor: pointer;
+  margin-top: metrics.$padding-large;
+  color: #eee;
+  background-color: colors.$alt;
+  border: 1px solid colors.$alt-light;
+  padding: metrics.$padding;
+  border-radius: metrics.$padding;
+  cursor: pointer;
 }
