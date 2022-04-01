@@ -100,6 +100,11 @@ contract YieldLever {
   address constant yvUSDCJoin = address(0x403ae7384E89b086Ea2935d5fAFed07465242B38);
   Cauldron constant cauldron = Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
 
+  /// @dev YieldLever is not expected to hold any USDC
+  constructor() {
+    usdc.approve(address(yvUSDC), type(uint256).max);
+  }
+
   /// @notice Invest `baseAmount` and borrow an additional `borrowAmount`.
   ///   Use this to obtain a maximum of `maxFyAmount` to repay the flash loan.
   ///   The end goal is to have a debt of `borrowAmount`, but earn interest on
@@ -118,13 +123,14 @@ contract YieldLever {
     uint128 maxFyAmount,
     bytes6 seriesId
   ) external {
-    // Take USDC from the msg sender
+    // Take USDC from the msg sender. We know USDC reverts on failure.
+    // In future iterations, YieldLever can integrate with the Ladle by using
+    // USDC it received previously in the same transaction, if available.
     usdc.transferFrom(msg.sender, address(this), baseAmount);
     // Build a Yield Vault
     (bytes12 vaultId, ) = ladle.build(seriesId, ilkId, 0);
 
     uint256 investAmount = baseAmount + borrowAmount;
-    usdc.approve(address(yvUSDC), investAmount);
 
     // Flash borrow USDC
     iUSDC.flashBorrow(
@@ -150,6 +156,8 @@ contract YieldLever {
   /// @param borrowAmount - The amount borrowed using a flash loan.
   /// @param maxFyAmount - The maximum amount of fyTokens to sell.
   /// @param vaultId - The vault id to invest in.
+  /// @dev Calling this function outside a flash loan achieves nothing,
+  ///   since the contract needs to have assets and own the vault it's borrowing from.
   function doInvest(
     uint256 investAmount,
     uint128 borrowAmount,
@@ -222,6 +230,8 @@ contract YieldLever {
   ///   used to obtain certain parameters, and it is also the destination for
   ///   the profit that was obtained.
   /// @param vaultId - The vault id to repay.
+  /// @dev Calling this function outside a flash loan achieves nothing, since
+  ///   the contract needs to own the vault it's getting collateral from.
   function doRepay(address owner, bytes12 vaultId, uint256 borrowAmount, uint128 ink) external {
     // Repay Yield vault debt
     ladle.repayVault(vaultId, address(this), -int128(ink), uint128(borrowAmount));
@@ -240,6 +250,8 @@ contract YieldLever {
   ///   the profit that was obtained.
   /// @param vaultId - The vault id to repay.
   /// @param base - The size of the debt in USDC.
+  /// @dev Calling this function outside a flash loan achieves nothing, since
+  ///   the contract needs to own the vault it's getting collateral from.
   function doClose(address owner, bytes12 vaultId, uint128 base, uint128 ink, uint128 art) external {
     // Close the vault
     ladle.close(vaultId, address(this), -int128(ink), -int128(art));
