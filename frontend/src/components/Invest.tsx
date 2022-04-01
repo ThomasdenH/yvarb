@@ -27,10 +27,7 @@ interface State {
     approvalState: ApprovalState
 }
 
-export default class Invest extends React.Component<Properties> {
-
-    state: State;
-
+export default class Invest extends React.Component<Properties, State> {
     private readonly usdcContract: ethers.Contract;
     private readonly yieldLeverContract: ethers.Contract;
     private readonly poolContract: ethers.Contract;
@@ -93,7 +90,7 @@ export default class Invest extends React.Component<Properties> {
 
     private onUsdcInputChange(val: string) {
         if (val === "") {
-            this.setState({ usdcToInvest: 0, approvalState: ApprovalState.Loading });
+            this.setState({ usdcToInvest: BigNumber.from(0), approvalState: ApprovalState.Loading });
         } else {
             const usdcToInvest = utils.parseUnits(val, UNITS_USDC);
             this.setState({usdcToInvest, approvalState: ApprovalState.Loading });
@@ -119,8 +116,8 @@ export default class Invest extends React.Component<Properties> {
     
     private async checkApprovalState() {
         const allowance: BigNumber = await this.usdcContract.allowance(this.account, this.yieldLeverContract.address);
-        console.log('Allowance: ' + allowance);
-        if (allowance >= this.totalToInvest()) {
+        console.log('Allowance: ' + utils.formatUnits(allowance, UNITS_USDC) + '. To spend: ' + utils.formatUnits(this.state.usdcToInvest, UNITS_USDC));
+        if (allowance.gte(this.state.usdcToInvest)) {
             this.setState({ approvalState: ApprovalState.Transactable });
         } else {
             this.setState({ approvalState: ApprovalState.ApprovalRequired });

@@ -1,11 +1,14 @@
 import React from 'react';
 import './App.css';
-import { BigNumber, Contract, ethers } from  'ethers';
+import { BigNumber, Contract, ethers, EventFilter } from  'ethers';
 import { ConnectWallet } from './components/ConnectWallet';
 import erc20Abi from './abi/ERC20.json';
 import Invest from './components/Invest';
 import yieldLever from './abi/YieldLever.json';
 import poolAbi from './abi/Pool.json';
+import cauldronAbi from './abi/Cauldron.json';
+import { Balance, emptyVaults, loadVaults, Vault, Vaults } from './objects/Vault';
+import VaultComponent from './components/Vault';
 
 const YIELD_LEVER_CONTRACT_ADDRESS: string = '0xe4e6A1CE0B36CcF0b920b6b57Df0f922915450Ee';
 
@@ -13,10 +16,10 @@ interface State {
   selectedAddress?: string,
   networkError?: string,
   usdcBalance?: BigNumber,
+  vaults: Vaults
 }
 
-export class App extends React.Component {
-  public state: State;
+export class App extends React.Component<{}, State> {
   private readonly initialState: State;
 
   private _provider?: ethers.providers.Web3Provider;
@@ -27,13 +30,15 @@ export class App extends React.Component {
     usdcContract: ethers.Contract;
     yieldLeverContract: ethers.Contract;
     poolContract: ethers.Contract;
+    cauldronContract: ethers.Contract;
   }>;
 
   constructor(properties: {}) {
     super(properties);
     this.initialState = {
       selectedAddress: undefined,
-      usdcBalance: undefined
+      usdcBalance: undefined,
+      vaults: emptyVaults()
     };
     this.state = this.initialState;
   }
@@ -68,13 +73,21 @@ export class App extends React.Component {
         );
       }
 
-      return <Invest
+      const vaultIds = Object.keys(this.state.vaults.vaults);
+
+      return [<Invest
         usdcBalance={this.state.usdcBalance}
         usdcContract={this.contracts.usdcContract}
         poolContract={this.contracts.poolContract}
         yieldLeverContract={this.contracts.yieldLeverContract}
         account={this.state.selectedAddress}
-      />;
+      />,
+      vaultIds.map(vaultId => <VaultComponent 
+        vaultId={vaultId}
+        balance={this.state.vaults.balances[vaultId]}
+        vault={this.state.vaults.vaults[vaultId]}
+      />)
+      ];
   }
 
   async _connectWallet() {
@@ -138,8 +151,18 @@ export class App extends React.Component {
     this.contracts = {
       usdcContract: new Contract('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', erc20Abi, this._provider.getSigner(0)),
       yieldLeverContract: new Contract(YIELD_LEVER_CONTRACT_ADDRESS, yieldLever.abi, this._provider.getSigner(0)),
-      poolContract: new Contract('0xEf82611C6120185D3BF6e020D1993B49471E7da0', poolAbi, this._provider.getSigner(0))
+      poolContract: new Contract('0xEf82611C6120185D3BF6e020D1993B49471E7da0', poolAbi, this._provider.getSigner(0)),
+      cauldronContract: new Contract('0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867', cauldronAbi, this._provider)
     };
+
+    // if (this.state.selectedAddress !== undefined)
+    //    loadVaults(this.contracts.cauldronContract, this.state.selectedAddress, this._provider);
+
+    const vaultsBuiltFilter = this.contracts.cauldronContract.filters.VaultBuilt(null, this.state.selectedAddress, null);
+    const vaultsReceivedFilter = this.contracts.cauldronContract.filters.VaultGiven(null, this.state.selectedAddress);
+    this.contracts.cauldronContract.on(vaultsBuiltFilter, (vaultId: string) => this.addVault(vaultId));
+    this.contracts.cauldronContract.on(vaultsReceivedFilter, (vaultId: string) => this.addVault(vaultId));
+
     await this._startPollingData();
   }
 
@@ -171,9 +194,8 @@ export class App extends React.Component {
     this.pollId = setInterval(() => this.pollData(), 1000) as any;
   }
 
-
   private async pollData() {
-    if (this.contracts !== undefined) {
+    if (this.contracts !== undefined && this._provider !== undefined) {
       const usdcBalance = await this.contracts.usdcContract.balanceOf(this.state.selectedAddress);
       this.setState({
         usdcBalance
@@ -183,6 +205,21 @@ export class App extends React.Component {
 
   private _stopPollingData() {
     clearInterval(this.pollId);
+  }
+
+  private async addVault(vaultId: string) {
+    if (this.contracts === undefined)
+       throw Error();
+    const [vault, balance]: [Vault, Balance] = await Promise.all([
+      this.contracts.cauldronContract.vaults(vaultId),
+      this.contracts.cauldronContract.balances(vaultId)
+    ]);
+    this.setState({
+      vaults: {
+        vaults: { ...this.state.vaults.vaults, [vaultId]: vault },
+        balances: { ...this.state.vaults.balances, [vaultId]: balance }
+      }
+    });
   }
 }
 
