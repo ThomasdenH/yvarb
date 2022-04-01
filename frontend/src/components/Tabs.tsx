@@ -1,26 +1,49 @@
 import React from "react";
+import './Tabs.scss';
 
 interface State {
-    tabs: string[],
-    selected: number
+  selectedTab: number;
 }
 
-export class Tabs extends React.Component<State, State> {
-    constructor(props: State) {
-        super(props);
-        this.state = { ...props };
-    }
+interface TabComponent extends React.ReactElement {
+  props: { label: string };
+}
 
-    render(): React.ReactNode {
-        return <div>
-            {this.state.tabs.map((value, index) => {
-                <p
-                className={
-                    index === this.state.selected ?
-                        'tab selected' :
-                        'tab'
-                }>{value}</p>
-            })}
+interface Props {
+  children: TabComponent[];
+}
+
+export class Tabs extends React.Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      selectedTab: 0,
+    };
+  }
+
+  render(): React.ReactNode {
+    const tabNames = this.props.children.map((child) => child.props.label);
+    return (
+      <div>
+        <div className='tabs'>
+          {tabNames.map((value, index) => (
+            <p
+              key={value}
+              className={
+                index === this.state.selectedTab ? "tab selected" : "tab"
+              }
+              onClick={() => this.onClick(index)}
+            >
+              {value}
+            </p>
+          ))}
         </div>
-    }
+        <div className='tabcontainer'>{this.props.children[this.state.selectedTab]}</div>
+      </div>
+    );
+  }
+
+  private onClick(selectedTab: number) {
+    this.setState({ selectedTab });
+  }
 }

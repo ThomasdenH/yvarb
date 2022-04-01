@@ -1,0 +1,10 @@
+@use '../metrics.scss';
+
+.invest {
+    display: flex;
+    flex-direction: column;
+}
+
+label {
+    margin-top: metrics.$padding;
+}

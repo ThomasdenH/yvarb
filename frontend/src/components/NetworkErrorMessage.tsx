@@ -1,6 +1,12 @@
 import React from "react";
 
-export function NetworkErrorMessage({ message, dismiss }: {message: string, dismiss(): void}): JSX.Element {
+export function NetworkErrorMessage({
+  message,
+  dismiss,
+}: {
+  message: string;
+  dismiss(): void;
+}): JSX.Element {
   return (
     <div className="alert alert-danger" role="alert">
       {message}
