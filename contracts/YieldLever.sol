@@ -100,6 +100,8 @@ contract YieldLever {
   address constant yvUSDCJoin = address(0x403ae7384E89b086Ea2935d5fAFed07465242B38);
   Cauldron constant cauldron = Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
 
+  bytes6 constant usdcId = bytes6(bytes32("02"));
+
   /// @dev YieldLever is not expected to hold any USDC
   constructor() {
     usdc.approve(address(yvUSDC), type(uint256).max);
@@ -123,6 +125,9 @@ contract YieldLever {
     uint128 maxFyAmount,
     bytes6 seriesId
   ) external {
+    // Check that it is a USDC series.
+    require(cauldron.series(seriesId).baseId == usdcId);
+
     // Take USDC from the msg sender. We know USDC reverts on failure.
     // In future iterations, YieldLever can integrate with the Ladle by using
     // USDC it received previously in the same transaction, if available.
