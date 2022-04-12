@@ -14,6 +14,10 @@ import { Tabs } from "./components/Tabs";
 
 const YIELD_LEVER_CONTRACT_ADDRESS: string =
   "0xe4e6A1CE0B36CcF0b920b6b57Df0f922915450Ee";
+const USDC_ADDRESS: string = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+const POOL_CONTRACT: string = "0xEf82611C6120185D3BF6e020D1993B49471E7da0";
+const CAULDRON_CONTRACT: string = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
+const LADLE_CONTRACT: string = "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A";
 
 export const SERIES_ID: string = "0x303230360000";
 
@@ -180,7 +184,7 @@ export class App extends React.Component<{}, State> {
     this._provider = new ethers.providers.Web3Provider(window.ethereum);
     this.contracts = {
       usdcContract: new Contract(
-        "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        USDC_ADDRESS,
         erc20Abi,
         this._provider.getSigner(0)
       ),
@@ -190,20 +194,16 @@ export class App extends React.Component<{}, State> {
         this._provider.getSigner(0)
       ),
       poolContract: new Contract(
-        "0xEf82611C6120185D3BF6e020D1993B49471E7da0",
+        POOL_CONTRACT,
         poolAbi,
         this._provider.getSigner(0)
       ),
       cauldronContract: new Contract(
-        "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867",
+        CAULDRON_CONTRACT,
         cauldronAbi,
         this._provider
       ),
-      ladleContract: new Contract(
-        "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A",
-        ladleAbi,
-        this._provider
-      ),
+      ladleContract: new Contract(LADLE_CONTRACT, ladleAbi, this._provider),
     };
 
     // if (this.state.selectedAddress !== undefined)
@@ -282,7 +282,7 @@ export class App extends React.Component<{}, State> {
         vaults: {
           vaults,
           balances,
-        }
+        },
       });
     }
   }

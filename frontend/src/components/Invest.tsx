@@ -140,10 +140,10 @@ export default class Invest extends React.Component<Properties, State> {
         ) : null}
         {this.state.interest !== undefined ? (
           <ValueDisplay
-          label="Interest:"
-          value={this.state.interest + '% APR'}
-          valueType={ValueType.Literal}
-        />
+            label="Interest:"
+            value={this.state.interest + "% APR"}
+            valueType={ValueType.Literal}
+          />
         ) : null}
         {component}
       </div>
@@ -201,7 +201,7 @@ export default class Invest extends React.Component<Properties, State> {
     });
 
     this.setState({
-      interest: await this.computeInterest()
+      interest: await this.computeInterest(),
     });
   }
 
@@ -242,15 +242,19 @@ export default class Invest extends React.Component<Properties, State> {
 
   private async computeInterest(): Promise<number> {
     if (this.series === undefined) {
-      this.series = await this.cauldronContract.series(SERIES_ID) as Series;
+      this.series = (await this.cauldronContract.series(SERIES_ID)) as Series;
     }
     const currentTime = Date.now() / 1000;
     const maturityTime = this.series.maturity;
     const toBorrow = this.totalToInvest().sub(this.state.usdcToInvest);
     const fyTokens = await this.poolContract.buyBasePreview(toBorrow);
     const year = 356.2425 * 24 * 60 * 60;
-    const result_in_period = toBorrow.mul(1_000_000).div(fyTokens).toNumber() / 1_000_000;
-    const interest_per_year = Math.pow(result_in_period, year / (maturityTime - currentTime));
-    return Math.round(10000*(1 - interest_per_year)) / 100;
+    const result_in_period =
+      toBorrow.mul(1_000_000).div(fyTokens).toNumber() / 1_000_000;
+    const interest_per_year = Math.pow(
+      result_in_period,
+      year / (maturityTime - currentTime)
+    );
+    return Math.round(10000 * (1 - interest_per_year)) / 100;
   }
 }
