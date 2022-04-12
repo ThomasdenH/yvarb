@@ -1,4 +1,4 @@
-import { BigNumber, BigNumberish, Contract, utils } from "ethers";
+import { BigNumber, Contract, utils } from "ethers";
 import React from "react";
 import { SERIES_ID } from "../App";
 import { Balance, Vault as VaultI } from "../objects/Vault";

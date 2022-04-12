@@ -20,6 +20,7 @@ const CAULDRON_CONTRACT: string = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
 const LADLE_CONTRACT: string = "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A";
 
 export const SERIES_ID: string = "0x303230360000";
+export const ILK_ID: string = '0x303900000000';
 
 interface State {
   selectedAddress?: string;

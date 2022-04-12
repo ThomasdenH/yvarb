@@ -64,7 +64,7 @@ module.exports = async function () {
         const params = { from: TimeLock.options.address };
         const gas = await grantRole.estimateGas(params);
         await grantRole.send({...params, gas: 2 * gas});
-        console.log('Ganted the contract permission to give Vaults.')
+        console.log('Ganted the contract (' + yieldLever.address + ') permission to give Vaults.')
     }
 
     await buyUsdc(25000000000);
