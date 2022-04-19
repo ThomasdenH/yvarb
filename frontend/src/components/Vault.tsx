@@ -84,10 +84,14 @@ export default class Vault extends React.Component<Properties, State> {
   }
 
   private async computeToBorrow(): Promise<BigNumber> {
-    const balance = await this.props.contracts.cauldronContract.balances(this.props.vaultId);
+    const balance = await this.props.contracts.cauldronContract.balances(
+      this.props.vaultId
+    );
     if (balance.art.eq(0)) return BigNumber.from(0);
     try {
-      return (await this.props.contracts.poolContract.buyFYTokenPreview(balance.art))
+      return (
+        await this.props.contracts.poolContract.buyFYTokenPreview(balance.art)
+      )
         .mul(1000 + this.state.slippage)
         .div(1000);
     } catch (e) {

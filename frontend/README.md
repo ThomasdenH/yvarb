@@ -15,5 +15,10 @@ npx truffle exec .\scripts\prepare.js
 
 # Start server
 cd ./frontend
+
+# Move new contract ABI, including deployed contract address, and generate typings.
+npm run prepare
+
+# Start the app
 npm start
 ```

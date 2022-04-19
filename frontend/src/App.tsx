@@ -4,7 +4,6 @@ import { BigNumber, ethers } from "ethers";
 import { ConnectWallet } from "./components/ConnectWallet";
 import erc20Abi from "./abi/ERC20.json";
 import Invest from "./components/Invest";
-import yieldLever from "./abi/YieldLever.json";
 import poolAbi from "./abi/Pool.json";
 import cauldronAbi from "./abi/Cauldron.json";
 import ladleAbi from "./abi/Ladle.json";
@@ -16,16 +15,16 @@ import { ContractContext as YieldLever } from "./abi/YieldLever";
 import { ContractContext as Pool } from "./abi/Pool";
 import { ContractContext as Cauldron } from "./abi/Cauldron";
 import { ContractContext as Ladle } from "./abi/Ladle";
+import yieldLeverAbi from "./abi/YieldLever.json";
 
-const YIELD_LEVER_CONTRACT_ADDRESS: string =
-  "0xe4e6A1CE0B36CcF0b920b6b57Df0f922915450Ee";
+const YIELD_LEVER_CONTRACT_ADDRESS: string = yieldLeverAbi.networks[1].address;
 const USDC_ADDRESS: string = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const POOL_CONTRACT: string = "0xEf82611C6120185D3BF6e020D1993B49471E7da0";
 const CAULDRON_CONTRACT: string = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
 const LADLE_CONTRACT: string = "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A";
 
 export const SERIES_ID: string = "0x303230360000";
-export const ILK_ID: string = '0x303900000000';
+export const ILK_ID: string = "0x303900000000";
 
 interface State {
   selectedAddress?: string;
@@ -187,7 +186,7 @@ export class App extends React.Component<{}, State> {
       ) as any,
       yieldLeverContract: new ethers.Contract(
         YIELD_LEVER_CONTRACT_ADDRESS,
-        yieldLever.abi,
+        yieldLeverAbi.abi,
         this._provider.getSigner(0)
       ) as any,
       poolContract: new ethers.Contract(
@@ -200,7 +199,11 @@ export class App extends React.Component<{}, State> {
         cauldronAbi,
         this._provider
       ) as any,
-      ladleContract: new ethers.Contract(LADLE_CONTRACT, ladleAbi, this._provider) as any,
+      ladleContract: new ethers.Contract(
+        LADLE_CONTRACT,
+        ladleAbi,
+        this._provider
+      ) as any,
     };
 
     // if (this.state.selectedAddress !== undefined)
@@ -255,7 +258,11 @@ export class App extends React.Component<{}, State> {
   }
 
   private async pollData() {
-    if (this.contracts !== undefined && this._provider !== undefined && this.state.selectedAddress !== undefined) {
+    if (
+      this.contracts !== undefined &&
+      this._provider !== undefined &&
+      this.state.selectedAddress !== undefined
+    ) {
       const { cauldronContract } = this.contracts;
       const [usdcBalance, ...vaultAndBalances] = await Promise.all([
         this.contracts.usdcContract.balanceOf(this.state.selectedAddress),

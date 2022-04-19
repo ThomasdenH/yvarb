@@ -4,8 +4,8 @@ import {
   BytesLike as Arrayish,
   BigNumber,
   BigNumberish,
-} from 'ethers';
-import { EthersContractContextV5 } from 'ethereum-abi-types-generator';
+} from "ethers";
+import { EthersContractContextV5 } from "ethereum-abi-types-generator";
 
 export type ContractContext = EthersContractContextV5<
   Ladle,
@@ -55,15 +55,15 @@ export interface ContractCallOverrides {
   gasLimit?: number;
 }
 export type LadleEvents =
-  | 'FeeSet'
-  | 'IntegrationAdded'
-  | 'JoinAdded'
-  | 'ModuleAdded'
-  | 'PoolAdded'
-  | 'RoleAdminChanged'
-  | 'RoleGranted'
-  | 'RoleRevoked'
-  | 'TokenAdded';
+  | "FeeSet"
+  | "IntegrationAdded"
+  | "JoinAdded"
+  | "ModuleAdded"
+  | "PoolAdded"
+  | "RoleAdminChanged"
+  | "RoleGranted"
+  | "RoleRevoked"
+  | "TokenAdded";
 export interface LadleEventsContext {
   FeeSet(...parameters: any): EventFilter;
   IntegrationAdded(...parameters: any): EventFilter;
@@ -76,58 +76,58 @@ export interface LadleEventsContext {
   TokenAdded(...parameters: any): EventFilter;
 }
 export type LadleMethodNames =
-  | 'new'
-  | 'LOCK'
-  | 'LOCK8605463013'
-  | 'ROOT'
-  | 'ROOT4146650865'
-  | 'addIntegration'
-  | 'addJoin'
-  | 'addModule'
-  | 'addPool'
-  | 'addToken'
-  | 'batch'
-  | 'borrowingFee'
-  | 'build'
-  | 'cauldron'
-  | 'close'
-  | 'closeFromLadle'
-  | 'destroy'
-  | 'exitEther'
-  | 'forwardDaiPermit'
-  | 'forwardPermit'
-  | 'getRoleAdmin'
-  | 'give'
-  | 'grantRole'
-  | 'grantRoles'
-  | 'hasRole'
-  | 'integrations'
-  | 'joinEther'
-  | 'joins'
-  | 'lockRole'
-  | 'moduleCall'
-  | 'modules'
-  | 'pools'
-  | 'pour'
-  | 'redeem'
-  | 'renounceRole'
-  | 'repay'
-  | 'repayFromLadle'
-  | 'repayVault'
-  | 'retrieve'
-  | 'revokeRole'
-  | 'revokeRoles'
-  | 'roll'
-  | 'route'
-  | 'router'
-  | 'serve'
-  | 'setFee'
-  | 'setRoleAdmin'
-  | 'stir'
-  | 'tokens'
-  | 'transfer'
-  | 'tweak'
-  | 'weth';
+  | "new"
+  | "LOCK"
+  | "LOCK8605463013"
+  | "ROOT"
+  | "ROOT4146650865"
+  | "addIntegration"
+  | "addJoin"
+  | "addModule"
+  | "addPool"
+  | "addToken"
+  | "batch"
+  | "borrowingFee"
+  | "build"
+  | "cauldron"
+  | "close"
+  | "closeFromLadle"
+  | "destroy"
+  | "exitEther"
+  | "forwardDaiPermit"
+  | "forwardPermit"
+  | "getRoleAdmin"
+  | "give"
+  | "grantRole"
+  | "grantRoles"
+  | "hasRole"
+  | "integrations"
+  | "joinEther"
+  | "joins"
+  | "lockRole"
+  | "moduleCall"
+  | "modules"
+  | "pools"
+  | "pour"
+  | "redeem"
+  | "renounceRole"
+  | "repay"
+  | "repayFromLadle"
+  | "repayVault"
+  | "retrieve"
+  | "revokeRole"
+  | "revokeRoles"
+  | "roll"
+  | "route"
+  | "router"
+  | "serve"
+  | "setFee"
+  | "setRoleAdmin"
+  | "stir"
+  | "tokens"
+  | "transfer"
+  | "tweak"
+  | "weth";
 export interface FeeSetEventEmittedResponse {
   fee: BigNumberish;
 }
@@ -182,7 +182,7 @@ export interface Ladle {
    * @param cauldron Type: address, Indexed: false
    * @param weth Type: address, Indexed: false
    */
-  'new'(
+  "new"(
     cauldron: string,
     weth: string,
     overrides?: ContractTransactionOverrides

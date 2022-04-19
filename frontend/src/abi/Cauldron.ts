@@ -4,8 +4,8 @@ import {
   BytesLike as Arrayish,
   BigNumber,
   BigNumberish,
-} from 'ethers';
-import { EthersContractContextV5 } from 'ethereum-abi-types-generator';
+} from "ethers";
+import { EthersContractContextV5 } from "ethereum-abi-types-generator";
 
 export type ContractContext = EthersContractContextV5<
   Cauldron,
@@ -55,23 +55,23 @@ export interface ContractCallOverrides {
   gasLimit?: number;
 }
 export type CauldronEvents =
-  | 'AssetAdded'
-  | 'DebtLimitsSet'
-  | 'IlkAdded'
-  | 'RateOracleAdded'
-  | 'RoleAdminChanged'
-  | 'RoleGranted'
-  | 'RoleRevoked'
-  | 'SeriesAdded'
-  | 'SeriesMatured'
-  | 'SpotOracleAdded'
-  | 'VaultBuilt'
-  | 'VaultDestroyed'
-  | 'VaultGiven'
-  | 'VaultPoured'
-  | 'VaultRolled'
-  | 'VaultStirred'
-  | 'VaultTweaked';
+  | "AssetAdded"
+  | "DebtLimitsSet"
+  | "IlkAdded"
+  | "RateOracleAdded"
+  | "RoleAdminChanged"
+  | "RoleGranted"
+  | "RoleRevoked"
+  | "SeriesAdded"
+  | "SeriesMatured"
+  | "SpotOracleAdded"
+  | "VaultBuilt"
+  | "VaultDestroyed"
+  | "VaultGiven"
+  | "VaultPoured"
+  | "VaultRolled"
+  | "VaultStirred"
+  | "VaultTweaked";
 export interface CauldronEventsContext {
   AssetAdded(...parameters: any): EventFilter;
   DebtLimitsSet(...parameters: any): EventFilter;
@@ -92,47 +92,47 @@ export interface CauldronEventsContext {
   VaultTweaked(...parameters: any): EventFilter;
 }
 export type CauldronMethodNames =
-  | 'LOCK'
-  | 'LOCK8605463013'
-  | 'ROOT'
-  | 'ROOT4146650865'
-  | 'accrual'
-  | 'addAsset'
-  | 'addIlks'
-  | 'addSeries'
-  | 'assets'
-  | 'balances'
-  | 'build'
-  | 'debt'
-  | 'debtFromBase'
-  | 'debtToBase'
-  | 'destroy'
-  | 'getRoleAdmin'
-  | 'give'
-  | 'grantRole'
-  | 'grantRoles'
-  | 'hasRole'
-  | 'ilks'
-  | 'lendingOracles'
-  | 'level'
-  | 'lockRole'
-  | 'mature'
-  | 'pour'
-  | 'ratesAtMaturity'
-  | 'renounceRole'
-  | 'revokeRole'
-  | 'revokeRoles'
-  | 'roll'
-  | 'series'
-  | 'setDebtLimits'
-  | 'setLendingOracle'
-  | 'setRoleAdmin'
-  | 'setSpotOracle'
-  | 'slurp'
-  | 'spotOracles'
-  | 'stir'
-  | 'tweak'
-  | 'vaults';
+  | "LOCK"
+  | "LOCK8605463013"
+  | "ROOT"
+  | "ROOT4146650865"
+  | "accrual"
+  | "addAsset"
+  | "addIlks"
+  | "addSeries"
+  | "assets"
+  | "balances"
+  | "build"
+  | "debt"
+  | "debtFromBase"
+  | "debtToBase"
+  | "destroy"
+  | "getRoleAdmin"
+  | "give"
+  | "grantRole"
+  | "grantRoles"
+  | "hasRole"
+  | "ilks"
+  | "lendingOracles"
+  | "level"
+  | "lockRole"
+  | "mature"
+  | "pour"
+  | "ratesAtMaturity"
+  | "renounceRole"
+  | "revokeRole"
+  | "revokeRoles"
+  | "roll"
+  | "series"
+  | "setDebtLimits"
+  | "setLendingOracle"
+  | "setRoleAdmin"
+  | "setSpotOracle"
+  | "slurp"
+  | "spotOracles"
+  | "stir"
+  | "tweak"
+  | "vaults";
 export interface AssetAddedEventEmittedResponse {
   assetId: Arrayish;
   asset: string;

@@ -4,8 +4,8 @@ import {
   BytesLike as Arrayish,
   BigNumber,
   BigNumberish,
-} from 'ethers';
-import { EthersContractContextV5 } from 'ethereum-abi-types-generator';
+} from "ethers";
+import { EthersContractContextV5 } from "ethereum-abi-types-generator";
 
 export type ContractContext = EthersContractContextV5<
   ERC20,
@@ -54,21 +54,21 @@ export interface ContractCallOverrides {
    */
   gasLimit?: number;
 }
-export type ERC20Events = 'Approval' | 'Transfer';
+export type ERC20Events = "Approval" | "Transfer";
 export interface ERC20EventsContext {
   Approval(...parameters: any): EventFilter;
   Transfer(...parameters: any): EventFilter;
 }
 export type ERC20MethodNames =
-  | 'name'
-  | 'approve'
-  | 'totalSupply'
-  | 'transferFrom'
-  | 'decimals'
-  | 'balanceOf'
-  | 'symbol'
-  | 'transfer'
-  | 'allowance';
+  | "name"
+  | "approve"
+  | "totalSupply"
+  | "transferFrom"
+  | "decimals"
+  | "balanceOf"
+  | "symbol"
+  | "transfer"
+  | "allowance";
 export interface ApprovalEventEmittedResponse {
   owner: string;
   spender: string;

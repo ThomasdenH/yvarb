@@ -4,8 +4,8 @@ import {
   BytesLike as Arrayish,
   BigNumber,
   BigNumberish,
-} from 'ethers';
-import { EthersContractContextV5 } from 'ethereum-abi-types-generator';
+} from "ethers";
+import { EthersContractContextV5 } from "ethereum-abi-types-generator";
 
 export type ContractContext = EthersContractContextV5<
   Pool,
@@ -55,11 +55,11 @@ export interface ContractCallOverrides {
   gasLimit?: number;
 }
 export type PoolEvents =
-  | 'Approval'
-  | 'Liquidity'
-  | 'Sync'
-  | 'Trade'
-  | 'Transfer';
+  | "Approval"
+  | "Liquidity"
+  | "Sync"
+  | "Trade"
+  | "Transfer";
 export interface PoolEventsContext {
   Approval(...parameters: any): EventFilter;
   Liquidity(...parameters: any): EventFilter;
@@ -68,48 +68,48 @@ export interface PoolEventsContext {
   Transfer(...parameters: any): EventFilter;
 }
 export type PoolMethodNames =
-  | 'new'
-  | 'DOMAIN_SEPARATOR'
-  | 'PERMIT_TYPEHASH'
-  | 'allowance'
-  | 'approve'
-  | 'balanceOf'
-  | 'base'
-  | 'burn'
-  | 'burnForBase'
-  | 'buyBase'
-  | 'buyBasePreview'
-  | 'buyFYToken'
-  | 'buyFYTokenPreview'
-  | 'cumulativeBalancesRatio'
-  | 'decimals'
-  | 'deploymentChainId'
-  | 'fyToken'
-  | 'g1'
-  | 'g2'
-  | 'getBaseBalance'
-  | 'getCache'
-  | 'getFYTokenBalance'
-  | 'maturity'
-  | 'mint'
-  | 'mintWithBase'
-  | 'name'
-  | 'nonces'
-  | 'permit'
-  | 'retrieveBase'
-  | 'retrieveFYToken'
-  | 'scaleFactor'
-  | 'sellBase'
-  | 'sellBasePreview'
-  | 'sellFYToken'
-  | 'sellFYTokenPreview'
-  | 'symbol'
-  | 'sync'
-  | 'totalSupply'
-  | 'transfer'
-  | 'transferFrom'
-  | 'ts'
-  | 'version';
+  | "new"
+  | "DOMAIN_SEPARATOR"
+  | "PERMIT_TYPEHASH"
+  | "allowance"
+  | "approve"
+  | "balanceOf"
+  | "base"
+  | "burn"
+  | "burnForBase"
+  | "buyBase"
+  | "buyBasePreview"
+  | "buyFYToken"
+  | "buyFYTokenPreview"
+  | "cumulativeBalancesRatio"
+  | "decimals"
+  | "deploymentChainId"
+  | "fyToken"
+  | "g1"
+  | "g2"
+  | "getBaseBalance"
+  | "getCache"
+  | "getFYTokenBalance"
+  | "maturity"
+  | "mint"
+  | "mintWithBase"
+  | "name"
+  | "nonces"
+  | "permit"
+  | "retrieveBase"
+  | "retrieveFYToken"
+  | "scaleFactor"
+  | "sellBase"
+  | "sellBasePreview"
+  | "sellFYToken"
+  | "sellFYTokenPreview"
+  | "symbol"
+  | "sync"
+  | "totalSupply"
+  | "transfer"
+  | "transferFrom"
+  | "ts"
+  | "version";
 export interface ApprovalEventEmittedResponse {
   owner: string;
   spender: string;
@@ -157,7 +157,7 @@ export interface Pool {
    * StateMutability: nonpayable
    * Type: constructor
    */
-  'new'(overrides?: ContractTransactionOverrides): Promise<ContractTransaction>;
+  "new"(overrides?: ContractTransactionOverrides): Promise<ContractTransaction>;
   /**
    * Payable: false
    * Constant: true

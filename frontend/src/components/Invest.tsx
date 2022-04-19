@@ -5,7 +5,11 @@ import "./Invest.scss";
 import Slippage from "./Slippage";
 import UsdcInput from "./UsdcInput";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
-import { DebtResponse as Debt, SeriesResponse as Series, ContractContext as Cauldron } from "../abi/Cauldron";
+import {
+  DebtResponse as Debt,
+  SeriesResponse as Series,
+  ContractContext as Cauldron,
+} from "../abi/Cauldron";
 
 const UNITS_USDC: number = 6;
 const UNITS_LEVERAGE: number = 2;
@@ -21,7 +25,7 @@ enum ApprovalState {
   Loading,
   ApprovalRequired,
   Transactable,
-  DebtTooLow
+  DebtTooLow,
 }
 
 interface State {
@@ -181,8 +185,13 @@ export default class Invest extends React.Component<Properties, State> {
       this.account,
       this.contracts.yieldLeverContract.address
     );
-    const cauldronDebt = await this.cauldronDebt(this.contracts.cauldronContract, series.baseId);
-    const minDebt = BigNumber.from(cauldronDebt.min).mul(BigNumber.from(10).pow(cauldronDebt.dec));
+    const cauldronDebt = await this.cauldronDebt(
+      this.contracts.cauldronContract,
+      series.baseId
+    );
+    const minDebt = BigNumber.from(cauldronDebt.min).mul(
+      BigNumber.from(10).pow(cauldronDebt.dec)
+    );
 
     console.log(cauldronDebt);
     console.log(
@@ -191,7 +200,7 @@ export default class Invest extends React.Component<Properties, State> {
         ". To spend: " +
         utils.formatUnits(this.state.usdcToInvest, UNITS_USDC)
     );
-  
+
     // Compute the amount of Fytokens
     const fyTokens = await this.fyTokens();
     this.setState({
@@ -203,14 +212,20 @@ export default class Invest extends React.Component<Properties, State> {
     } else {
       const interest = await this.computeInterest();
       if (allowance.lt(this.state.usdcToInvest)) {
-        this.setState({ approvalState: ApprovalState.ApprovalRequired, interest });
+        this.setState({
+          approvalState: ApprovalState.ApprovalRequired,
+          interest,
+        });
       } else {
         this.setState({ approvalState: ApprovalState.Transactable, interest });
       }
     }
   }
 
-  private async cauldronDebt(cauldronContract: Cauldron, baseId: string): Promise<Debt> {
+  private async cauldronDebt(
+    cauldronContract: Cauldron,
+    baseId: string
+  ): Promise<Debt> {
     return await cauldronContract.debt(baseId, ILK_ID);
   }
 
@@ -225,7 +240,7 @@ export default class Invest extends React.Component<Properties, State> {
 
   /**
    * Compute the amount of fyTokens that would be drawn with the current settings.
-   * @returns 
+   * @returns
    */
   private async fyTokens(): Promise<BigNumber> {
     if (this.totalToInvest().eq(0)) return BigNumber.from(0);
@@ -255,7 +270,9 @@ export default class Invest extends React.Component<Properties, State> {
 
   private async loadSeries(): Promise<Series> {
     if (this.series === undefined)
-      this.series = this.contracts.cauldronContract.series(SERIES_ID) as Promise<Series>;
+      this.series = this.contracts.cauldronContract.series(
+        SERIES_ID
+      ) as Promise<Series>;
     return this.series;
   }
 
