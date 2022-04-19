@@ -1,22 +1,25 @@
-import { BigNumber, Contract, ethers, utils } from "ethers";
+import { BigNumber, Contract, utils } from "ethers";
 import React from "react";
 import { ILK_ID, SERIES_ID } from "../App";
 import "./Invest.scss";
 import Slippage from "./Slippage";
 import UsdcInput from "./UsdcInput";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
-import { DebtResponse as Debt, SeriesResponse as Series, Cauldron } from "../abi/Cauldron";
+import { DebtResponse as Debt, SeriesResponse as Series, ContractContext as Cauldron } from "../abi/Cauldron";
+import { ContractContext as ERC20 } from "../abi/ERC20";
+import { ContractContext as YieldLever } from "../abi/YieldLever";
+import { ContractContext as Pool } from "../abi/Pool";
 
 const UNITS_USDC: number = 6;
 const UNITS_LEVERAGE: number = 2;
 
 interface Properties {
   usdcBalance: BigNumber;
-  usdcContract: ethers.Contract;
+  usdcContract: ERC20;
   account: string;
-  yieldLeverContract: ethers.Contract;
-  cauldronContract: ethers.Contract;
-  poolContract: ethers.Contract;
+  yieldLeverContract: YieldLever;
+  cauldronContract: Cauldron;
+  poolContract: Pool;
   label: string;
 }
 
@@ -38,10 +41,10 @@ interface State {
 }
 
 export default class Invest extends React.Component<Properties, State> {
-  private readonly usdcContract: ethers.Contract;
-  private readonly yieldLeverContract: ethers.Contract;
+  private readonly usdcContract: ERC20;
+  private readonly yieldLeverContract: YieldLever;
   private readonly cauldronContract: Cauldron;
-  private readonly poolContract: ethers.Contract;
+  private readonly poolContract: Pool;
   private readonly account: string;
   private series?: Promise<Series>;
 

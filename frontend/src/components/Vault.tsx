@@ -1,10 +1,14 @@
-import { BigNumber, Contract, utils } from "ethers";
+import { BigNumber, utils } from "ethers";
 import React from "react";
 import { SERIES_ID } from "../App";
 import { Balance, Vault as VaultI } from "../objects/Vault";
 import Slippage from "./Slippage";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import "./Vault.scss";
+import { ContractContext as YieldLever } from "../abi/YieldLever";
+import { ContractContext as Pool } from "../abi/Pool";
+import { ContractContext as Cauldron } from "../abi/Cauldron";
+import { ContractContext as Ladle } from "../abi/Ladle";
 
 interface State {
   balance: Balance;
@@ -18,10 +22,10 @@ interface Properties {
   balance: Balance;
   vault: VaultI;
   label: string;
-  cauldron: Contract;
-  ladle: Contract;
-  yieldLever: Contract;
-  pool: Contract;
+  cauldron: Cauldron;
+  ladle: Ladle;
+  yieldLever: YieldLever;
+  pool: Pool;
   pollData(): Promise<void>;
 }
 

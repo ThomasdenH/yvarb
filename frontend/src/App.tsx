@@ -1,6 +1,6 @@
 import React from "react";
 import "./App.css";
-import { BigNumber, Contract, ethers } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { ConnectWallet } from "./components/ConnectWallet";
 import erc20Abi from "./abi/ERC20.json";
 import Invest from "./components/Invest";
@@ -11,6 +11,11 @@ import ladleAbi from "./abi/Ladle.json";
 import { emptyVaults, Vaults } from "./objects/Vault";
 import VaultComponent from "./components/Vault";
 import { Tabs } from "./components/Tabs";
+import { ContractContext as ERC20 } from "./abi/ERC20";
+import { ContractContext as YieldLever } from "./abi/YieldLever";
+import { ContractContext as Pool } from "./abi/Pool";
+import { ContractContext as Cauldron } from "./abi/Cauldron";
+import { ContractContext as Ladle } from "./abi/Ladle";
 
 const YIELD_LEVER_CONTRACT_ADDRESS: string =
   "0xe4e6A1CE0B36CcF0b920b6b57Df0f922915450Ee";
@@ -37,11 +42,11 @@ export class App extends React.Component<{}, State> {
   private pollId?: number;
 
   private contracts?: Readonly<{
-    usdcContract: ethers.Contract;
-    yieldLeverContract: ethers.Contract;
-    poolContract: ethers.Contract;
-    cauldronContract: ethers.Contract;
-    ladleContract: ethers.Contract;
+    usdcContract: ERC20;
+    yieldLeverContract: YieldLever;
+    poolContract: Pool;
+    cauldronContract: Cauldron;
+    ladleContract: Ladle;
   }>;
 
   private vaultsToMonitor: string[] = [];
@@ -184,27 +189,27 @@ export class App extends React.Component<{}, State> {
     // We first initialize ethers by creating a provider using window.ethereum
     this._provider = new ethers.providers.Web3Provider(window.ethereum);
     this.contracts = {
-      usdcContract: new Contract(
+      usdcContract: new ethers.Contract(
         USDC_ADDRESS,
         erc20Abi,
         this._provider.getSigner(0)
-      ),
-      yieldLeverContract: new Contract(
+      ) as any,
+      yieldLeverContract: new ethers.Contract(
         YIELD_LEVER_CONTRACT_ADDRESS,
         yieldLever.abi,
         this._provider.getSigner(0)
-      ),
-      poolContract: new Contract(
+      ) as any,
+      poolContract: new ethers.Contract(
         POOL_CONTRACT,
         poolAbi,
         this._provider.getSigner(0)
-      ),
-      cauldronContract: new Contract(
+      ) as any,
+      cauldronContract: new ethers.Contract(
         CAULDRON_CONTRACT,
         cauldronAbi,
         this._provider
-      ),
-      ladleContract: new Contract(LADLE_CONTRACT, ladleAbi, this._provider),
+      ) as any,
+      ladleContract: new ethers.Contract(LADLE_CONTRACT, ladleAbi, this._provider) as any,
     };
 
     // if (this.state.selectedAddress !== undefined)
@@ -259,7 +264,7 @@ export class App extends React.Component<{}, State> {
   }
 
   private async pollData() {
-    if (this.contracts !== undefined && this._provider !== undefined) {
+    if (this.contracts !== undefined && this._provider !== undefined && this.state.selectedAddress !== undefined) {
       const { cauldronContract } = this.contracts;
       const [usdcBalance, ...vaultAndBalances] = await Promise.all([
         this.contracts.usdcContract.balanceOf(this.state.selectedAddress),
