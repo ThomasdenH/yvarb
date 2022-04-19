@@ -34,6 +34,14 @@ interface State {
   vaults: Vaults;
 }
 
+export interface Contracts {
+  usdcContract: ERC20;
+  yieldLeverContract: YieldLever;
+  poolContract: Pool;
+  cauldronContract: Cauldron;
+  ladleContract: Ladle;
+}
+
 export class App extends React.Component<{}, State> {
   private readonly initialState: State;
 
@@ -41,13 +49,7 @@ export class App extends React.Component<{}, State> {
 
   private pollId?: number;
 
-  private contracts?: Readonly<{
-    usdcContract: ERC20;
-    yieldLeverContract: YieldLever;
-    poolContract: Pool;
-    cauldronContract: Cauldron;
-    ladleContract: Ladle;
-  }>;
+  private contracts?: Contracts;
 
   private vaultsToMonitor: string[] = [];
 
@@ -89,12 +91,7 @@ export class App extends React.Component<{}, State> {
       return <p>Loading</p>;
     }
 
-    const {
-      cauldronContract,
-      yieldLeverContract,
-      ladleContract,
-      poolContract,
-    } = this.contracts;
+    const contracts = this.contracts;
 
     const vaultIds = Object.keys(this.state.vaults.vaults);
 
@@ -103,10 +100,7 @@ export class App extends React.Component<{}, State> {
         key="invest"
         label="Invest"
         usdcBalance={this.state.usdcBalance}
-        usdcContract={this.contracts.usdcContract}
-        poolContract={this.contracts.poolContract}
-        yieldLeverContract={this.contracts.yieldLeverContract}
-        cauldronContract={this.contracts.cauldronContract}
+        contracts={this.contracts}
         account={this.state.selectedAddress}
       />,
       ...vaultIds.map((vaultId) => (
@@ -116,11 +110,8 @@ export class App extends React.Component<{}, State> {
           vaultId={vaultId}
           balance={this.state.vaults.balances[vaultId]}
           vault={this.state.vaults.vaults[vaultId]}
-          cauldron={cauldronContract}
-          yieldLever={yieldLeverContract}
-          ladle={ladleContract}
           pollData={() => this.pollData()}
-          pool={poolContract}
+          contracts={contracts}
         />
       )),
     ];

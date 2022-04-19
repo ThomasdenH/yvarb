@@ -1,14 +1,10 @@
 import { BigNumber, utils } from "ethers";
 import React from "react";
-import { SERIES_ID } from "../App";
+import { Contracts, SERIES_ID } from "../App";
 import { Balance, Vault as VaultI } from "../objects/Vault";
 import Slippage from "./Slippage";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import "./Vault.scss";
-import { ContractContext as YieldLever } from "../abi/YieldLever";
-import { ContractContext as Pool } from "../abi/Pool";
-import { ContractContext as Cauldron } from "../abi/Cauldron";
-import { ContractContext as Ladle } from "../abi/Ladle";
 
 interface State {
   balance: Balance;
@@ -22,10 +18,7 @@ interface Properties {
   balance: Balance;
   vault: VaultI;
   label: string;
-  cauldron: Cauldron;
-  ladle: Ladle;
-  yieldLever: YieldLever;
-  pool: Pool;
+  contracts: Readonly<Contracts>;
   pollData(): Promise<void>;
 }
 
@@ -91,10 +84,10 @@ export default class Vault extends React.Component<Properties, State> {
   }
 
   private async computeToBorrow(): Promise<BigNumber> {
-    const balance = await this.props.cauldron.balances(this.props.vaultId);
+    const balance = await this.props.contracts.cauldronContract.balances(this.props.vaultId);
     if (balance.art.eq(0)) return BigNumber.from(0);
     try {
-      return (await this.props.pool.buyFYTokenPreview(balance.art))
+      return (await this.props.contracts.poolContract.buyFYTokenPreview(balance.art))
         .mul(1000 + this.state.slippage)
         .div(1000);
     } catch (e) {
@@ -107,8 +100,8 @@ export default class Vault extends React.Component<Properties, State> {
 
   private async unwind() {
     const [poolAddress, balances] = await Promise.all([
-      this.props.ladle.pools(SERIES_ID),
-      this.props.cauldron.balances(this.props.vaultId),
+      this.props.contracts.ladleContract.pools(SERIES_ID),
+      this.props.contracts.cauldronContract.balances(this.props.vaultId),
     ]);
     if (
       this.props.balance.art.eq(balances.art) &&
@@ -116,7 +109,7 @@ export default class Vault extends React.Component<Properties, State> {
     ) {
       const maxFy = await this.computeToBorrow();
       console.log("Base required: " + utils.formatUnits(maxFy, 6) + " USDC");
-      const tx = await this.props.yieldLever.unwind(
+      const tx = await this.props.contracts.yieldLeverContract.unwind(
         this.props.vaultId,
         maxFy,
         poolAddress,

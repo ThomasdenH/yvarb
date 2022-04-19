@@ -1,26 +1,20 @@
-import { BigNumber, Contract, utils } from "ethers";
+import { BigNumber, utils } from "ethers";
 import React from "react";
-import { ILK_ID, SERIES_ID } from "../App";
+import { Contracts, ILK_ID, SERIES_ID } from "../App";
 import "./Invest.scss";
 import Slippage from "./Slippage";
 import UsdcInput from "./UsdcInput";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import { DebtResponse as Debt, SeriesResponse as Series, ContractContext as Cauldron } from "../abi/Cauldron";
-import { ContractContext as ERC20 } from "../abi/ERC20";
-import { ContractContext as YieldLever } from "../abi/YieldLever";
-import { ContractContext as Pool } from "../abi/Pool";
 
 const UNITS_USDC: number = 6;
 const UNITS_LEVERAGE: number = 2;
 
 interface Properties {
   usdcBalance: BigNumber;
-  usdcContract: ERC20;
   account: string;
-  yieldLeverContract: YieldLever;
-  cauldronContract: Cauldron;
-  poolContract: Pool;
   label: string;
+  contracts: Readonly<Contracts>;
 }
 
 enum ApprovalState {
@@ -41,20 +35,14 @@ interface State {
 }
 
 export default class Invest extends React.Component<Properties, State> {
-  private readonly usdcContract: ERC20;
-  private readonly yieldLeverContract: YieldLever;
-  private readonly cauldronContract: Cauldron;
-  private readonly poolContract: Pool;
+  private readonly contracts: Readonly<Contracts>;
   private readonly account: string;
   private series?: Promise<Series>;
 
   constructor(props: Properties) {
     super(props);
     this.account = props.account;
-    this.usdcContract = props.usdcContract;
-    this.yieldLeverContract = props.yieldLeverContract;
-    this.poolContract = props.poolContract;
-    this.cauldronContract = props.cauldronContract as Cauldron & Contract;
+    this.contracts = props.contracts;
     this.state = {
       usdcBalance: props.usdcBalance,
       usdcToInvest: props.usdcBalance,
@@ -189,11 +177,11 @@ export default class Invest extends React.Component<Properties, State> {
 
   private async checkApprovalState() {
     const series = await this.loadSeries();
-    const allowance: BigNumber = await this.usdcContract.allowance(
+    const allowance: BigNumber = await this.contracts.usdcContract.allowance(
       this.account,
-      this.yieldLeverContract.address
+      this.contracts.yieldLeverContract.address
     );
-    const cauldronDebt = await this.cauldronDebt(this.cauldronContract, series.baseId);
+    const cauldronDebt = await this.cauldronDebt(this.contracts.cauldronContract, series.baseId);
     const minDebt = BigNumber.from(cauldronDebt.min).mul(BigNumber.from(10).pow(cauldronDebt.dec));
 
     console.log(cauldronDebt);
@@ -227,8 +215,8 @@ export default class Invest extends React.Component<Properties, State> {
   }
 
   private async approve() {
-    const tx = await this.usdcContract.approve(
-      this.yieldLeverContract.address,
+    const tx = await this.contracts.usdcContract.approve(
+      this.contracts.yieldLeverContract.address,
       this.state.usdcToInvest
     );
     await tx.wait();
@@ -242,7 +230,7 @@ export default class Invest extends React.Component<Properties, State> {
   private async fyTokens(): Promise<BigNumber> {
     if (this.totalToInvest().eq(0)) return BigNumber.from(0);
     const leverage = this.totalToInvest().sub(this.state.usdcToInvest);
-    return (await this.poolContract.buyBasePreview(leverage))
+    return (await this.contracts.poolContract.buyBasePreview(leverage))
       .mul(1000 + this.state.slippage)
       .div(1000);
   }
@@ -256,7 +244,7 @@ export default class Invest extends React.Component<Properties, State> {
       maxFy.toString(),
       SERIES_ID
     );
-    const tx = await this.yieldLeverContract.invest(
+    const tx = await this.contracts.yieldLeverContract.invest(
       this.state.usdcToInvest,
       leverage,
       maxFy,
@@ -267,7 +255,7 @@ export default class Invest extends React.Component<Properties, State> {
 
   private async loadSeries(): Promise<Series> {
     if (this.series === undefined)
-      this.series = this.cauldronContract.series(SERIES_ID) as Promise<Series>;
+      this.series = this.contracts.cauldronContract.series(SERIES_ID) as Promise<Series>;
     return this.series;
   }
 
@@ -276,7 +264,7 @@ export default class Invest extends React.Component<Properties, State> {
     const currentTime = Date.now() / 1000;
     const maturityTime = series.maturity;
     const toBorrow = this.totalToInvest().sub(this.state.usdcToInvest);
-    const fyTokens = await this.poolContract.buyBasePreview(toBorrow);
+    const fyTokens = await this.contracts.poolContract.buyBasePreview(toBorrow);
     const year = 356.2425 * 24 * 60 * 60;
     const result_in_period =
       toBorrow.mul(1_000_000).div(fyTokens).toNumber() / 1_000_000;
