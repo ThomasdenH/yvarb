@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 
 /// # Security of this contract
 /// This contract owns nothing between transactions. Any funds or vaults owned
@@ -8,7 +8,7 @@
 /// the contract can actually take ownership of a vault, but only when called
 /// by the owner of the vault in the first place.
 
-pragma solidity ^0.8.11;
+pragma solidity ^0.8.13;
 
 struct Vault {
     address owner;
@@ -27,6 +27,13 @@ struct Series {
 struct Balances {
     uint128 art; // Debt amount
     uint128 ink; // Collateral amount
+}
+
+struct Debt {
+    uint96 max; // Maximum debt accepted for a given underlying, across all series
+    uint24 min; // Minimum debt accepted for a given underlying, across all series
+    uint8 dec; // Multiplying factor (10**dec) for max and min
+    uint128 sum; // Current debt for a given underlying, across all series
 }
 
 interface YieldLadle {
@@ -82,12 +89,14 @@ interface Cauldron {
   function series(bytes6 seriesId) external view returns (Series memory);
   function vaults(bytes12 vaultId) external view returns (Vault memory);
   function balances(bytes12 vaultId) external view returns (Balances memory);
+  function debt(bytes6 baseId, bytes6 ilkId) external view returns (Debt memory);
   function debtToBase(bytes6 seriesId, uint128 art)
         external
         returns (uint128 base);
   function give(bytes12 vaultId, address receiver)
         external
         returns(Vault memory vault);
+  event VaultGiven(bytes12 indexed vaultId, address indexed receiver);
 }
 
 contract YieldLever {
@@ -119,12 +128,13 @@ contract YieldLever {
   ///   enough to cover the flash loan.
   /// @param seriesId - The series Id to invest in. For example, 0x303230360000
   ///   for FYUSDC06LP.
+  /// @return vauldId - The ID of the created vault.
    function invest(
     uint256 baseAmount,
     uint128 borrowAmount,
     uint128 maxFyAmount,
     bytes6 seriesId
-  ) external {
+  ) external returns (bytes12) {
     // Check that it is a USDC series.
     require(cauldron.series(seriesId).baseId == usdcId);
 
@@ -154,6 +164,8 @@ contract YieldLever {
     
     // Finally, give the vault to the sender
     cauldron.give(vaultId, msg.sender);
+
+    return vaultId;
   }
 
   /// @notice This function is called inside the flash loan and handles the
