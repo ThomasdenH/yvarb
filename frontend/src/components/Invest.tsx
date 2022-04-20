@@ -61,7 +61,15 @@ export default class Invest extends React.Component<Properties, State> {
     let component;
     switch (this.state.approvalState) {
       case ApprovalState.Loading:
-        component = <p key="loading">Loading</p>;
+        component = (
+          <input
+            key="loading"
+            className="button"
+            type="button"
+            value="Loading..."
+            disabled={true}
+          />
+        );
         break;
       case ApprovalState.ApprovalRequired:
         component = (
@@ -130,7 +138,7 @@ export default class Invest extends React.Component<Properties, State> {
           name="leverage"
           type="range"
           min="1.01"
-          max="10"
+          max="5"
           step="0.01"
           value={utils.formatUnits(this.state.leverage, 2)}
           onChange={(el) => this.onLeverageChange(el.target.value)}

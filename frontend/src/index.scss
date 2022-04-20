@@ -27,12 +27,19 @@ body {
   border: metrics.$border-width solid colors.$border-color;
   padding: metrics.$padding;
   border-radius: metrics.$padding;
-  cursor: pointer;
   user-select: none;
   &:active {
     background: colors.$border-color;
   }
   &:hover {
     background-color: colors.$alt-light;
+  }
+  
+
+  &:disabled {
+    background-color: desaturate($color: colors.$alt, $amount: 50);
+  }
+  &:not(:disabled) {
+    cursor: pointer;
   }
 }
