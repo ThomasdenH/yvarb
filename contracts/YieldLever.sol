@@ -36,6 +36,12 @@ struct Debt {
     uint128 sum; // Current debt for a given underlying, across all series
 }
 
+struct SpotOracle {
+    address oracle; // Address for the spot price oracle
+    uint32 ratio; // Collateralization ratio to multiply the price for
+    // bytes8 free
+}
+
 interface YieldLadle {
   function pools(bytes6 seriesId) external view returns (address);
   function build(bytes6 seriesId, bytes6 ilkId, uint8 salt)
@@ -96,6 +102,7 @@ interface Cauldron {
   function give(bytes12 vaultId, address receiver)
         external
         returns(Vault memory vault);
+  function spotOracles(bytes6 baseId, bytes6 ilkId) external view returns (SpotOracle memory);
   event VaultGiven(bytes12 indexed vaultId, address indexed receiver);
 }
 

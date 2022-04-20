@@ -2,54 +2,17 @@
   "_format": "ethers-rs-sol-cache-3",
   "paths": {
     "artifacts": "out",
-    "sources": "src",
+    "sources": "contracts",
     "tests": "test",
     "libraries": [
       "lib"
     ]
   },
   "files": {
-    "F:\\Git\\yvarb\\lib\\ds-test\\src/test.sol": {
-      "lastModificationDate": 1650365129624,
-      "contentHash": "2c9806925f5d78ba4f4fb0570611cca3",
-      "sourceName": "lib\\ds-test\\src/test.sol",
-      "solcConfig": {
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "metadata": {
-            "bytecodeHash": "ipfs"
-          },
-          "outputSelection": {
-            "*": {
-              "": [
-                "ast"
-              ],
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers"
-              ]
-            }
-          },
-          "evmVersion": "london"
-        }
-      },
-      "imports": [],
-      "versionRequirement": ">=0.5.0",
-      "artifacts": {
-        "DSTest": {
-          "0.8.13+commit.abaa5c0e.Windows.msvc": "test.sol\\DSTest.json"
-        }
-      }
-    },
-    "F:\\Git\\yvarb\\src\\YieldLever.sol": {
-      "lastModificationDate": 1650373944406,
-      "contentHash": "50fa26e3effb92bcb0894fd72797e8f2",
-      "sourceName": "src\\YieldLever.sol",
+    "F:\\Git\\yvarb\\contracts\\YieldLever.sol": {
+      "lastModificationDate": 1650375593897,
+      "contentHash": "1ba0b264834e0d00ab81200be900d058",
+      "sourceName": "contracts\\YieldLever.sol",
       "solcConfig": {
         "settings": {
           "optimizer": {
@@ -101,6 +64,43 @@
         }
       }
     },
+    "F:\\Git\\yvarb\\lib\\ds-test\\src/test.sol": {
+      "lastModificationDate": 1650365129624,
+      "contentHash": "2c9806925f5d78ba4f4fb0570611cca3",
+      "sourceName": "lib\\ds-test\\src/test.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs"
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "london"
+        }
+      },
+      "imports": [],
+      "versionRequirement": ">=0.5.0",
+      "artifacts": {
+        "DSTest": {
+          "0.8.13+commit.abaa5c0e.Windows.msvc": "test.sol\\DSTest.json"
+        }
+      }
+    },
     "F:\\Git\\yvarb\\test\\Interfaces.sol": {
       "lastModificationDate": 1645212081681,
       "contentHash": "3dfdd07ce11cc0f3f5811c96038216b0",
@@ -139,8 +139,8 @@
       }
     },
     "F:\\Git\\yvarb\\test\\YieldLever.t.sol": {
-      "lastModificationDate": 1650374139987,
-      "contentHash": "3d1fb30be8bb8cd0cc1888e7d1b38376",
+      "lastModificationDate": 1650377922411,
+      "contentHash": "334d3f300bbcaa33b95cb6619ce8b752",
       "sourceName": "test\\YieldLever.t.sol",
       "solcConfig": {
         "settings": {
@@ -168,8 +168,8 @@
         }
       },
       "imports": [
-        "lib\\ds-test\\src/test.sol",
-        "src\\YieldLever.sol"
+        "contracts\\YieldLever.sol",
+        "lib\\ds-test\\src/test.sol"
       ],
       "versionRequirement": "^0.8.13",
       "artifacts": {

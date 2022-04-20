@@ -4,8 +4,8 @@ import {
   BytesLike as Arrayish,
   BigNumber,
   BigNumberish,
-} from "ethers";
-import { EthersContractContextV5 } from "ethereum-abi-types-generator";
+} from 'ethers';
+import { EthersContractContextV5 } from 'ethereum-abi-types-generator';
 
 export type ContractContext = EthersContractContextV5<
   YieldLever,
@@ -57,12 +57,12 @@ export interface ContractCallOverrides {
 export type YieldLeverEvents = undefined;
 export interface YieldLeverEventsContext {}
 export type YieldLeverMethodNames =
-  | "new"
-  | "invest"
-  | "doInvest"
-  | "unwind"
-  | "doRepay"
-  | "doClose";
+  | 'new'
+  | 'invest'
+  | 'doInvest'
+  | 'unwind'
+  | 'doRepay'
+  | 'doClose';
 export interface YieldLever {
   /**
    * Payable: false
@@ -70,7 +70,7 @@ export interface YieldLever {
    * StateMutability: nonpayable
    * Type: constructor
    */
-  "new"(overrides?: ContractTransactionOverrides): Promise<ContractTransaction>;
+  'new'(overrides?: ContractTransactionOverrides): Promise<ContractTransaction>;
   /**
    * Payable: false
    * Constant: false

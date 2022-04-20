@@ -26,6 +26,7 @@ enum ApprovalState {
   ApprovalRequired,
   Transactable,
   DebtTooLow,
+  Undercollateralized
 }
 
 interface State {
@@ -91,6 +92,17 @@ export default class Invest extends React.Component<Properties, State> {
             className="button"
             type="button"
             value="Debt too low!"
+            disabled={true}
+          />
+        );
+        break;
+      case ApprovalState.Undercollateralized:
+        component = (
+          <input
+            key="undercollateralized"
+            className="button"
+            type="button"
+            value="Undercollateralized!"
             disabled={true}
           />
         );
@@ -180,6 +192,11 @@ export default class Invest extends React.Component<Properties, State> {
   }
 
   private async checkApprovalState() {
+    // First, set to loading
+    this.setState({
+      approvalState: ApprovalState.Loading
+    });
+
     const series = await this.loadSeries();
     const allowance: BigNumber = await this.contracts.usdcContract.allowance(
       this.account,
@@ -193,7 +210,6 @@ export default class Invest extends React.Component<Properties, State> {
       BigNumber.from(10).pow(cauldronDebt.dec)
     );
 
-    console.log(cauldronDebt);
     console.log(
       "Allowance: " +
         utils.formatUnits(allowance, UNITS_USDC) +
@@ -203,23 +219,40 @@ export default class Invest extends React.Component<Properties, State> {
 
     // Compute the amount of Fytokens
     const fyTokens = await this.fyTokens();
-    this.setState({
-      fyTokens,
-    });
 
-    if (minDebt.gt(fyTokens)) {
-      this.setState({ approvalState: ApprovalState.DebtTooLow });
+    const { ratio } = await this.contracts.cauldronContract.spotOracles(series.baseId, ILK_ID);
+    const currentCollateralizationRatio = this.collateralizationRatio(fyTokens);
+
+    if (minDebt.gt(fyTokens)) { // Check whether the minimum debt is reached
+      this.setState({
+        fyTokens,
+        approvalState: ApprovalState.DebtTooLow
+      });
+    } else if (currentCollateralizationRatio.lt(ratio)) { // Check whether the vault would be collateralized
+      this.setState({
+        fyTokens,
+        approvalState: ApprovalState.Undercollateralized
+      });
     } else {
       const interest = await this.computeInterest();
       if (allowance.lt(this.state.usdcToInvest)) {
         this.setState({
+          fyTokens,
           approvalState: ApprovalState.ApprovalRequired,
           interest,
         });
       } else {
-        this.setState({ approvalState: ApprovalState.Transactable, interest });
+        this.setState({
+          fyTokens,
+          approvalState: ApprovalState.Transactable,
+          interest
+        });
       }
     }
+  }
+
+  private collateralizationRatio(fyTokens: BigNumber): BigNumber {
+    return this.totalToInvest().div(fyTokens.div(1_000_000));
   }
 
   private async cauldronDebt(

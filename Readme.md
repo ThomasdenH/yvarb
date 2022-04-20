@@ -6,3 +6,8 @@ ganache-cli --fork https://mainnet.infura.io/v3/6f4f43507fa24302a651b52073c98d8a
 npx truffle compile
 npx truffle test .\test\TestYieldLever.sol
 ```
+
+# Forge
+```
+forge deploy
+```

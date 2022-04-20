@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "ds-test/test.sol";
-import "src/YieldLever.sol";
+import "contracts/YieldLever.sol";
 
 interface IUniswapV2Router02 {
     function WETH() external pure returns (address);
@@ -40,6 +40,9 @@ interface Pool {
     function buyFYTokenPreview(uint128 fyTokenOut)
         external view
         returns(uint128);
+    function getBaseBalance()
+        external view
+        returns(uint112);
 }
 
 contract HelperContract is DSTest {
@@ -104,6 +107,7 @@ contract YieldLeverTest is DSTest {
         pool = Pool(ladle.pools(seriesId));
         cheats.label(address(ladle), "YieldLadle");
         cheats.label(address(pool), "Pool");
+        cheats.label(0x856Ddd1A74B6e620d043EfD6F74d81b8bf34868D, "YieldMath");
     }
 
     function setUp() public {
@@ -138,24 +142,36 @@ contract YieldLeverTest is DSTest {
     }
 
     function testInvest(uint128 collateral, uint128 borrowed) public {
+        // Use very broad limits for fuzzing.
         cheats.assume(collateral >= 1_000_000);
         cheats.assume(collateral <= 100_000_000_000_000);
         cheats.assume(borrowed >= 1_000_000);
         cheats.assume(borrowed <= 100_000_000_000_000);
+
+        Series memory series = cauldron.series(seriesId);
+
+        // Make sure to create a collateralized vault
+        SpotOracle memory spotOracle = cauldron.spotOracles(series.baseId, ILK_ID);
+        cheats.assume(borrowed * spotOracle.ratio <= collateral * 1_000_000);
 
         // Slippage, in tenths of a percent, 1 being no slippage
         uint128 slippage = 1_001;
 
         helperContract.buyUsdc(collateral, address(this));
         usdc.approve(address(yieldLever), collateral);
+        
+        // Check base in pool
+        uint112 baseBalance = pool.getBaseBalance();
+        emit log_uint(baseBalance);
+        cheats.assume(baseBalance >= borrowed);
 
         // Compute min debt
-        Series memory series = cauldron.series(seriesId);
-        uint128 maxFy = (pool.buyBasePreview(borrowed) * slippage) / 1000;
+        uint128 expectedFy = pool.buyBasePreview(borrowed);
+        uint128 maxFy = (expectedFy * slippage) / 1000;
         Debt memory debt = cauldron.debt(series.baseId, ILK_ID);
         uint minDebt = debt.min * (10 ** debt.dec);
         uint maxDebt = debt.max * (10 ** debt.dec);
-        cheats.assume(maxFy >= minDebt);
+        cheats.assume(expectedFy >= minDebt);
         cheats.assume(maxFy <= maxDebt);
 
         bytes12 vaultId = yieldLever.invest(collateral, borrowed, maxFy, seriesId);
