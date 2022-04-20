@@ -34,7 +34,6 @@ body {
   &:hover {
     background-color: colors.$alt-light;
   }
-  
 
   &:disabled {
     background-color: desaturate($color: colors.$alt, $amount: 50);

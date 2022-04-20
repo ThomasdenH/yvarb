@@ -15337,42 +15337,18 @@
   "ast": {
     "absolutePath": "project:/contracts/YieldLever.sol",
     "exportedSymbols": {
-      "Balances": [
-        22
-      ],
-      "Cauldron": [
-        283
-      ],
-      "Debt": [
-        31
-      ],
-      "IERC20": [
-        175
-      ],
-      "IFYToken": [
-        9
-      ],
-      "IToken": [
-        213
-      ],
-      "Series": [
-        17
-      ],
-      "SpotOracle": [
-        36
-      ],
-      "Vault": [
-        8
-      ],
-      "YieldLadle": [
-        122
-      ],
-      "YieldLever": [
-        726
-      ],
-      "yVault": [
-        192
-      ]
+      "Balances": [22],
+      "Cauldron": [283],
+      "Debt": [31],
+      "IERC20": [175],
+      "IFYToken": [9],
+      "IToken": [213],
+      "Series": [17],
+      "SpotOracle": [36],
+      "Vault": [8],
+      "YieldLadle": [122],
+      "YieldLever": [726],
+      "yVault": [192]
     },
     "id": 727,
     "license": "UNLICENSED",
@@ -15380,12 +15356,7 @@
     "nodes": [
       {
         "id": 1,
-        "literals": [
-          "solidity",
-          "^",
-          "0.8",
-          ".13"
-        ],
+        "literals": ["solidity", "^", "0.8", ".13"],
         "nodeType": "PragmaDirective",
         "src": "526:24:0"
       },
@@ -15491,9 +15462,7 @@
         "contractKind": "interface",
         "fullyImplemented": true,
         "id": 9,
-        "linearizedBaseContracts": [
-          9
-        ],
+        "linearizedBaseContracts": [9],
         "name": "IFYToken",
         "nameLocation": "761:8:0",
         "nodeType": "ContractDefinition",
@@ -15863,9 +15832,7 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "id": 122,
-        "linearizedBaseContracts": [
-          122
-        ],
+        "linearizedBaseContracts": [122],
         "name": "YieldLadle",
         "nameLocation": "1593:10:0",
         "nodeType": "ContractDefinition",
@@ -16943,9 +16910,7 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "id": 175,
-        "linearizedBaseContracts": [
-          175
-        ],
+        "linearizedBaseContracts": [175],
         "name": "IERC20",
         "nameLocation": "2480:6:0",
         "nodeType": "ContractDefinition",
@@ -17625,10 +17590,7 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "id": 192,
-        "linearizedBaseContracts": [
-          192,
-          175
-        ],
+        "linearizedBaseContracts": [192, 175],
         "name": "yVault",
         "nameLocation": "2974:6:0",
         "nodeType": "ContractDefinition",
@@ -17812,9 +17774,7 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "id": 213,
-        "linearizedBaseContracts": [
-          213
-        ],
+        "linearizedBaseContracts": [213],
         "name": "IToken",
         "nameLocation": "3130:6:0",
         "nodeType": "ContractDefinition",
@@ -18081,9 +18041,7 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "id": 283,
-        "linearizedBaseContracts": [
-          283
-        ],
+        "linearizedBaseContracts": [283],
         "name": "Cauldron",
         "nameLocation": "3444:8:0",
         "nodeType": "ContractDefinition",
@@ -18906,9 +18864,7 @@
         "contractKind": "contract",
         "fullyImplemented": true,
         "id": 726,
-        "linearizedBaseContracts": [
-          726
-        ],
+        "linearizedBaseContracts": [726],
         "name": "YieldLever",
         "nameLocation": "4161:10:0",
         "nodeType": "ContractDefinition",
@@ -20090,10 +20046,7 @@
                       "id": 373,
                       "name": "require",
                       "nodeType": "Identifier",
-                      "overloadedDeclarations": [
-                        4294967278,
-                        4294967278
-                      ],
+                      "overloadedDeclarations": [4294967278, 4294967278],
                       "referencedDeclaration": 4294967278,
                       "src": "6041:7:0",
                       "typeDescriptions": {
@@ -20279,10 +20232,7 @@
                   "src": "6327:56:0"
                 },
                 {
-                  "assignments": [
-                    396,
-                    null
-                  ],
+                  "assignments": [396, null],
                   "declarations": [
                     {
                       "constant": false,
@@ -20417,9 +20367,7 @@
                   "src": "6418:53:0"
                 },
                 {
-                  "assignments": [
-                    405
-                  ],
+                  "assignments": [405],
                   "declarations": [
                     {
                       "constant": false,
@@ -21131,9 +21079,7 @@
               "src": "7582:482:0",
               "statements": [
                 {
-                  "assignments": [
-                    457
-                  ],
+                  "assignments": [457],
                   "declarations": [
                     {
                       "constant": false,
@@ -21616,9 +21562,7 @@
               "src": "8888:1258:0",
               "statements": [
                 {
-                  "assignments": [
-                    499
-                  ],
+                  "assignments": [499],
                   "declarations": [
                     {
                       "constant": false,
@@ -21723,9 +21667,7 @@
                   "src": "8895:46:0"
                 },
                 {
-                  "assignments": [
-                    507
-                  ],
+                  "assignments": [507],
                   "declarations": [
                     {
                       "constant": false,
@@ -21914,10 +21856,7 @@
                       "id": 513,
                       "name": "require",
                       "nodeType": "Identifier",
-                      "overloadedDeclarations": [
-                        4294967278,
-                        4294967278
-                      ],
+                      "overloadedDeclarations": [4294967278, 4294967278],
                       "referencedDeclaration": 4294967278,
                       "src": "9133:7:0",
                       "typeDescriptions": {
@@ -22194,9 +22133,7 @@
                     "src": "9645:374:0",
                     "statements": [
                       {
-                        "assignments": [
-                          562
-                        ],
+                        "assignments": [562],
                         "declarations": [
                           {
                             "constant": false,
@@ -24851,42 +24788,18 @@
   "legacyAST": {
     "absolutePath": "project:/contracts/YieldLever.sol",
     "exportedSymbols": {
-      "Balances": [
-        22
-      ],
-      "Cauldron": [
-        283
-      ],
-      "Debt": [
-        31
-      ],
-      "IERC20": [
-        175
-      ],
-      "IFYToken": [
-        9
-      ],
-      "IToken": [
-        213
-      ],
-      "Series": [
-        17
-      ],
-      "SpotOracle": [
-        36
-      ],
-      "Vault": [
-        8
-      ],
-      "YieldLadle": [
-        122
-      ],
-      "YieldLever": [
-        726
-      ],
-      "yVault": [
-        192
-      ]
+      "Balances": [22],
+      "Cauldron": [283],
+      "Debt": [31],
+      "IERC20": [175],
+      "IFYToken": [9],
+      "IToken": [213],
+      "Series": [17],
+      "SpotOracle": [36],
+      "Vault": [8],
+      "YieldLadle": [122],
+      "YieldLever": [726],
+      "yVault": [192]
     },
     "id": 727,
     "license": "UNLICENSED",
@@ -24894,12 +24807,7 @@
     "nodes": [
       {
         "id": 1,
-        "literals": [
-          "solidity",
-          "^",
-          "0.8",
-          ".13"
-        ],
+        "literals": ["solidity", "^", "0.8", ".13"],
         "nodeType": "PragmaDirective",
         "src": "526:24:0"
       },
@@ -25005,9 +24913,7 @@
         "contractKind": "interface",
         "fullyImplemented": true,
         "id": 9,
-        "linearizedBaseContracts": [
-          9
-        ],
+        "linearizedBaseContracts": [9],
         "name": "IFYToken",
         "nameLocation": "761:8:0",
         "nodeType": "ContractDefinition",
@@ -25377,9 +25283,7 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "id": 122,
-        "linearizedBaseContracts": [
-          122
-        ],
+        "linearizedBaseContracts": [122],
         "name": "YieldLadle",
         "nameLocation": "1593:10:0",
         "nodeType": "ContractDefinition",
@@ -26457,9 +26361,7 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "id": 175,
-        "linearizedBaseContracts": [
-          175
-        ],
+        "linearizedBaseContracts": [175],
         "name": "IERC20",
         "nameLocation": "2480:6:0",
         "nodeType": "ContractDefinition",
@@ -27139,10 +27041,7 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "id": 192,
-        "linearizedBaseContracts": [
-          192,
-          175
-        ],
+        "linearizedBaseContracts": [192, 175],
         "name": "yVault",
         "nameLocation": "2974:6:0",
         "nodeType": "ContractDefinition",
@@ -27326,9 +27225,7 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "id": 213,
-        "linearizedBaseContracts": [
-          213
-        ],
+        "linearizedBaseContracts": [213],
         "name": "IToken",
         "nameLocation": "3130:6:0",
         "nodeType": "ContractDefinition",
@@ -27595,9 +27492,7 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "id": 283,
-        "linearizedBaseContracts": [
-          283
-        ],
+        "linearizedBaseContracts": [283],
         "name": "Cauldron",
         "nameLocation": "3444:8:0",
         "nodeType": "ContractDefinition",
@@ -28420,9 +28315,7 @@
         "contractKind": "contract",
         "fullyImplemented": true,
         "id": 726,
-        "linearizedBaseContracts": [
-          726
-        ],
+        "linearizedBaseContracts": [726],
         "name": "YieldLever",
         "nameLocation": "4161:10:0",
         "nodeType": "ContractDefinition",
@@ -29604,10 +29497,7 @@
                       "id": 373,
                       "name": "require",
                       "nodeType": "Identifier",
-                      "overloadedDeclarations": [
-                        4294967278,
-                        4294967278
-                      ],
+                      "overloadedDeclarations": [4294967278, 4294967278],
                       "referencedDeclaration": 4294967278,
                       "src": "6041:7:0",
                       "typeDescriptions": {
@@ -29793,10 +29683,7 @@
                   "src": "6327:56:0"
                 },
                 {
-                  "assignments": [
-                    396,
-                    null
-                  ],
+                  "assignments": [396, null],
                   "declarations": [
                     {
                       "constant": false,
@@ -29931,9 +29818,7 @@
                   "src": "6418:53:0"
                 },
                 {
-                  "assignments": [
-                    405
-                  ],
+                  "assignments": [405],
                   "declarations": [
                     {
                       "constant": false,
@@ -30645,9 +30530,7 @@
               "src": "7582:482:0",
               "statements": [
                 {
-                  "assignments": [
-                    457
-                  ],
+                  "assignments": [457],
                   "declarations": [
                     {
                       "constant": false,
@@ -31130,9 +31013,7 @@
               "src": "8888:1258:0",
               "statements": [
                 {
-                  "assignments": [
-                    499
-                  ],
+                  "assignments": [499],
                   "declarations": [
                     {
                       "constant": false,
@@ -31237,9 +31118,7 @@
                   "src": "8895:46:0"
                 },
                 {
-                  "assignments": [
-                    507
-                  ],
+                  "assignments": [507],
                   "declarations": [
                     {
                       "constant": false,
@@ -31428,10 +31307,7 @@
                       "id": 513,
                       "name": "require",
                       "nodeType": "Identifier",
-                      "overloadedDeclarations": [
-                        4294967278,
-                        4294967278
-                      ],
+                      "overloadedDeclarations": [4294967278, 4294967278],
                       "referencedDeclaration": 4294967278,
                       "src": "9133:7:0",
                       "typeDescriptions": {
@@ -31708,9 +31584,7 @@
                     "src": "9645:374:0",
                     "statements": [
                       {
-                        "assignments": [
-                          562
-                        ],
+                        "assignments": [562],
                         "declarations": [
                           {
                             "constant": false,

@@ -2,7 +2,7 @@ import { BigNumber, utils } from "ethers";
 import React from "react";
 import { Contracts, ILK_ID, SERIES_ID } from "../App";
 import "./Invest.scss";
-import Slippage from "./Slippage";
+import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
 import UsdcInput from "./UsdcInput";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import {
@@ -26,7 +26,7 @@ enum ApprovalState {
   ApprovalRequired,
   Transactable,
   DebtTooLow,
-  Undercollateralized
+  Undercollateralized,
 }
 
 interface State {
@@ -53,7 +53,7 @@ export default class Invest extends React.Component<Properties, State> {
       usdcToInvest: props.usdcBalance,
       leverage: BigNumber.from(300),
       approvalState: ApprovalState.Loading,
-      slippage: 1,
+      slippage: SLIPPAGE_OPTIONS[1].value,
     };
   }
 
@@ -202,7 +202,7 @@ export default class Invest extends React.Component<Properties, State> {
   private async checkApprovalState() {
     // First, set to loading
     this.setState({
-      approvalState: ApprovalState.Loading
+      approvalState: ApprovalState.Loading,
     });
 
     const series = await this.loadSeries();
@@ -228,17 +228,22 @@ export default class Invest extends React.Component<Properties, State> {
     // Compute the amount of Fytokens
     const fyTokens = await this.fyTokens();
 
-    const { ratio } = await this.contracts.cauldronContract.spotOracles(series.baseId, ILK_ID);
+    const { ratio } = await this.contracts.cauldronContract.spotOracles(
+      series.baseId,
+      ILK_ID
+    );
 
-    if (minDebt.gt(fyTokens)) { // Check whether the minimum debt is reached
+    if (minDebt.gt(fyTokens)) {
+      // Check whether the minimum debt is reached
       this.setState({
         fyTokens,
-        approvalState: ApprovalState.DebtTooLow
+        approvalState: ApprovalState.DebtTooLow,
       });
-    } else if (this.collateralizationRatio(fyTokens).lt(ratio)) { // Check whether the vault would be collateralized
+    } else if (this.collateralizationRatio(fyTokens).lt(ratio)) {
+      // Check whether the vault would be collateralized
       this.setState({
         fyTokens,
-        approvalState: ApprovalState.Undercollateralized
+        approvalState: ApprovalState.Undercollateralized,
       });
     } else {
       const interest = await this.computeInterest();
@@ -252,7 +257,7 @@ export default class Invest extends React.Component<Properties, State> {
         this.setState({
           fyTokens,
           approvalState: ApprovalState.Transactable,
-          interest
+          interest,
         });
       }
     }

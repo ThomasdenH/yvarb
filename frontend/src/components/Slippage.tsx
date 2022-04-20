@@ -21,6 +21,8 @@ const OPTIONS: { value: number; label: string }[] = [
   { value: 50, label: "5%" },
 ];
 
+export const SLIPPAGE_OPTIONS = OPTIONS;
+
 export default class Slippage extends React.Component<Properties, State> {
   constructor(props: Properties) {
     super(props);

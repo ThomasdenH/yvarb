@@ -2,7 +2,7 @@ import { BigNumber, utils } from "ethers";
 import React from "react";
 import { Contracts, SERIES_ID } from "../App";
 import { Balance, Vault as VaultI } from "../objects/Vault";
-import Slippage from "./Slippage";
+import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import "./Vault.scss";
 
@@ -27,7 +27,7 @@ export default class Vault extends React.Component<Properties, State> {
     super(props);
     this.state = {
       ...props,
-      slippage: 1,
+      slippage: SLIPPAGE_OPTIONS[1].value,
     };
   }
 
