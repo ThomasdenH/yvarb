@@ -4,8 +4,8 @@ import {
   BytesLike as Arrayish,
   BigNumber,
   BigNumberish,
-} from "ethers";
-import { EthersContractContextV5 } from "ethereum-abi-types-generator";
+} from 'ethers';
+import { EthersContractContextV5 } from 'ethereum-abi-types-generator';
 
 export type ContractContext = EthersContractContextV5<
   YieldLever,
@@ -57,12 +57,12 @@ export interface ContractCallOverrides {
 export type YieldLeverEvents = undefined;
 export interface YieldLeverEventsContext {}
 export type YieldLeverMethodNames =
-  | "new"
-  | "invest"
-  | "doInvest"
-  | "unwind"
-  | "doRepay"
-  | "doClose";
+  | 'new'
+  | 'doClose'
+  | 'doInvest'
+  | 'doRepay'
+  | 'invest'
+  | 'unwind';
 export interface YieldLever {
   /**
    * Payable: false
@@ -70,22 +70,24 @@ export interface YieldLever {
    * StateMutability: nonpayable
    * Type: constructor
    */
-  "new"(overrides?: ContractTransactionOverrides): Promise<ContractTransaction>;
+  'new'(overrides?: ContractTransactionOverrides): Promise<ContractTransaction>;
   /**
    * Payable: false
    * Constant: false
    * StateMutability: nonpayable
    * Type: function
-   * @param baseAmount Type: uint256, Indexed: false
-   * @param borrowAmount Type: uint128, Indexed: false
-   * @param maxFyAmount Type: uint128, Indexed: false
-   * @param seriesId Type: bytes6, Indexed: false
+   * @param owner Type: address, Indexed: false
+   * @param vaultId Type: bytes12, Indexed: false
+   * @param base Type: uint128, Indexed: false
+   * @param ink Type: uint128, Indexed: false
+   * @param art Type: uint128, Indexed: false
    */
-  invest(
-    baseAmount: BigNumberish,
-    borrowAmount: BigNumberish,
-    maxFyAmount: BigNumberish,
-    seriesId: Arrayish,
+  doClose(
+    owner: string,
+    vaultId: Arrayish,
+    base: BigNumberish,
+    ink: BigNumberish,
+    art: BigNumberish,
     overrides?: ContractTransactionOverrides
   ): Promise<ContractTransaction>;
   /**
@@ -110,27 +112,6 @@ export interface YieldLever {
    * Constant: false
    * StateMutability: nonpayable
    * Type: function
-   * @param vaultId Type: bytes12, Indexed: false
-   * @param maxAmount Type: uint256, Indexed: false
-   * @param pool Type: address, Indexed: false
-   * @param ink Type: uint128, Indexed: false
-   * @param art Type: uint128, Indexed: false
-   * @param seriesId Type: bytes6, Indexed: false
-   */
-  unwind(
-    vaultId: Arrayish,
-    maxAmount: BigNumberish,
-    pool: string,
-    ink: BigNumberish,
-    art: BigNumberish,
-    seriesId: Arrayish,
-    overrides?: ContractTransactionOverrides
-  ): Promise<ContractTransaction>;
-  /**
-   * Payable: false
-   * Constant: false
-   * StateMutability: nonpayable
-   * Type: function
    * @param owner Type: address, Indexed: false
    * @param vaultId Type: bytes12, Indexed: false
    * @param borrowAmount Type: uint256, Indexed: false
@@ -148,18 +129,37 @@ export interface YieldLever {
    * Constant: false
    * StateMutability: nonpayable
    * Type: function
-   * @param owner Type: address, Indexed: false
+   * @param baseAmount Type: uint256, Indexed: false
+   * @param borrowAmount Type: uint128, Indexed: false
+   * @param maxFyAmount Type: uint128, Indexed: false
+   * @param seriesId Type: bytes6, Indexed: false
+   */
+  invest(
+    baseAmount: BigNumberish,
+    borrowAmount: BigNumberish,
+    maxFyAmount: BigNumberish,
+    seriesId: Arrayish,
+    overrides?: ContractTransactionOverrides
+  ): Promise<ContractTransaction>;
+  /**
+   * Payable: false
+   * Constant: false
+   * StateMutability: nonpayable
+   * Type: function
    * @param vaultId Type: bytes12, Indexed: false
-   * @param base Type: uint128, Indexed: false
+   * @param maxAmount Type: uint256, Indexed: false
+   * @param pool Type: address, Indexed: false
    * @param ink Type: uint128, Indexed: false
    * @param art Type: uint128, Indexed: false
+   * @param seriesId Type: bytes6, Indexed: false
    */
-  doClose(
-    owner: string,
+  unwind(
     vaultId: Arrayish,
-    base: BigNumberish,
+    maxAmount: BigNumberish,
+    pool: string,
     ink: BigNumberish,
     art: BigNumberish,
+    seriesId: Arrayish,
     overrides?: ContractTransactionOverrides
   ): Promise<ContractTransaction>;
 }
