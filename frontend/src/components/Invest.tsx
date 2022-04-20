@@ -229,14 +229,13 @@ export default class Invest extends React.Component<Properties, State> {
     const fyTokens = await this.fyTokens();
 
     const { ratio } = await this.contracts.cauldronContract.spotOracles(series.baseId, ILK_ID);
-    const currentCollateralizationRatio = this.collateralizationRatio(fyTokens);
 
     if (minDebt.gt(fyTokens)) { // Check whether the minimum debt is reached
       this.setState({
         fyTokens,
         approvalState: ApprovalState.DebtTooLow
       });
-    } else if (currentCollateralizationRatio.lt(ratio)) { // Check whether the vault would be collateralized
+    } else if (this.collateralizationRatio(fyTokens).lt(ratio)) { // Check whether the vault would be collateralized
       this.setState({
         fyTokens,
         approvalState: ApprovalState.Undercollateralized
