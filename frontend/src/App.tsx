@@ -11,13 +11,14 @@ import { emptyVaults, Vaults } from "./objects/Vault";
 import VaultComponent from "./components/Vault";
 import { Tabs } from "./components/Tabs";
 import { ContractContext as ERC20 } from "./abi/ERC20";
-import { ContractContext as YieldLever } from "./abi/YieldLever";
+import { ContractContext as YieldLever } from "./generated/abi/YieldLever";
 import { ContractContext as Pool } from "./abi/Pool";
 import { ContractContext as Cauldron } from "./abi/Cauldron";
 import { ContractContext as Ladle } from "./abi/Ladle";
-import yieldLeverAbi from "./abi/YieldLever.json";
+import yieldLeverAbi from "./generated/abi/YieldLever.json";
+import yieldLeverDeployed from "./generated/deployment.json";
 
-const YIELD_LEVER_CONTRACT_ADDRESS: string = yieldLeverAbi.networks[1].address;
+const YIELD_LEVER_CONTRACT_ADDRESS: string = yieldLeverDeployed.deployedTo;
 const USDC_ADDRESS: string = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const POOL_CONTRACT: string = "0xEf82611C6120185D3BF6e020D1993B49471E7da0";
 const CAULDRON_CONTRACT: string = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
