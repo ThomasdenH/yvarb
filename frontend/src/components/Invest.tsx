@@ -11,8 +11,8 @@ import {
   ContractContext as Cauldron,
 } from "../abi/Cauldron";
 
-const UNITS_USDC: number = 6;
-const UNITS_LEVERAGE: number = 2;
+const UNITS_USDC = 6;
+const UNITS_LEVERAGE = 2;
 
 interface Properties {
   usdcBalance: BigNumber;
@@ -79,7 +79,7 @@ export default class Invest extends React.Component<Properties, State> {
             className="button"
             type="button"
             value="Approve"
-            onClick={() => this.approve()}
+            onClick={() => void this.approve()}
           />
         );
         break;
@@ -90,7 +90,7 @@ export default class Invest extends React.Component<Properties, State> {
             className="button"
             type="button"
             value="Transact!"
-            onClick={() => this.transact()}
+            onClick={() => void this.transact()}
           />
         );
         break;
@@ -174,14 +174,14 @@ export default class Invest extends React.Component<Properties, State> {
         {this.state.interest !== undefined ? (
           <ValueDisplay
             label="Yield interest:"
-            value={this.state.interest + "% APY"}
+            value={`${this.state.interest} % APY`}
             valueType={ValueType.Literal}
           />
         ) : null}
         {this.props.yearnApi !== undefined ? (
           <ValueDisplay
             label="Yearn interest (after fees):"
-            value={Math.round(this.props.yearnApi * 1000) / 10 + "% APY"}
+            value={`${Math.round(this.props.yearnApi * 1000) / 10} % APY`}
             valueType={ValueType.Literal}
           />
         ) : null}
@@ -190,23 +190,23 @@ export default class Invest extends React.Component<Properties, State> {
     );
   }
 
-  private async onSlippageChange(slippage: number) {
+  private onSlippageChange(slippage: number) {
     this.setState({ slippage });
-    await this.checkApprovalState();
+    void this.checkApprovalState();
   }
 
   private onUsdcInputChange(usdcToInvest: BigNumber) {
     this.setState({ usdcToInvest, approvalState: ApprovalState.Loading });
-    this.checkApprovalState();
+    void this.checkApprovalState();
   }
 
-  private async onLeverageChange(leverage: string) {
-    this.setState({ leverage: utils.parseUnits(leverage, UNITS_LEVERAGE) });
-    await this.checkApprovalState();
+  private onLeverageChange(leverage: string) {
+    this.setState({ leverage: utils.parseUnits(leverage, UNITS_LEVERAGE), approvalState: ApprovalState.Loading });
+    void this.checkApprovalState();
   }
 
   public componentDidMount() {
-    this.checkApprovalState();
+    void this.checkApprovalState();
   }
 
   private totalToInvest(): BigNumber {
@@ -337,7 +337,7 @@ export default class Invest extends React.Component<Properties, State> {
     if (this.series === undefined)
       this.series = this.contracts.cauldronContract.series(
         SERIES_ID
-      ) as Promise<Series>;
+      ) ;
     return this.series;
   }
 

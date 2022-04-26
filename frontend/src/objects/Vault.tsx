@@ -12,12 +12,20 @@ export interface Balance {
 }
 
 export interface Vaults {
-  vaults: { [vaultId: string]: Vault };
-  balances: { [vaultId: string]: Balance };
+  [vaultId: string]: Vault
 }
 
-const CAULDRON_CREATED_BLOCK_NUMBER: number = 13461506;
-const BLOCK_STEPS: number = 10;
+export interface Balances {
+  [vaultId: string]: Balance
+}
+
+export interface VaultsAndBalances {
+  vaults: Vaults;
+  balances: Balances;
+}
+
+const CAULDRON_CREATED_BLOCK_NUMBER = 13461506;
+const BLOCK_STEPS = 10;
 
 export async function loadVaults(
   cauldron: Contract,
@@ -46,9 +54,9 @@ export async function loadVaults(
   }
 }
 
-export function emptyVaults(): Vaults {
+export function emptyVaults(): VaultsAndBalances {
   return {
-    vaults: Object.create(null),
-    balances: Object.create(null),
+    vaults: Object.create(null) as Vaults,
+    balances: Object.create(null) as Balances,
   };
 }

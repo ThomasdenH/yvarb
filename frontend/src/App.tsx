@@ -7,7 +7,7 @@ import Invest from "./components/Invest";
 import poolAbi from "./abi/Pool.json";
 import cauldronAbi from "./abi/Cauldron.json";
 import ladleAbi from "./abi/Ladle.json";
-import { emptyVaults, Vaults } from "./objects/Vault";
+import { Balances, emptyVaults, Vaults, VaultsAndBalances } from "./objects/Vault";
 import VaultComponent from "./components/Vault";
 import { Tabs } from "./components/Tabs";
 import { ContractContext as ERC20 } from "./abi/ERC20";
@@ -17,23 +17,26 @@ import { ContractContext as Cauldron } from "./abi/Cauldron";
 import { ContractContext as Ladle } from "./abi/Ladle";
 import yieldLeverAbi from "./generated/abi/YieldLever.json";
 import yieldLeverDeployed from "./generated/deployment.json";
+import { ExternalProvider } from "@ethersproject/providers";
 
 const YIELD_LEVER_CONTRACT_ADDRESS: string = yieldLeverDeployed.deployedTo;
-const USDC_ADDRESS: string = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-const POOL_CONTRACT: string = "0xEf82611C6120185D3BF6e020D1993B49471E7da0";
-const CAULDRON_CONTRACT: string = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
-const LADLE_CONTRACT: string = "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A";
+const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+const POOL_CONTRACT = "0xEf82611C6120185D3BF6e020D1993B49471E7da0";
+const CAULDRON_CONTRACT = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
+const LADLE_CONTRACT = "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A";
 
-const YEARN_STRATEGY: string = '0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE';
+const YEARN_STRATEGY = '0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE';
 
-export const SERIES_ID: string = "0x303230360000";
-export const ILK_ID: string = "0x303900000000";
+export const SERIES_ID = "0x303230360000";
+export const ILK_ID = "0x303900000000";
+
+type YearnApiJson = { address: string, apy: { net_apy: number } }[];
 
 interface State {
   selectedAddress?: string;
   networkError?: string;
   usdcBalance?: BigNumber;
-  vaults: Vaults;
+  vaults: VaultsAndBalances;
   yearn_apy?: number;
 }
 
@@ -45,7 +48,7 @@ export interface Contracts {
   ladleContract: Ladle;
 }
 
-export class App extends React.Component<{}, State> {
+export class App extends React.Component<Record<string, never>, State> {
   private readonly initialState: State;
 
   private _provider?: ethers.providers.Web3Provider;
@@ -56,7 +59,7 @@ export class App extends React.Component<{}, State> {
 
   private vaultsToMonitor: string[] = [];
 
-  constructor(properties: {}) {
+  constructor(properties: Record<string, never>) {
     super(properties);
     this.initialState = {
       selectedAddress: undefined,
@@ -83,9 +86,9 @@ export class App extends React.Component<{}, State> {
     if (!this.state.selectedAddress) {
       return (
         <ConnectWallet
-          connectWallet={() => this._connectWallet()}
+          connectWallet={() => void this.connectWallet()}
           networkError={this.state.networkError}
-          dismiss={() => this._dismissNetworkError()}
+          dismiss={() => this.dismissNetworkError()}
         />
       );
     }
@@ -122,48 +125,53 @@ export class App extends React.Component<{}, State> {
 
     return <Tabs>{elements}</Tabs>;
   }
+  dismissNetworkError(): void {
+    throw new Error("Method not implemented.");
+  }
 
-  async _connectWallet() {
+  private async connectWallet() {
     // This method is run when the user clicks the Connect. It connects the
     // dapp to the user's wallet, and initializes it.
 
     // To connect to the user's wallet, we have to run this method.
     // It returns a promise that will resolve to the user's address.
-    const [selectedAddress] = await window.ethereum.request({
+    const [selectedAddress] = await (window.ethereum as { request(arg: {method: string}): Promise<[string]>}).request({
       method: "eth_requestAccounts",
     });
 
     // Once we have the address, we can initialize the application.
 
     // First we check the network
-    if (!this._checkNetwork()) {
+    if (!this.checkNetwork()) {
       return;
     }
 
-    this._initialize(selectedAddress);
+    this.initialize(selectedAddress);
 
     // We reinitialize it whenever the user changes their account.
-    window.ethereum.on("accountsChanged", ([newAddress]: [string]) => {
-      this._stopPollingData();
+    (window.ethereum as { on(method: string, callback: (a: any) => void): void }
+      ).on("accountsChanged", ([newAddress]: [string]) => {
+      this.stopPollingData();
       // `accountsChanged` event can be triggered with an undefined newAddress.
       // This happens when the user removes the Dapp from the "Connected
       // list of sites allowed access to your addresses" (Metamask > Settings > Connections)
       // To avoid errors, we reset the dapp state
       if (newAddress === undefined) {
-        return this._resetState();
+        return this.resetState();
       }
 
-      this._initialize(newAddress);
+      this.initialize(newAddress);
     });
 
     // We reset the dapp state if the network is changed
-    window.ethereum.on("chainChanged", ([networkId]: [string]) => {
-      this._stopPollingData();
-      this._resetState();
+    (window.ethereum as { on(method: string, callback: (a: any) => void): void }
+    ).on("chainChanged", ([_networkId]: [string]) => {
+      this.stopPollingData();
+      this.resetState();
     });
   }
 
-  _initialize(userAddress: string) {
+  private initialize(userAddress: string) {
     // This method initializes the dapp
 
     // We first store the user's address in the component's state
@@ -176,39 +184,39 @@ export class App extends React.Component<{}, State> {
 
     // Fetching the token data and the user's balance are specific to this
     // sample project, but you can reuse the same initialization pattern.
-    this._initializeEthers();
-    this._startPollingData();
+    void this.initializeEthers();
+    void this.startPollingData();
   }
 
-  async _initializeEthers() {
+  private initializeEthers() {
     // We first initialize ethers by creating a provider using window.ethereum
-    this._provider = new ethers.providers.Web3Provider(window.ethereum);
+    this._provider = new ethers.providers.Web3Provider(window.ethereum as any as ExternalProvider, "any");
     this.contracts = {
       usdcContract: new ethers.Contract(
         USDC_ADDRESS,
         erc20Abi,
         this._provider.getSigner(0)
-      ) as any,
+      ) as any as ERC20,
       yieldLeverContract: new ethers.Contract(
         YIELD_LEVER_CONTRACT_ADDRESS,
         yieldLeverAbi.abi,
         this._provider.getSigner(0)
-      ) as any,
+      ) as any as YieldLever,
       poolContract: new ethers.Contract(
         POOL_CONTRACT,
         poolAbi,
         this._provider.getSigner(0)
-      ) as any,
+      ) as any as Pool,
       cauldronContract: new ethers.Contract(
         CAULDRON_CONTRACT,
         cauldronAbi,
         this._provider
-      ) as any,
+      ) as any as Cauldron,
       ladleContract: new ethers.Contract(
         LADLE_CONTRACT,
         ladleAbi,
         this._provider
-      ) as any,
+      ) as any as Ladle,
     };
 
     // if (this.state.selectedAddress !== undefined)
@@ -226,19 +234,19 @@ export class App extends React.Component<{}, State> {
         this.state.selectedAddress
       );
     this.contracts.cauldronContract.on(vaultsBuiltFilter, (vaultId: string) =>
-      this.addVault(vaultId)
+      void this.addVault(vaultId)
     );
     this.contracts.cauldronContract.on(
       vaultsReceivedFilter,
-      (vaultId: string) => this.addVault(vaultId)
+      (vaultId: string) => void this.addVault(vaultId)
     );
 
-    await this._startPollingData();
+    this.startPollingData();
   }
 
   // This is an utility method that turns an RPC error into a human readable
   // message.
-  _getRpcErrorMessage(error: { data?: { message: string }; message: string }) {
+  getRpcErrorMessage(error: { data?: { message: string }; message: string }) {
     if (error.data) {
       return error.data.message;
     }
@@ -247,19 +255,17 @@ export class App extends React.Component<{}, State> {
   }
 
   // This method resets the state
-  _resetState() {
+  resetState() {
     this.setState(this.initialState);
   }
 
-  _checkNetwork() {
+  checkNetwork() {
     // TODO: Really check network
     return true;
   }
 
-  _dismissNetworkError() {}
-
-  private async _startPollingData() {
-    this.pollId = setInterval(() => this.pollData(), 1000) as any;
+  private startPollingData() {
+    this.pollId = setInterval(() => void this.pollData(), 1000) as any as number;
   }
 
   private async pollData() {
@@ -278,8 +284,8 @@ export class App extends React.Component<{}, State> {
           ])
         ),
       ]);
-      const vaults = Object.create(null);
-      const balances = Object.create(null);
+      const vaults = Object.create(null) as Vaults;
+      const balances = Object.create(null) as Balances;
       this.vaultsToMonitor.forEach((vaultId, i) => {
         if (vaultAndBalances[i] !== undefined) {
           vaults[vaultId] = vaultAndBalances[i][0];
@@ -288,9 +294,9 @@ export class App extends React.Component<{}, State> {
       });
 
       const yearnResponse = await fetch('https://api.yearn.finance/v1/chains/1/vaults/all');
-      const yearnStrategies: any[] = await yearnResponse.json();
+      const yearnStrategies = await yearnResponse.json() as YearnApiJson;
       const strategy = yearnStrategies.find((strat) => strat.address === YEARN_STRATEGY);
-      const yearn_apy = strategy.apy.net_apy as number;
+      const yearn_apy = strategy?.apy.net_apy;
 
       this.setState({
         usdcBalance,
@@ -303,7 +309,7 @@ export class App extends React.Component<{}, State> {
     }
   }
 
-  private _stopPollingData() {
+  private stopPollingData() {
     clearInterval(this.pollId);
   }
 
