@@ -1,4 +1,3 @@
-import ganache from 'ganache';
 import { BigNumber, ethers, Contract } from 'ethers';
 
 import erc20Abi from './ERC20.json';
