@@ -201,7 +201,10 @@ export default class Invest extends React.Component<Properties, State> {
   }
 
   private onLeverageChange(leverage: string) {
-    this.setState({ leverage: utils.parseUnits(leverage, UNITS_LEVERAGE), approvalState: ApprovalState.Loading });
+    this.setState({
+      leverage: utils.parseUnits(leverage, UNITS_LEVERAGE),
+      approvalState: ApprovalState.Loading,
+    });
     void this.checkApprovalState();
   }
 
@@ -312,7 +315,10 @@ export default class Invest extends React.Component<Properties, State> {
   private async fyTokens(): Promise<BigNumber> {
     if (this.totalToInvest().eq(0)) return BigNumber.from(0);
     const leverage = this.totalToInvest().sub(this.state.usdcToInvest);
-    return addSlippage(await this.contracts.poolContract.buyBasePreview(leverage), this.state.slippage);
+    return addSlippage(
+      await this.contracts.poolContract.buyBasePreview(leverage),
+      this.state.slippage
+    );
   }
 
   private async transact() {
@@ -335,9 +341,7 @@ export default class Invest extends React.Component<Properties, State> {
 
   private async loadSeries(): Promise<Series> {
     if (this.series === undefined)
-      this.series = this.contracts.cauldronContract.series(
-        SERIES_ID
-      ) ;
+      this.series = this.contracts.cauldronContract.series(SERIES_ID);
     return this.series;
   }
 

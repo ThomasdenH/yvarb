@@ -12,11 +12,11 @@ export interface Balance {
 }
 
 export interface Vaults {
-  [vaultId: string]: Vault
+  [vaultId: string]: Vault;
 }
 
 export interface Balances {
-  [vaultId: string]: Balance
+  [vaultId: string]: Balance;
 }
 
 export interface VaultsAndBalances {

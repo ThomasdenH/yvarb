@@ -25,8 +25,7 @@ const OPTIONS: { value: number; label: string }[] = [
 export const SLIPPAGE_OPTIONS = OPTIONS;
 
 export function addSlippage(num: BigNumber, slippage: number) {
-  return num.mul(1000 + slippage)
-    .div(1000);
+  return num.mul(1000 + slippage).div(1000);
 }
 
 export default class Slippage extends React.Component<Properties, State> {

@@ -38,7 +38,13 @@ export default function ValueDisplay(value: Value): JSX.Element {
     val = value.value;
   }
   return (
-    <div className={value.className === undefined ? "value_display" : "value_display " + value.className}>
+    <div
+      className={
+        value.className === undefined
+          ? "value_display"
+          : "value_display " + value.className
+      }
+    >
       <p className="value_label">{value.label}</p>
       <p className="value_value">{val}</p>
     </div>

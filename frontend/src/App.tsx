@@ -7,7 +7,12 @@ import Invest from "./components/Invest";
 import poolAbi from "./abi/Pool.json";
 import cauldronAbi from "./abi/Cauldron.json";
 import ladleAbi from "./abi/Ladle.json";
-import { Balances, emptyVaults, Vaults, VaultsAndBalances } from "./objects/Vault";
+import {
+  Balances,
+  emptyVaults,
+  Vaults,
+  VaultsAndBalances,
+} from "./objects/Vault";
 import VaultComponent from "./components/Vault";
 import { Tabs } from "./components/Tabs";
 import { ContractContext as ERC20 } from "./abi/ERC20";
@@ -25,12 +30,12 @@ const POOL_CONTRACT = "0xEf82611C6120185D3BF6e020D1993B49471E7da0";
 const CAULDRON_CONTRACT = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
 const LADLE_CONTRACT = "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A";
 
-const YEARN_STRATEGY = '0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE';
+const YEARN_STRATEGY = "0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE";
 
 export const SERIES_ID = "0x303230360000";
 export const ILK_ID = "0x303900000000";
 
-type YearnApiJson = { address: string, apy: { net_apy: number } }[];
+type YearnApiJson = { address: string; apy: { net_apy: number } }[];
 
 interface State {
   selectedAddress?: string;
@@ -135,7 +140,9 @@ export class App extends React.Component<Record<string, never>, State> {
 
     // To connect to the user's wallet, we have to run this method.
     // It returns a promise that will resolve to the user's address.
-    const [selectedAddress] = await (window.ethereum as { request(arg: {method: string}): Promise<[string]>}).request({
+    const [selectedAddress] = await (
+      window.ethereum as { request(arg: { method: string }): Promise<[string]> }
+    ).request({
       method: "eth_requestAccounts",
     });
 
@@ -149,8 +156,11 @@ export class App extends React.Component<Record<string, never>, State> {
     this.initialize(selectedAddress);
 
     // We reinitialize it whenever the user changes their account.
-    (window.ethereum as { on(method: string, callback: (a: any) => void): void }
-      ).on("accountsChanged", ([newAddress]: [string]) => {
+    (
+      window.ethereum as {
+        on(method: string, callback: (a: any) => void): void;
+      }
+    ).on("accountsChanged", ([newAddress]: [string]) => {
       this.stopPollingData();
       // `accountsChanged` event can be triggered with an undefined newAddress.
       // This happens when the user removes the Dapp from the "Connected
@@ -164,7 +174,10 @@ export class App extends React.Component<Record<string, never>, State> {
     });
 
     // We reset the dapp state if the network is changed
-    (window.ethereum as { on(method: string, callback: (a: any) => void): void }
+    (
+      window.ethereum as {
+        on(method: string, callback: (a: any) => void): void;
+      }
     ).on("chainChanged", ([_networkId]: [string]) => {
       this.stopPollingData();
       this.resetState();
@@ -190,7 +203,10 @@ export class App extends React.Component<Record<string, never>, State> {
 
   private initializeEthers() {
     // We first initialize ethers by creating a provider using window.ethereum
-    this._provider = new ethers.providers.Web3Provider(window.ethereum as any as ExternalProvider, "any");
+    this._provider = new ethers.providers.Web3Provider(
+      window.ethereum as any as ExternalProvider,
+      "any"
+    );
     this.contracts = {
       usdcContract: new ethers.Contract(
         USDC_ADDRESS,
@@ -233,8 +249,9 @@ export class App extends React.Component<Record<string, never>, State> {
         null,
         this.state.selectedAddress
       );
-    this.contracts.cauldronContract.on(vaultsBuiltFilter, (vaultId: string) =>
-      void this.addVault(vaultId)
+    this.contracts.cauldronContract.on(
+      vaultsBuiltFilter,
+      (vaultId: string) => void this.addVault(vaultId)
     );
     this.contracts.cauldronContract.on(
       vaultsReceivedFilter,
@@ -265,7 +282,10 @@ export class App extends React.Component<Record<string, never>, State> {
   }
 
   private startPollingData() {
-    this.pollId = setInterval(() => void this.pollData(), 1000) as any as number;
+    this.pollId = setInterval(
+      () => void this.pollData(),
+      1000
+    ) as any as number;
   }
 
   private async pollData() {
@@ -293,9 +313,13 @@ export class App extends React.Component<Record<string, never>, State> {
         }
       });
 
-      const yearnResponse = await fetch('https://api.yearn.finance/v1/chains/1/vaults/all');
-      const yearnStrategies = await yearnResponse.json() as YearnApiJson;
-      const strategy = yearnStrategies.find((strat) => strat.address === YEARN_STRATEGY);
+      const yearnResponse = await fetch(
+        "https://api.yearn.finance/v1/chains/1/vaults/all"
+      );
+      const yearnStrategies = (await yearnResponse.json()) as YearnApiJson;
+      const strategy = yearnStrategies.find(
+        (strat) => strat.address === YEARN_STRATEGY
+      );
       const yearn_apy = strategy?.apy.net_apy;
 
       this.setState({
@@ -304,7 +328,7 @@ export class App extends React.Component<Record<string, never>, State> {
           vaults,
           balances,
         },
-        yearn_apy
+        yearn_apy,
       });
     }
   }
