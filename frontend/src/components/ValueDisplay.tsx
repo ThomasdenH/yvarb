@@ -13,16 +13,19 @@ type Value =
       valueType: ValueType.Usdc;
       value: BigNumber;
       label: string;
+      className?: string;
     }
   | {
       valueType: ValueType.FyUsdc;
       value: BigNumber;
       label: string;
+      className?: string;
     }
   | {
       valueType: ValueType.Literal;
       value: string;
       label: string;
+      className?: string;
     };
 
 export default function ValueDisplay(value: Value): JSX.Element {
@@ -35,7 +38,7 @@ export default function ValueDisplay(value: Value): JSX.Element {
     val = value.value;
   }
   return (
-    <div className="value_display">
+    <div className={"value_display " + value.className}>
       <p className="value_label">{value.label}</p>
       <p className="value_value">{val}</p>
     </div>

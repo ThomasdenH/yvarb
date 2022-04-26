@@ -16,6 +16,10 @@ $track-border: colors.$main-border;
 $thumb-color: colors.$alt-light;
 $thumb-border: colors.$alt;
 
+.value_sum {
+  border-top: 1px solid;
+}
+
 .leverage {
   width: 100%;
   margin: 3.8px 0;

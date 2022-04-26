@@ -16,7 +16,7 @@ export function formatNumber(
 
   while (decimals > 0 || !num.eq(0)) {
     decimals--;
-    let digit = num.mod(10).toString();
+    const digit = num.mod(10).toString();
     num = num.div(10);
     s = digit + s;
     if (decimals === 0) {

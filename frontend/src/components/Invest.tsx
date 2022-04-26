@@ -2,7 +2,7 @@ import { BigNumber, utils } from "ethers";
 import React from "react";
 import { Contracts, ILK_ID, SERIES_ID } from "../App";
 import "./Invest.scss";
-import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
+import Slippage, { addSlippage, SLIPPAGE_OPTIONS } from "./Slippage";
 import UsdcInput from "./UsdcInput";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import {
@@ -19,6 +19,7 @@ interface Properties {
   account: string;
   label: string;
   contracts: Readonly<Contracts>;
+  yearnApi?: number;
 }
 
 enum ApprovalState {
@@ -162,6 +163,7 @@ export default class Invest extends React.Component<Properties, State> {
               value={this.state.fyTokens.sub(this.toBorrow())}
             />
             <ValueDisplay
+              className="value_sum"
               key="fytokens"
               label="Debt on maturity:"
               valueType={ValueType.Usdc}
@@ -171,8 +173,15 @@ export default class Invest extends React.Component<Properties, State> {
         )}
         {this.state.interest !== undefined ? (
           <ValueDisplay
-            label="Interest:"
-            value={this.state.interest + "% APR"}
+            label="Yield interest:"
+            value={this.state.interest + "% APY"}
+            valueType={ValueType.Literal}
+          />
+        ) : null}
+        {this.props.yearnApi !== undefined ? (
+          <ValueDisplay
+            label="Yearn interest (after fees):"
+            value={Math.round(this.props.yearnApi * 1000) / 10 + "% APY"}
             valueType={ValueType.Literal}
           />
         ) : null}
@@ -303,9 +312,7 @@ export default class Invest extends React.Component<Properties, State> {
   private async fyTokens(): Promise<BigNumber> {
     if (this.totalToInvest().eq(0)) return BigNumber.from(0);
     const leverage = this.totalToInvest().sub(this.state.usdcToInvest);
-    return (await this.contracts.poolContract.buyBasePreview(leverage))
-      .mul(1000 + this.state.slippage)
-      .div(1000);
+    return addSlippage(await this.contracts.poolContract.buyBasePreview(leverage), this.state.slippage);
   }
 
   private async transact() {

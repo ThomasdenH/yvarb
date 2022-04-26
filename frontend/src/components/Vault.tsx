@@ -75,7 +75,7 @@ export default class Vault extends React.Component<Properties, State> {
   }
 
   private async onSlippageChange(slippage: number) {
-    this.setState({ slippage });
+    this.setState({ slippage, toBorrow: undefined });
     await this.updateToBorrow();
   }
 
@@ -89,6 +89,7 @@ export default class Vault extends React.Component<Properties, State> {
     );
     if (balance.art.eq(0)) return BigNumber.from(0);
     try {
+      console.log('Expected FY:\t' + + utils.formatUnits(await this.props.contracts.poolContract.buyFYTokenPreview(balance.art), 6) + " USDC");
       return addSlippage(
         await this.props.contracts.poolContract.buyFYTokenPreview(balance.art), this.state.slippage
       );
@@ -110,8 +111,11 @@ export default class Vault extends React.Component<Properties, State> {
       this.props.balance.art.eq(balances.art) &&
       this.props.balance.ink.eq(balances.ink)
     ) {
-      const maxFy = await this.computeToBorrow();
-      console.log("Base required: " + utils.formatUnits(maxFy, 6) + " USDC");
+      while (this.state.toBorrow === undefined) {
+        await this.updateToBorrow();
+      }
+      const maxFy = this.state.toBorrow;
+      console.log("Base required:\t" + utils.formatUnits(maxFy, 6) + " USDC");
       console.log(this.props.vaultId,
         maxFy,
         poolAddress,

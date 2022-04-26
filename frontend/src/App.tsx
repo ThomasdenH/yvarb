@@ -24,6 +24,8 @@ const POOL_CONTRACT: string = "0xEf82611C6120185D3BF6e020D1993B49471E7da0";
 const CAULDRON_CONTRACT: string = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
 const LADLE_CONTRACT: string = "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A";
 
+const YEARN_STRATEGY: string = '0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE';
+
 export const SERIES_ID: string = "0x303230360000";
 export const ILK_ID: string = "0x303900000000";
 
@@ -32,6 +34,7 @@ interface State {
   networkError?: string;
   usdcBalance?: BigNumber;
   vaults: Vaults;
+  yearn_apy?: number;
 }
 
 export interface Contracts {
@@ -102,6 +105,7 @@ export class App extends React.Component<{}, State> {
         usdcBalance={this.state.usdcBalance}
         contracts={this.contracts}
         account={this.state.selectedAddress}
+        yearnApi={this.state.yearn_apy}
       />,
       ...vaultIds.map((vaultId) => (
         <VaultComponent
@@ -282,12 +286,19 @@ export class App extends React.Component<{}, State> {
           balances[vaultId] = vaultAndBalances[i][1];
         }
       });
+
+      const yearnResponse = await fetch('https://api.yearn.finance/v1/chains/1/vaults/all');
+      const yearnStrategies: any[] = await yearnResponse.json();
+      const strategy = yearnStrategies.find((strat) => strat.address === YEARN_STRATEGY);
+      const yearn_apy = strategy.apy.net_apy as number;
+
       this.setState({
         usdcBalance,
         vaults: {
           vaults,
           balances,
         },
+        yearn_apy
       });
     }
   }
