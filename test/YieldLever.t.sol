@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "ds-test/test.sol";
+import "forge-std/Test.sol";
 import "contracts/YieldLever.sol";
 
 interface IUniswapV2Router02 {
@@ -17,22 +17,6 @@ interface AccessControl {
     function grantRole(bytes4 role, address account) external;
 }
 
-interface CheatCodes {
-    function prank(address) external;
-    // Sets an address' balance
-    function deal(address who, uint256 newBalance) external;
-    // Label an address in test traces
-    function label(address addr, string calldata label) external;
-    // Prepare an expected log with (bool checkTopic1, bool checkTopic2, bool checkTopic3, bool checkData).
-    // Call this function, then emit an event, then call a function. Internally after the call, we check if
-    // logs were emitted in the expected order with the expected topics and data (as specified by the booleans)
-    function expectEmit(bool, bool, bool, bool) external;
-    // Set block.timestamp
-    function warp(uint256) external;
-    // When fuzzing, generate new inputs if conditional not met
-    function assume(bool) external;
-}
-
 interface Pool {
     function buyBasePreview(uint128 tokenOut)
         external view
@@ -45,16 +29,15 @@ interface Pool {
         returns(uint112);
 }
 
-contract HelperContract is DSTest {
-    CheatCodes constant cheats = CheatCodes(HEVM_ADDRESS);
+contract HelperContract is Test {
     IUniswapV2Router02 constant uniswap = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
     IERC20 constant usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     AccessControl constant cauldron = AccessControl(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
 
     constructor() {
-        cheats.label(address(usdc), "USDC");
-        cheats.label(address(uniswap), "IUniswapV2Router02");
-        cheats.label(address(cauldron), "Cauldron");
+        vm.label(address(usdc), "USDC");
+        vm.label(address(uniswap), "IUniswapV2Router02");
+        vm.label(address(cauldron), "Cauldron");
     }
 
     function buyUsdc(uint amountOut, address receiver) external {
@@ -65,7 +48,9 @@ contract HelperContract is DSTest {
         path[1] = address(usdc);
 
         uint inputAmount = 2 * uniswap.getAmountsIn(amountOut, path)[0];
-        cheats.deal(address(this), inputAmount);
+        deal(address(this), inputAmount);
+
+        console.log("before buy");
 
         uniswap.swapETHForExactTokens{value: inputAmount}(amountOut, path, receiver, block.timestamp);
     
@@ -77,7 +62,7 @@ contract HelperContract is DSTest {
         bytes4 sig = bytes4(abi.encodeWithSignature("give(bytes12,address)"));
 
         // Call as the Yield Admin contract
-        cheats.prank(0x3b870db67a45611CF4723d44487EAF398fAc51E3);
+        vm.prank(0x3b870db67a45611CF4723d44487EAF398fAc51E3);
         cauldron.grantRole(sig, yieldLeverAddress);
     }
 
@@ -89,14 +74,13 @@ contract HelperContract is DSTest {
     }
 }
 
-contract YieldLeverTest is DSTest {
+contract YieldLeverTest is Test {
     YieldLever yieldLever;
     HelperContract helperContract;
 
     IERC20 constant usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     Cauldron constant cauldron = Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
     YieldLadle constant ladle = YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
-    CheatCodes constant cheats = CheatCodes(HEVM_ADDRESS);
     Pool pool;
 
     bytes6 constant yvUsdcIlkId = 0x303900000000;
@@ -105,9 +89,9 @@ contract YieldLeverTest is DSTest {
 
     constructor() {
         pool = Pool(ladle.pools(seriesId));
-        cheats.label(address(ladle), "YieldLadle");
-        cheats.label(address(pool), "Pool");
-        cheats.label(0x856Ddd1A74B6e620d043EfD6F74d81b8bf34868D, "YieldMath");
+        vm.label(address(ladle), "YieldLadle");
+        vm.label(address(pool), "Pool");
+        vm.label(0x856Ddd1A74B6e620d043EfD6F74d81b8bf34868D, "YieldMath");
     }
 
     function setUp() public {
@@ -127,52 +111,6 @@ contract YieldLeverTest is DSTest {
         usdc.approve(address(yieldLever), collateral);
 
         uint128 maxFy = (pool.buyBasePreview(borrowed) * slippage) / 1000;
-
-        bytes12 vaultId = yieldLever.invest(collateral, borrowed, maxFy, seriesId);
-
-        // Test some parameters
-        Vault memory vault = cauldron.vaults(vaultId);
-        assertEq(vault.owner, address(this));
-        assertEq(vault.seriesId, seriesId);
-        assertEq(vault.ilkId, yvUsdcIlkId);
-
-        Balances memory balances = cauldron.balances(vaultId);
-        assertGt(balances.ink, 0);
-        assertGt(balances.art, 0);
-    }
-
-    function testInvest(uint128 collateral, uint128 borrowed) public {
-        // Use very broad limits for fuzzing.
-        cheats.assume(collateral >= 1_000_000);
-        cheats.assume(collateral <= 100_000_000_000_000);
-        cheats.assume(borrowed >= 1_000_000);
-        cheats.assume(borrowed <= 100_000_000_000_000);
-
-        Series memory series = cauldron.series(seriesId);
-
-        // Make sure to create a collateralized vault
-        SpotOracle memory spotOracle = cauldron.spotOracles(series.baseId, ILK_ID);
-        cheats.assume(borrowed * spotOracle.ratio <= collateral * 1_000_000);
-
-        // Slippage, in tenths of a percent, 1 being no slippage
-        uint128 slippage = 1_001;
-
-        helperContract.buyUsdc(collateral, address(this));
-        usdc.approve(address(yieldLever), collateral);
-        
-        // Check base in pool
-        uint112 baseBalance = pool.getBaseBalance();
-        emit log_uint(baseBalance);
-        cheats.assume(baseBalance >= borrowed);
-
-        // Compute min debt
-        uint128 expectedFy = pool.buyBasePreview(borrowed);
-        uint128 maxFy = (expectedFy * slippage) / 1000;
-        Debt memory debt = cauldron.debt(series.baseId, ILK_ID);
-        uint minDebt = debt.min * (10 ** debt.dec);
-        uint maxDebt = debt.max * (10 ** debt.dec);
-        cheats.assume(expectedFy >= minDebt);
-        cheats.assume(maxFy <= maxDebt);
 
         bytes12 vaultId = yieldLever.invest(collateral, borrowed, maxFy, seriesId);
 
@@ -220,7 +158,7 @@ contract YieldLeverTest is DSTest {
 
         // Move past maturity
         Series memory series = cauldron.series(seriesId);
-        cheats.warp(series.maturity);
+        vm.warp(series.maturity);
 
         // Unwind
         Balances memory balances = cauldron.balances(vaultId);

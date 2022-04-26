@@ -1,12 +1,3 @@
-# How to test
-
-Run  `ganache-cli`:
-```sh
-ganache-cli --fork https://mainnet.infura.io/v3/6f4f43507fa24302a651b52073c98d8a --wallet.defaultBalance 1000000 --wallet.unlockedAccounts 0x3b870db67a45611CF4723d44487EAF398fAc51E3 --wallet.mnemonic "sure submit thank indoor electric grant face swallow donkey cousin narrow master"
-npx truffle compile
-npx truffle test .\test\TestYieldLever.sol
-```
-
 # Forge
 ```sh
 # Start Ganache
@@ -21,4 +12,10 @@ forge create contracts/YieldLever.sol:YieldLever --rpc-url "http://127.0.0.1:854
 # Copy YieldLever ABI to the source folder and generate typings
 cp ".\out\YieldLever.sol\YieldLever.json" ".\frontend\src\generated\abi/"
 npx abi-types-generator ./frontend/src/generated/abi/YieldLever.json --provider=ethers_v5
+
+# Do preparations
+npx ts-node .\scripts\prepare-ethers.ts
 ```
+
+# Testing
+Run `forge test --fork-url https://mainnet.infura.io/v3/6f4f43507fa24302a651b52073c98d8a`.
