@@ -91,6 +91,7 @@ contract YieldLeverTest is Test {
         pool = Pool(ladle.pools(seriesId));
         vm.label(address(ladle), "YieldLadle");
         vm.label(address(pool), "Pool");
+        vm.label(address(cauldron), "Cauldron");
         vm.label(0x856Ddd1A74B6e620d043EfD6F74d81b8bf34868D, "YieldMath");
     }
 
@@ -125,11 +126,7 @@ contract YieldLeverTest is Test {
         assertGt(balances.art, 0);
     }
 
-    function testInvestAndUnwind() public {
-        uint128 collateral = 25_000_000_000;
-        uint128 borrowed = 3 * collateral;
-        // Slippage, in tenths of a percent, 1 being no slippage
-        uint128 slippage = 1_001;
+    function investAndUnwind(uint128 collateral, uint128 borrowed, uint128 slippage) public {
         helperContract.buyUsdc(collateral, address(this));
         usdc.approve(address(yieldLever), collateral);
         uint128 maxFy = (pool.buyBasePreview(borrowed) * slippage) / 1000;
@@ -145,7 +142,21 @@ contract YieldLeverTest is Test {
         assertEq(newBalances.art, 0);
         assertEq(newBalances.ink, 0);
     }
-    
+
+    function testInvestAndUnwind() public {
+        uint128 collateral = 25_000_000_000;
+        uint128 borrowed = 3 * collateral;
+        uint128 slippage = 1_001;
+        this.investAndUnwind(collateral, borrowed, slippage);
+    }
+
+    function testInvestAndUnwind2() public {
+        uint128 collateral = 5_000_000_000;
+        uint128 borrowed = 2 * collateral;
+        uint128 slippage = 1_020;
+        this.investAndUnwind(collateral, borrowed, slippage);
+    }
+
     function testInvestAndUnwindAfterMaturity() public {
         uint128 collateral = 25_000_000_000;
         uint128 borrowed = 3 * collateral;
@@ -163,27 +174,6 @@ contract YieldLeverTest is Test {
         // Unwind
         Balances memory balances = cauldron.balances(vaultId);
         yieldLever.unwind(vaultId, 0, address(pool), balances.ink, balances.art, seriesId);
-
-        // Test new balances
-        Balances memory newBalances = cauldron.balances(vaultId);
-        assertEq(newBalances.art, 0);
-        assertEq(newBalances.ink, 0);
-    }
-
-    function testInvestAndUnwind() public {
-        uint128 collateral = 24_930_921_909;
-        uint128 borrowed = 49_861_843_818;
-        // Slippage, in tenths of a percent, 1 being no slippage
-        uint128 slippage = 1_005;
-        helperContract.buyUsdc(collateral, address(this));
-        usdc.approve(address(yieldLever), collateral);
-        uint128 maxFy = (pool.buyBasePreview(borrowed) * slippage) / 1000;
-        bytes12 vaultId = yieldLever.invest(collateral, borrowed, maxFy, seriesId);
-
-        // Unwind
-        Balances memory balances = cauldron.balances(vaultId);
-        uint128 maxAmount = (pool.buyFYTokenPreview(balances.art) * slippage) / 1000;
-        yieldLever.unwind(vaultId, maxAmount, address(pool), balances.ink, balances.art, seriesId);
 
         // Test new balances
         Balances memory newBalances = cauldron.balances(vaultId);

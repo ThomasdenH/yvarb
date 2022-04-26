@@ -2,4 +2,6 @@
 src = 'contracts'
 out = 'out'
 
-# See more config options https://github.com/gakonst/foundry/tree/master/config
+fuzz_runs = 2048
+fuzz_max_local_rejects = 524288
+fuzz_max_global_rejects = 524288
