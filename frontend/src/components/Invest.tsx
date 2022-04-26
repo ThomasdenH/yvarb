@@ -148,18 +148,27 @@ export default class Invest extends React.Component<Properties, State> {
           onChange={(val: number) => this.onSlippageChange(val)}
         />
         <ValueDisplay
-          label="Total collateral:"
+          label="To borrow:"
           valueType={ValueType.Usdc}
-          value={this.totalToInvest()}
+          value={this.toBorrow()}
         />
-        {this.state.fyTokens !== undefined ? (
-          <ValueDisplay
-            key="fytokens"
-            label="To borrow:"
-            valueType={ValueType.FyUsdc}
-            value={this.state.fyTokens}
-          />
-        ) : null}
+        {this.state.fyTokens === undefined ? (
+          <></>
+        ) : (
+          <>
+            <ValueDisplay
+              label="Total interest:"
+              valueType={ValueType.Usdc}
+              value={this.state.fyTokens.sub(this.toBorrow())}
+            />
+            <ValueDisplay
+              key="fytokens"
+              label="Debt on maturity:"
+              valueType={ValueType.Usdc}
+              value={this.state.fyTokens}
+            />
+          </>
+        )}
         {this.state.interest !== undefined ? (
           <ValueDisplay
             label="Interest:"
@@ -197,6 +206,10 @@ export default class Invest extends React.Component<Properties, State> {
     } catch (e) {
       return BigNumber.from(0);
     }
+  }
+
+  private toBorrow(): BigNumber {
+    return this.totalToInvest().sub(this.state.usdcToInvest);
   }
 
   private async checkApprovalState() {

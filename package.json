@@ -7,7 +7,8 @@
     "test": "test"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "forge create contracts/YieldLever.sol:YieldLever --rpc-url \"http://127.0.0.1:8545\" --private-key 0xde7e35b0dd8b3bebebd1f793daf12659f9cf3cb7d52a3d3921fcff63808e7d05 --legacy --gas-price 182929878490 --json > ./frontend/src/generated/deployment.json && cp \"./out/YieldLever.sol/YieldLever.json\" \"./frontend/src/generated/abi/\" && npx abi-types-generator ./frontend/src/generated/abi/YieldLever.json --provider=ethers_v5 && npx ts-node ./scripts/prepare-ethers.ts"
   },
   "author": "",
   "license": "ISC",

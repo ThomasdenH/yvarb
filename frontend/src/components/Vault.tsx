@@ -2,7 +2,7 @@ import { BigNumber, utils } from "ethers";
 import React from "react";
 import { Contracts, SERIES_ID } from "../App";
 import { Balance, Vault as VaultI } from "../objects/Vault";
-import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
+import Slippage, { addSlippage, SLIPPAGE_OPTIONS } from "./Slippage";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import "./Vault.scss";
 
@@ -89,11 +89,9 @@ export default class Vault extends React.Component<Properties, State> {
     );
     if (balance.art.eq(0)) return BigNumber.from(0);
     try {
-      return (
-        await this.props.contracts.poolContract.buyFYTokenPreview(balance.art)
-      )
-        .mul(1000 + this.state.slippage)
-        .div(1000);
+      return addSlippage(
+        await this.props.contracts.poolContract.buyFYTokenPreview(balance.art), this.state.slippage
+      );
     } catch (e) {
       // Past maturity
       console.log("Past maturity?");
@@ -107,12 +105,19 @@ export default class Vault extends React.Component<Properties, State> {
       this.props.contracts.ladleContract.pools(SERIES_ID),
       this.props.contracts.cauldronContract.balances(this.props.vaultId),
     ]);
+    // Sanity check
     if (
       this.props.balance.art.eq(balances.art) &&
       this.props.balance.ink.eq(balances.ink)
     ) {
       const maxFy = await this.computeToBorrow();
       console.log("Base required: " + utils.formatUnits(maxFy, 6) + " USDC");
+      console.log(this.props.vaultId,
+        maxFy,
+        poolAddress,
+        balances.ink,
+        balances.art,
+        SERIES_ID);
       const tx = await this.props.contracts.yieldLeverContract.unwind(
         this.props.vaultId,
         maxFy,

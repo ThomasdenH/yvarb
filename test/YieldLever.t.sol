@@ -169,4 +169,25 @@ contract YieldLeverTest is Test {
         assertEq(newBalances.art, 0);
         assertEq(newBalances.ink, 0);
     }
+
+    function testInvestAndUnwind() public {
+        uint128 collateral = 24_930_921_909;
+        uint128 borrowed = 49_861_843_818;
+        // Slippage, in tenths of a percent, 1 being no slippage
+        uint128 slippage = 1_005;
+        helperContract.buyUsdc(collateral, address(this));
+        usdc.approve(address(yieldLever), collateral);
+        uint128 maxFy = (pool.buyBasePreview(borrowed) * slippage) / 1000;
+        bytes12 vaultId = yieldLever.invest(collateral, borrowed, maxFy, seriesId);
+
+        // Unwind
+        Balances memory balances = cauldron.balances(vaultId);
+        uint128 maxAmount = (pool.buyFYTokenPreview(balances.art) * slippage) / 1000;
+        yieldLever.unwind(vaultId, maxAmount, address(pool), balances.ink, balances.art, seriesId);
+
+        // Test new balances
+        Balances memory newBalances = cauldron.balances(vaultId);
+        assertEq(newBalances.art, 0);
+        assertEq(newBalances.ink, 0);
+    }
 }
