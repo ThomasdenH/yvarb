@@ -1,6 +1,6 @@
 import { BigNumber, utils } from "ethers";
 import React from "react";
-import { Contracts, SERIES_ID } from "../App";
+import { Contracts } from "../App";
 import { Balance, Vault as VaultI } from "../objects/Vault";
 import Slippage, { addSlippage, SLIPPAGE_OPTIONS } from "./Slippage";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
@@ -46,7 +46,7 @@ export default class Vault extends React.Component<Properties, State> {
         />
         <ValueDisplay
           label="Debt:"
-          valueType={ValueType.FyUsdc}
+          valueType={ValueType.Usdc}
           value={this.props.balance.art}
         />
         <Slippage
@@ -91,14 +91,14 @@ export default class Vault extends React.Component<Properties, State> {
     try {
       console.log(
         `Expected FY:\t${utils.formatUnits(
-          await this.props.contracts.poolContract.buyFYTokenPreview(
+          await this.props.contracts.poolContracts[this.props.vault.seriesId].buyFYTokenPreview(
             balance.art
           ),
           6
         )} USDC`
       );
       return addSlippage(
-        await this.props.contracts.poolContract.buyFYTokenPreview(balance.art),
+        await this.props.contracts.poolContracts[this.props.vault.seriesId].buyFYTokenPreview(balance.art),
         this.state.slippage
       );
     } catch (e) {
@@ -111,7 +111,7 @@ export default class Vault extends React.Component<Properties, State> {
 
   private async unwind() {
     const [poolAddress, balances] = await Promise.all([
-      this.props.contracts.ladleContract.pools(SERIES_ID),
+      this.props.contracts.ladleContract.pools(this.props.vault.seriesId),
       this.props.contracts.cauldronContract.balances(this.props.vaultId),
     ]);
     // Sanity check
@@ -130,7 +130,7 @@ export default class Vault extends React.Component<Properties, State> {
         poolAddress,
         balances.ink,
         balances.art,
-        SERIES_ID
+        this.props.vault.seriesId
       );
       const tx = await this.props.contracts.yieldLeverContract.unwind(
         this.props.vaultId,
@@ -138,7 +138,7 @@ export default class Vault extends React.Component<Properties, State> {
         poolAddress,
         balances.ink,
         balances.art,
-        SERIES_ID
+        this.props.vault.seriesId
       );
       await tx.wait();
       await Promise.all([this.props.pollData(), this.updateToBorrow()]);
