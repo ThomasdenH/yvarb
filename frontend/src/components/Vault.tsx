@@ -132,14 +132,25 @@ export default class Vault extends React.Component<Properties, State> {
         balances.art,
         this.props.vault.seriesId
       );
-      const tx = await this.props.contracts.yieldLeverContract.unwind(
+      const gasLimit = (await this.props.contracts.yieldLeverContract.estimateGas.unwind(
         this.props.vaultId,
         maxFy,
         poolAddress,
         balances.ink,
         balances.art,
         this.props.vault.seriesId
+      )).mul(12).div(10).toNumber();
+      const tx = await this.props.contracts.yieldLeverContract.unwind(
+        this.props.vaultId,
+        maxFy,
+        poolAddress,
+        balances.ink,
+        balances.art,
+        this.props.vault.seriesId,
+        { gasLimit }
       );
+      await tx.wait();
+
       await tx.wait();
       await Promise.all([this.props.pollData(), this.updateToBorrow()]);
     }

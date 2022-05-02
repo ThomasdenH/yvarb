@@ -382,11 +382,18 @@ export default class Invest extends React.Component<Properties, State> {
       maxFy.toString(),
       this.state.selectedSeriesId
     );
-    const tx = await this.contracts.yieldLeverContract.invest(
+    const gasLimit = (await this.contracts.yieldLeverContract.estimateGas.invest(
       this.state.usdcToInvest,
       leverage,
       maxFy,
       this.state.selectedSeriesId
+    )).mul(12).div(10).toNumber();
+    const tx = await this.contracts.yieldLeverContract.invest(
+      this.state.usdcToInvest,
+      leverage,
+      maxFy,
+      this.state.selectedSeriesId,
+      { gasLimit }
     );
     await tx.wait();
   }
