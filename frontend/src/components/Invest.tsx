@@ -10,7 +10,7 @@ import {
   SeriesResponse as Series,
   ContractContext as Cauldron,
 } from "../abi/Cauldron";
-import { SeriesDefinition } from '../objects/Vault';
+import { SeriesDefinition } from "../objects/Vault";
 
 const UNITS_USDC = 6;
 const UNITS_LEVERAGE = 2;
@@ -42,7 +42,7 @@ interface State {
   slippage: number;
   selectedSeriesId?: string;
   interest?: number;
-  seriesInterest: { [seriesId: string]: number }
+  seriesInterest: { [seriesId: string]: number };
 }
 
 export default class Invest extends React.Component<Properties, State> {
@@ -132,18 +132,28 @@ export default class Invest extends React.Component<Properties, State> {
         />
         <select
           value={this.state.selectedSeriesId}
-          onSelect={(e) => this.setState({ selectedSeriesId: e.currentTarget.value })}
-        >{
-            this.props.seriesDefinitions.map(
-              (seriesInterface: SeriesDefinition) =>
-              (<option
+          onSelect={(e) =>
+            this.setState({ selectedSeriesId: e.currentTarget.value })
+          }
+        >
+          {this.props.seriesDefinitions.map(
+            (seriesInterface: SeriesDefinition) => (
+              <option
                 key={seriesInterface.seriesId}
                 value={seriesInterface.seriesId}
-                disabled={Invest.isPastMaturity(this.props.seriesInfo[seriesInterface.seriesId])}
-                >
-                  {this.state.seriesInterest[seriesInterface.seriesId] === undefined ? `${seriesInterface.seriesId}` : `${seriesInterface.seriesId} (${this.state.seriesInterest[seriesInterface.seriesId]}%)`}
-                  </option>))
-          }
+                disabled={Invest.isPastMaturity(
+                  this.props.seriesInfo[seriesInterface.seriesId]
+                )}
+              >
+                {this.state.seriesInterest[seriesInterface.seriesId] ===
+                undefined
+                  ? `${seriesInterface.seriesId}`
+                  : `${seriesInterface.seriesId} (${
+                      this.state.seriesInterest[seriesInterface.seriesId]
+                    }%)`}
+              </option>
+            )
+          )}
         </select>
         <label htmlFor="invest_amount">Amount to invest:</label>
         <UsdcInput
@@ -191,10 +201,13 @@ export default class Invest extends React.Component<Properties, State> {
             />
           </>
         )}
-        {this.state.selectedSeriesId !== undefined && this.state.seriesInterest[this.state.selectedSeriesId] !== undefined ? (
+        {this.state.selectedSeriesId !== undefined &&
+        this.state.seriesInterest[this.state.selectedSeriesId] !== undefined ? (
           <ValueDisplay
             label="Yield interest:"
-            value={`${this.state.seriesInterest[this.state.selectedSeriesId]} % APY`}
+            value={`${
+              this.state.seriesInterest[this.state.selectedSeriesId]
+            } % APY`}
             valueType={ValueType.Literal}
           />
         ) : null}
@@ -247,7 +260,9 @@ export default class Invest extends React.Component<Properties, State> {
   private async checkApprovalState() {
     let seriesId: string;
     if (this.state.selectedSeriesId === undefined) {
-      const series = this.props.seriesDefinitions.find((ser) => !Invest.isPastMaturity(this.props.seriesInfo[ser.seriesId]));
+      const series = this.props.seriesDefinitions.find(
+        (ser) => !Invest.isPastMaturity(this.props.seriesInfo[ser.seriesId])
+      );
       if (series === undefined) {
         return;
       } else {
@@ -312,13 +327,13 @@ export default class Invest extends React.Component<Properties, State> {
         this.setState({
           fyTokens,
           approvalState: ApprovalState.ApprovalRequired,
-          interest
+          interest,
         });
       } else {
         this.setState({
           fyTokens,
           approvalState: ApprovalState.Transactable,
-          interest
+          interest,
         });
       }
     }
@@ -331,7 +346,12 @@ export default class Invest extends React.Component<Properties, State> {
         console.log(series.seriesId);
         const toBorrow = BigNumber.from(100_000_000);
         const interest = await this.computeInterest(series.seriesId, toBorrow);
-        this.setState({ seriesInterest: { ...this.state.seriesInterest, [series.seriesId]: interest } });
+        this.setState({
+          seriesInterest: {
+            ...this.state.seriesInterest,
+            [series.seriesId]: interest,
+          },
+        });
       }
     }
   }
@@ -361,9 +381,11 @@ export default class Invest extends React.Component<Properties, State> {
    * @returns
    */
   private async fyTokens(): Promise<BigNumber> {
-    if (this.totalToInvest().eq(0) || this.state.selectedSeriesId === undefined) return BigNumber.from(0);
+    if (this.totalToInvest().eq(0) || this.state.selectedSeriesId === undefined)
+      return BigNumber.from(0);
     const leverage = this.totalToInvest().sub(this.state.usdcToInvest);
-    const poolContract = this.props.contracts.poolContracts[this.state.selectedSeriesId];
+    const poolContract =
+      this.props.contracts.poolContracts[this.state.selectedSeriesId];
     return addSlippage(
       await poolContract.buyBasePreview(leverage),
       this.state.slippage
@@ -382,12 +404,17 @@ export default class Invest extends React.Component<Properties, State> {
       maxFy.toString(),
       this.state.selectedSeriesId
     );
-    const gasLimit = (await this.contracts.yieldLeverContract.estimateGas.invest(
-      this.state.usdcToInvest,
-      leverage,
-      maxFy,
-      this.state.selectedSeriesId
-    )).mul(12).div(10).toNumber();
+    const gasLimit = (
+      await this.contracts.yieldLeverContract.estimateGas.invest(
+        this.state.usdcToInvest,
+        leverage,
+        maxFy,
+        this.state.selectedSeriesId
+      )
+    )
+      .mul(12)
+      .div(10)
+      .toNumber();
     const tx = await this.contracts.yieldLeverContract.invest(
       this.state.usdcToInvest,
       leverage,
@@ -398,7 +425,10 @@ export default class Invest extends React.Component<Properties, State> {
     await tx.wait();
   }
 
-  private async computeInterest(seriesId: string, toBorrow: BigNumber): Promise<number> {
+  private async computeInterest(
+    seriesId: string,
+    toBorrow: BigNumber
+  ): Promise<number> {
     const series = this.props.seriesInfo[seriesId];
     const poolContract = this.props.contracts.poolContracts[seriesId];
     const currentTime = Date.now() / 1000;

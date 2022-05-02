@@ -91,14 +91,16 @@ export default class Vault extends React.Component<Properties, State> {
     try {
       console.log(
         `Expected FY:\t${utils.formatUnits(
-          await this.props.contracts.poolContracts[this.props.vault.seriesId].buyFYTokenPreview(
-            balance.art
-          ),
+          await this.props.contracts.poolContracts[
+            this.props.vault.seriesId
+          ].buyFYTokenPreview(balance.art),
           6
         )} USDC`
       );
       return addSlippage(
-        await this.props.contracts.poolContracts[this.props.vault.seriesId].buyFYTokenPreview(balance.art),
+        await this.props.contracts.poolContracts[
+          this.props.vault.seriesId
+        ].buyFYTokenPreview(balance.art),
         this.state.slippage
       );
     } catch (e) {
@@ -132,14 +134,19 @@ export default class Vault extends React.Component<Properties, State> {
         balances.art,
         this.props.vault.seriesId
       );
-      const gasLimit = (await this.props.contracts.yieldLeverContract.estimateGas.unwind(
-        this.props.vaultId,
-        maxFy,
-        poolAddress,
-        balances.ink,
-        balances.art,
-        this.props.vault.seriesId
-      )).mul(12).div(10).toNumber();
+      const gasLimit = (
+        await this.props.contracts.yieldLeverContract.estimateGas.unwind(
+          this.props.vaultId,
+          maxFy,
+          poolAddress,
+          balances.ink,
+          balances.art,
+          this.props.vault.seriesId
+        )
+      )
+        .mul(12)
+        .div(10)
+        .toNumber();
       const tx = await this.props.contracts.yieldLeverContract.unwind(
         this.props.vaultId,
         maxFy,

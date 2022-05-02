@@ -48,12 +48,12 @@ export async function loadVaults(
   if ((await provider.getNetwork()).chainId === 1337) {
     // Ganache log fetching is so slow as to be unusable for us. Use hardcoded pools instead.
     seriesDiscovered({
-      poolAddress: '0x80142add3A597b1eD1DE392A56B2cef3d8302797',
-      seriesId: '0x303230350000'
+      poolAddress: "0x80142add3A597b1eD1DE392A56B2cef3d8302797",
+      seriesId: "0x303230350000",
     });
     seriesDiscovered({
-      poolAddress: '0xEf82611C6120185D3BF6e020D1993B49471E7da0',
-      seriesId: '0x303230360000'
+      poolAddress: "0xEf82611C6120185D3BF6e020D1993B49471E7da0",
+      seriesId: "0x303230360000",
     });
   } else {
     const currentBlock: number = await provider.getBlockNumber();
@@ -62,9 +62,21 @@ export async function loadVaults(
     const seriesAddedFilter = cauldron.filters.SeriesAdded(null, ILK_ID, null);
 
     const cauldronWithFilter = cauldron as Cauldron & {
-      queryFilter(a: typeof vaultsBuiltFilter, b: number, c: number): Promise<unknown[]>;
-      queryFilter(a: typeof vaultsReceivedFilter, b: number, c: number): Promise<unknown[]>;
-      queryFilter(a: typeof seriesAddedFilter, b: number, c: number): Promise<unknown[]>;
+      queryFilter(
+        a: typeof vaultsBuiltFilter,
+        b: number,
+        c: number
+      ): Promise<unknown[]>;
+      queryFilter(
+        a: typeof vaultsReceivedFilter,
+        b: number,
+        c: number
+      ): Promise<unknown[]>;
+      queryFilter(
+        a: typeof seriesAddedFilter,
+        b: number,
+        c: number
+      ): Promise<unknown[]>;
     };
 
     let end = currentBlock;
@@ -74,12 +86,15 @@ export async function loadVaults(
         cauldronWithFilter.queryFilter(vaultsBuiltFilter, start, end),
         cauldronWithFilter.queryFilter(vaultsReceivedFilter, start, end),
       ]);
-      const series = await cauldronWithFilter.queryFilter(seriesAddedFilter, start, end);
+      const series = await cauldronWithFilter.queryFilter(
+        seriesAddedFilter,
+        start,
+        end
+      );
       if (vaultsBuilt.length !== 0 || vaultsReceived.length !== 0)
         // TODO: Call callback
         console.log(vaultsBuilt, vaultsReceived);
-      if (series.length !== 0)
-        console.log(series);
+      if (series.length !== 0) console.log(series);
       console.log(start);
       end = start;
     }

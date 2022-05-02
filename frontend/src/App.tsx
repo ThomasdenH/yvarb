@@ -25,9 +25,7 @@ import { ContractContext as Ladle } from "./abi/Ladle";
 import yieldLeverAbi from "./generated/abi/YieldLever.json";
 import yieldLeverDeployed from "./generated/deployment.json";
 import { ExternalProvider } from "@ethersproject/providers";
-import {
-  SeriesResponse as Series
-} from "./abi/Cauldron";
+import { SeriesResponse as Series } from "./abi/Cauldron";
 
 const YIELD_LEVER_CONTRACT_ADDRESS: string = yieldLeverDeployed.deployedTo;
 const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
@@ -76,7 +74,7 @@ export class App extends React.Component<Record<string, never>, State> {
       usdcBalance: undefined,
       vaults: emptyVaults(),
       series: [],
-      seriesInfo: {}
+      seriesInfo: {},
     };
     this.state = this.initialState;
   }
@@ -241,7 +239,13 @@ export class App extends React.Component<Record<string, never>, State> {
     };
 
     if (this.state.selectedAddress !== undefined)
-      void loadVaults(this.contracts.cauldronContract, this.state.selectedAddress, this._provider, (vaultId) => void this.addVault(vaultId), (series) => void this.addSeries(series));
+      void loadVaults(
+        this.contracts.cauldronContract,
+        this.state.selectedAddress,
+        this._provider,
+        (vaultId) => void this.addVault(vaultId),
+        (series) => void this.addSeries(series)
+      );
 
     const vaultsBuiltFilter =
       this.contracts.cauldronContract.filters.VaultBuilt(
@@ -278,8 +282,10 @@ export class App extends React.Component<Record<string, never>, State> {
 
   private async addSeries(series: SeriesDefinition) {
     if (this.contracts === undefined || this._provider === undefined)
-      throw new Error('Race condition');
-    const seriesInfo = await this.contracts.cauldronContract.series(series.seriesId);
+      throw new Error("Race condition");
+    const seriesInfo = await this.contracts.cauldronContract.series(
+      series.seriesId
+    );
     this.contracts.poolContracts[series.seriesId] = new ethers.Contract(
       series.poolAddress,
       poolAbi,
@@ -287,8 +293,8 @@ export class App extends React.Component<Record<string, never>, State> {
     ) as any as Pool;
     this.setState({
       series: [...this.state.series, series],
-      seriesInfo: {...this.state.seriesInfo, [series.seriesId]: seriesInfo }
-    })
+      seriesInfo: { ...this.state.seriesInfo, [series.seriesId]: seriesInfo },
+    });
   }
 
   // This method resets the state
