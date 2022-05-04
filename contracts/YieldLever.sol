@@ -107,19 +107,36 @@ interface Cauldron {
 }
 
 contract YieldLever {
-  yVault constant yvUSDC = yVault(0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE);
-  bytes6 constant ilkId = bytes6(0x303900000000); // for yvUSDC
-  IToken constant iUSDC = IToken(0x32E4c68B3A4a813b710595AebA7f6B7604Ab9c15); 
-  IERC20 constant usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-  address constant usdcJoin = address(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4);
-  YieldLadle constant ladle = YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
-  address constant yvUSDCJoin = address(0x403ae7384E89b086Ea2935d5fAFed07465242B38);
-  Cauldron constant cauldron = Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
+  bytes6 ilkId; // for yvUSDC
+  yVault yvUSDC;
+  IToken iUSDC; 
+  IERC20 usdc;
+  address usdcJoin;
+  YieldLadle ladle;
+  address yvUSDCJoin;
+  Cauldron cauldron;
 
   bytes6 constant usdcId = bytes6(bytes32("02"));
 
-  /// @dev YieldLever is not expected to hold any USDC
-  constructor() {
+  /// @dev YieldLever is not expected to hold any USDC, so approve transfers for any amount.
+  constructor(
+    bytes6 ilkId_,
+    yVault yvUSDC_,
+    IToken iUSDC_,
+    IERC20 usdc_,
+    address usdcJoin_,
+    YieldLadle ladle_,
+    address yvUSDCJoin_,
+    Cauldron cauldron_
+  ) {
+    ilkId = ilkId_;
+    yvUSDC = yvUSDC_;
+    iUSDC = iUSDC_;
+    usdc = usdc_;
+    usdcJoin = usdcJoin_;
+    ladle = ladle_;
+    yvUSDCJoin = yvUSDCJoin_;
+    cauldron = cauldron_;
     usdc.approve(address(yvUSDC), type(uint256).max);
   }
 

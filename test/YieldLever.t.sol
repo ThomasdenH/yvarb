@@ -96,7 +96,16 @@ contract YieldLeverTest is Test {
     }
 
     function setUp() public {
-        yieldLever = new YieldLever();
+        yieldLever = new YieldLever(
+            0x303900000000,
+            yVault(0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE),
+            IToken(0x32E4c68B3A4a813b710595AebA7f6B7604Ab9c15),
+            IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48),
+            address(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4),
+            YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A),
+            address(0x403ae7384E89b086Ea2935d5fAFed07465242B38),
+            Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867)
+        );
         helperContract = new HelperContract();
         helperContract.grantYieldLeverAccess(address(yieldLever));
     }
