@@ -20,4 +20,4 @@ npx ts-node .\scripts\prepare-ethers.ts
 ```
 
 # Testing
-Run `forge test --fork-url https://mainnet.infura.io/v3/6f4f43507fa24302a651b52073c98d8a`.
+Run `forge test --match-path test/YieldLever.t.sol --fork-url <MAINNET_RPC_URL>`.

@@ -2,16 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "contracts/YieldLever.sol";
-
-interface IUniswapV2Router02 {
-    function WETH() external pure returns (address);
-    function getAmountsIn(uint amountOut, address[] calldata path) external view returns (uint[] memory amounts);
-    function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline)
-        external
-        payable
-        returns (uint[] memory amounts);
-}
+import "contracts/YieldLeverRinkeby.sol";
 
 interface AccessControl {
     function grantRole(bytes4 role, address account) external;
@@ -30,46 +21,30 @@ interface Pool {
 }
 
 contract HelperContract is Test {
-    IUniswapV2Router02 constant uniswap = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
-    IERC20 constant usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    AccessControl constant cauldron = AccessControl(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
+    RinkebyToken constant usdc = RinkebyToken(0xf4aDD9708888e654C042613843f413A8d6aDB8Fe);
+    AccessControl constant cauldron = AccessControl(0x84EFA55faA9d774B4846c7a51c1C470232DFE50f);
 
     constructor() {
         vm.label(address(usdc), "USDC");
-        vm.label(address(uniswap), "IUniswapV2Router02");
         vm.label(address(cauldron), "Cauldron");
     }
 
     function buyUsdc(uint amountOut, address receiver) external {
-        uint startingBalance = usdc.balanceOf(receiver);
-
-        address[] memory path = new address[](2);
-        path[0] = uniswap.WETH();
-        path[1] = address(usdc);
-
-        uint inputAmount = 2 * uniswap.getAmountsIn(amountOut, path)[0];
-        deal(address(this), inputAmount);
-
-        console.log("before buy");
-
-        uniswap.swapETHForExactTokens{value: inputAmount}(amountOut, path, receiver, block.timestamp);
-    
-        uint endBalance = usdc.balanceOf(receiver);
-        require(endBalance == amountOut + startingBalance, "USDC buy failed: Incorrect end balance");
+        usdc.mint(receiver, amountOut);
     }
 
     function grantYieldLeverAccess(address yieldLeverAddress) external {
         bytes4 sig = bytes4(abi.encodeWithSignature("give(bytes12,address)"));
 
         // Call as the Yield Admin contract
-        vm.prank(0x3b870db67a45611CF4723d44487EAF398fAc51E3);
+        vm.prank(0x1BE7654F12BFC3ea2C53d05E512033d5a634c2b5);
         cauldron.grantRole(sig, yieldLeverAddress);
     }
 
     receive() payable external {}
 
     function testBuyUsdc() external {
-        uint amount = 100_000_000;
+        uint amount = 5_000_000;
         this.buyUsdc(amount, address(this));
     }
 }
@@ -78,28 +53,24 @@ contract YieldLeverTest is Test {
     YieldLever yieldLever;
     HelperContract helperContract;
 
-    IERC20 constant usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    Cauldron constant cauldron = Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
-    YieldLadle constant ladle = YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
+    RinkebyToken constant usdc = RinkebyToken(0xf4aDD9708888e654C042613843f413A8d6aDB8Fe);
+    Cauldron constant cauldron = Cauldron(0x84EFA55faA9d774B4846c7a51c1C470232DFE50f);
+    YieldLadle constant ladle = YieldLadle(0xAE53c79926cb960feA17aF2369DE10938f5D0d52);
+    YVault constant yVault = YVault(0x2381d065e83DDdBaCD9B4955d49D5a858AE5957B);
     Pool pool;
 
     bytes6 constant usdcId = 0x303200000000;
     bytes6 constant yvUsdcIlkId = 0x303900000000;
-    bytes6 constant seriesId = 0x303230360000;
+    bytes6 constant seriesId = 0x303230370000;
 
     constructor() {
         pool = Pool(ladle.pools(seriesId));
-        vm.label(address(ladle), "YieldLadle");
-        vm.label(address(pool), "Pool");
-        vm.label(address(cauldron), "Cauldron");
-        vm.label(0x856Ddd1A74B6e620d043EfD6F74d81b8bf34868D, "YieldMath");
     }
 
     function setUp() public {
         yieldLever = new YieldLever(
             yvUsdcIlkId,
-            yVault(0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE),
-            IToken(0x32E4c68B3A4a813b710595AebA7f6B7604Ab9c15),
+            yVault,
             usdc,
             ladle.joins(usdcId),
             ladle,
@@ -112,8 +83,8 @@ contract YieldLeverTest is Test {
 
     /// Test the creation of a Vault.
     function testBuildVault() public {
-        uint128 collateral = 25_000_000_000;
-        uint128 borrowed = 3 * collateral;
+        uint128 collateral = 5_000_000_000;
+        uint128 borrowed = 1_000_000_000;
         // Slippage, in tenths of a percent, 1 being no slippage
         uint128 slippage = 1_001;
 
@@ -153,22 +124,22 @@ contract YieldLeverTest is Test {
     }
 
     function testInvestAndUnwind() public {
-        uint128 collateral = 25_000_000_000;
-        uint128 borrowed = 3 * collateral;
+        uint128 collateral = 5_000_000_000;
+        uint128 borrowed = 2 * collateral;
         uint128 slippage = 1_001;
         this.investAndUnwind(collateral, borrowed, slippage);
     }
 
     function testInvestAndUnwind2() public {
-        uint128 collateral = 5_000_000_000;
-        uint128 borrowed = 2 * collateral;
+        uint128 collateral = 10_000_000_000;
+        uint128 borrowed = collateral;
         uint128 slippage = 1_020;
         this.investAndUnwind(collateral, borrowed, slippage);
     }
 
     function testInvestAndUnwindAfterMaturity() public {
-        uint128 collateral = 25_000_000_000;
-        uint128 borrowed = 3 * collateral;
+        uint128 collateral = 5_000_000_000;
+        uint128 borrowed = 2 * collateral;
         // Slippage, in tenths of a percent, 1 being no slippage
         uint128 slippage = 1_001;
         helperContract.buyUsdc(collateral, address(this));
