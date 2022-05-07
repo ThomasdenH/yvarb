@@ -85,7 +85,7 @@ contract YieldLeverTest is Test {
     function testBuildVault() public {
         uint128 collateral = 5_000_000_000;
         uint128 borrowed = 1_000_000_000;
-        // Slippage, in tenths of a percent, 1 being no slippage
+        // Slippage, in tenths of a percent, 1_000 being no slippage
         uint128 slippage = 1_001;
 
         helperContract.buyUsdc(collateral, address(this));
