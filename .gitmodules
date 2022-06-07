@@ -13,3 +13,6 @@
 [submodule "lib/erc3156"]
 	path = lib/erc3156
 	url = https://github.com/alcueca/erc3156
+[submodule "lib/yield-utils-v2"]
+	path = lib/yield-utils-v2
+	url = https://github.com/yieldprotocol/yield-utils-v2
