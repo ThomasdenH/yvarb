@@ -10,3 +10,6 @@
 [submodule "lib/yieldspace-interfaces"]
 	path = lib/yieldspace-interfaces
 	url = https://github.com/yieldprotocol/yieldspace-interfaces
+[submodule "lib/erc3156"]
+	path = lib/erc3156
+	url = https://github.com/alcueca/erc3156
