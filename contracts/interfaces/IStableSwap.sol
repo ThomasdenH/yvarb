@@ -8,11 +8,13 @@ interface IStableSwap {
     /// @param j Index value of the coin to recieve
     /// @param dx Amount of `i` being exchanged
     /// @param min_dy Minimum amount of `j` to receive
+    /// @param receiver Who will receive the tokens
     /// @return Actual amount of `j` received
     function exchange(
         int128 i,
         int128 j,
         uint256 dx,
-        uint256 min_dy
+        uint256 min_dy,
+        address receiver
     ) external returns (uint256);
 }

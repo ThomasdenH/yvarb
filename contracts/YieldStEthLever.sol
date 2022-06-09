@@ -81,25 +81,25 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
     IPool pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
     Giver giver;
+    address constant weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address constant wsteth = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
+    address constant steth = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
+    FlashJoin constant flashJoin2 =
+        FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0); //WETH JOIN
 
     constructor(IERC3156FlashLender fyToken_, Giver giver_) {
         giver = giver_;
         fyToken = fyToken_;
+
         IERC20(address(fyToken_)).approve(address(pool), type(uint256).max);
         pool.base().approve(address(stableSwap), type(uint256).max);
-        IERC20(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0).approve(
-            address(stableSwap),
-            type(uint256).max
-        ); //wsteth
-        IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84).approve(
-            address(stableSwap),
-            type(uint256).max
-        ); //steth
-        IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2).approve(
+        IERC20(wsteth).approve(address(stableSwap), type(uint256).max); //wsteth
+        IERC20(steth).approve(address(stableSwap), type(uint256).max); //steth
+        IERC20(weth).approve(
             0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0, //join
             type(uint256).max
         ); //weth
-        IERC20(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0).approve(
+        IERC20(wsteth).approve(
             0x5364d336c2d2391717bD366b29B6F351842D7F82, //flashjoin
             type(uint256).max
         ); //wsteth
@@ -136,10 +136,6 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         bytes memory data
     ) external returns (bytes32) {
         address thisAdd = address(this);
-        // require(
-        //     msg.sender == address(fyToken),
-        //     "FlashBorrower: Untrusted lender"
-        // );
         require(
             initiator == thisAdd,
             "FlashBorrower: Untrusted loan initiator"
@@ -189,14 +185,11 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             0,
             1,
             pool.base().balanceOf(thisAdd), // This value is different from base received
-            1
+            1,
+            address(stEthConverter)
         );
 
         // Wrap steth to wsteth
-        IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84).transfer(
-            address(stEthConverter),
-            stethReceived
-        );
         uint256 wrappedamount = stEthConverter.wrap(
             0x5364d336c2d2391717bD366b29B6F351842D7F82
         );
@@ -250,10 +243,9 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                 ink,
                 art
             );
-            // wsteth flash join 0x5364d336c2d2391717bD366b29B6F351842D7F82
             success = flashJoin.flashLoan(
                 this, // Loan Receiver
-                0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0, // Loan Token
+                wsteth, // Loan Token
                 base, // Loan Amount
                 abi.encode(2, data)
             );
@@ -286,10 +278,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         );
 
         // Convert wsteth - steth
-        IERC20(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0).transfer(
-            address(stEthConverter),
-            ink
-        );
+        IERC20(wsteth).transfer(address(stEthConverter), ink);
         stEthConverter.unwrap(address(this));
         // convert steth- weth
         // 0: WETH
@@ -297,24 +286,15 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         stableSwap.exchange(
             1,
             0,
-            IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84).balanceOf(
-                address(this)
-            ), // balance of steth
-            1
+            IERC20(steth).balanceOf(address(this)), // balance of steth
+            1,
+            address(pool)
         );
         uint128 wethToTran = pool.buyFYTokenPreview(uint128(amount + fee));
-        IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2).transfer(
-            address(pool),
-            wethToTran
-        );
+        // IERC20(weth).transfer(address(pool), wethToTran);
         pool.sellBase(address(this), wethToTran);
         // Transferring the leftover to the borrower
-        IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2).transfer(
-            borrower,
-            IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2).balanceOf(
-                address(this)
-            )
-        );
+        IERC20(weth).transfer(borrower, IERC20(weth).balanceOf(address(this)));
     }
 
     function doClose(
@@ -335,10 +315,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             );
 
         // Convert wsteth - steth
-        IERC20(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0).transfer(
-            address(stEthConverter),
-            maxAmount
-        );
+        IERC20(wsteth).transfer(address(stEthConverter), maxAmount);
         stEthConverter.unwrap(address(this));
         // convert steth- weth
         // 0: WETH
@@ -346,10 +323,9 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         stableSwap.exchange(
             1,
             0,
-            IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84).balanceOf(
-                address(this)
-            ), // balance of steth
-            1
+            IERC20(steth).balanceOf(address(this)), // balance of steth
+            1,
+            address(this)
         );
 
         ladle.close(vaultId, address(this), -int128(ink), -int128(art));

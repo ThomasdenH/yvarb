@@ -24,6 +24,7 @@ contract YieldStEthLeverTest is Test {
     bytes12 vaultId;
     IPool pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
     FlashJoin flashJoin;
+    FlashJoin flashJoin2;
 
     function setUp() public {
         protocol = new Protocol();
@@ -35,13 +36,16 @@ contract YieldStEthLeverTest is Test {
             giver
         );
         fyToken = FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999);
-        flashJoin = FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
+        flashJoin = FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82); //wsteth
+        flashJoin2 = FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0); //weth
         // Set the flash fee factor
         vm.prank(timeLock);
         fyToken.setFlashFeeFactor(1);
 
         vm.prank(timeLock);
         flashJoin.setFlashFeeFactor(1);
+        vm.prank(timeLock);
+        flashJoin2.setFlashFeeFactor(1);
 
         //Label
         vm.label(address(lever), "YieldLever");
@@ -63,6 +67,16 @@ contract YieldStEthLeverTest is Test {
         AccessControl giverAccessControl = AccessControl(address(giver));
         giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
         giverAccessControl.grantRole(0x35775afb, address(lever));
+    }
+
+    function testLoan() public {
+        uint256 baseAmount = 2e18;
+        uint128 borrowAmount = 4e18;
+        uint128 maxFyAmount = 1e18;
+        bytes6 seriesId = 0x303030370000;
+        fyToken.approve(address(lever), baseAmount);
+
+        vaultId = lever.invest(baseAmount, borrowAmount, seriesId);
     }
 
     function testLoanAndRepay() public {
