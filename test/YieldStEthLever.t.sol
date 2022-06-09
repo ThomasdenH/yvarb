@@ -13,7 +13,6 @@ import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
 import "@yield-protocol/yieldspace-interfaces/IPool.sol";
 
-// fyeth 0x53358d088d835399F1E97D2a01d79fC925c7D999
 contract YieldStEthLeverTest is Test {
     address timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;
     address fyTokenWhale = 0x1c15b746360BB8E792C6ED8cB83f272Ce1D170E0;
@@ -25,43 +24,43 @@ contract YieldStEthLeverTest is Test {
     IPool pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
     FlashJoin flashJoin;
     bytes6 seriesId = 0x303030370000;
+    ICauldron cauldron;
 
-    function setUp() public {
+    constructor() {
         protocol = new Protocol();
-        giver = new Giver(
-            ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867)
-        );
-        lever = new YieldStEthLever(
-            IERC3156FlashLender(0x53358d088d835399F1E97D2a01d79fC925c7D999),
-            giver
-        );
         fyToken = FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999);
         flashJoin = FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82); //wsteth
-
+        cauldron = ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
         // Set the flash fee factor
         vm.prank(timeLock);
         fyToken.setFlashFeeFactor(1);
 
         vm.prank(timeLock);
         flashJoin.setFlashFeeFactor(1);
-
-        //Label
-        vm.label(address(lever), "YieldLever");
         vm.label(address(fyToken), "FYToken");
         vm.label(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0, "WETH JOIN");
-
-        vm.prank(fyTokenWhale);
-        fyToken.transfer(address(this), 2e18);
-        // vm.prank(fyTokenWhale);
-        // fyToken.transfer(address(lever), 3e18);
-
+        giver = new Giver(cauldron);
         // Orchestrate Giver
         AccessControl cauldronAccessControl = AccessControl(
             0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
         );
         vm.prank(timeLock);
         cauldronAccessControl.grantRole(0x798a828b, address(giver));
+    }
 
+    function setUp() public {
+        lever = new YieldStEthLever(
+            IERC3156FlashLender(0x53358d088d835399F1E97D2a01d79fC925c7D999),
+            giver
+        );
+
+        //Label
+        vm.label(address(lever), "YieldLever");
+
+        vm.prank(fyTokenWhale);
+        fyToken.transfer(address(this), 2e18);
+        // vm.prank(fyTokenWhale);
+        // fyToken.transfer(address(lever), 3e18);
         AccessControl giverAccessControl = AccessControl(address(giver));
         giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
         giverAccessControl.grantRole(0x35775afb, address(lever));
@@ -71,11 +70,7 @@ contract YieldStEthLeverTest is Test {
         public
         returns (bytes12 vaultId)
     {
-        uint256 baseAmount = 2e18;
-        uint128 borrowAmount = 4e18;
-
         fyToken.approve(address(lever), baseAmount);
-
         vaultId = lever.invest(baseAmount, borrowAmount, seriesId);
     }
 
@@ -94,7 +89,7 @@ contract YieldStEthLeverTest is Test {
     }
 
     function testVault() public {
-        bytes12 vaultId = leverUp(2e18, 4e18);
+        bytes12 vaultId = leverUp(2e18, 6e18);
         DataTypes.Vault memory vault = ICauldron(
             0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
         ).vaults(vaultId);
@@ -102,11 +97,11 @@ contract YieldStEthLeverTest is Test {
     }
 
     function testLever() public {
-        bytes12 vaultId = leverUp(2e18, 4e18);
+        bytes12 vaultId = leverUp(2e18, 5e18);
         DataTypes.Balances memory balances = ICauldron(
             0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
         ).balances(vaultId);
-        assertEq(balances.art, 4e18);
+        assertEq(balances.art, 5e18);
     }
 
     function testLoanAndRepay() public {
