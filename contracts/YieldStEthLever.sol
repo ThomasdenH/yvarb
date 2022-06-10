@@ -72,7 +72,6 @@ interface YieldLadle {
 interface FyToken is IERC3156FlashLender, IERC20 {}
 
 contract YieldStEthLever is IERC3156FlashBorrower {
-
     using TransferHelper for IERC20;
     using TransferHelper for FyToken;
 
@@ -130,20 +129,14 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         uint128 borrowAmount,
         bytes6 seriesId
     ) external returns (bytes12) {
-        fyToken.safeTransferFrom(
-            msg.sender,
-            address(this),
-            baseAmount
-        );
+        fyToken.safeTransferFrom(msg.sender, 
+            address(this), baseAmount);
         (bytes12 vaultId, ) = ladle.build(seriesId, ilkId, 0);
         bool success = fyToken.flashLoan(
             this, // Loan Receiver
             address(fyToken), // Loan Token
             borrowAmount, // Loan Amount
-            abi.encode(
-                OperationType.LEVER_UP,
-                abi.encode(baseAmount, vaultId)
-            )
+            abi.encode(OperationType.LEVER_UP, abi.encode(baseAmount, vaultId))
         );
         if (!success) revert FlashLoanFailure();
         giver.give(vaultId, msg.sender);
@@ -196,12 +189,12 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             data,
             (uint128, bytes12)
         );
-        // The total amount to invest. Equal to the base, the borrowed minus the flash loan fee.
+        // The total amount to invest. Equal to the base plus the borrowed minus the flash loan
+        // fee.
         uint128 netInvestAmount = baseAmount + uint128(borrowAmount - fee);
         fyToken.safeTransfer(address(pool), netInvestAmount);
 
         // Get WETH
-        // uint128 baseReceived = 
         pool.buyBase(
             thisAdd,
             uint128(pool.sellFYTokenPreview(netInvestAmount)),
@@ -210,7 +203,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // Swap WETH for stETH on curve
         // 0: WETH
         // 1: STETH
-        // uint256 stethReceived = 
+        // uint256 stethReceived =
         stableSwap.exchange(
             0,
             1,
@@ -237,20 +230,19 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         uint128 art,
         bytes6 seriesId
     ) external {
-        DataTypes.Vault memory vault_ = cauldron.vaults(vaultId);
-        DataTypes.Series memory series_ = cauldron.series(seriesId);
-
         // Test that the caller is the owner of the vault.
         // This is important as we will take the vault from the user.
+        DataTypes.Vault memory vault_ = cauldron.vaults(vaultId);
         require(vault_.owner == msg.sender);
 
         // Give the vault to the contract
         giver.seize(vaultId, address(this));
-        bool success;
+
+        DataTypes.Series memory series_ = cauldron.series(seriesId);
         if (uint32(block.timestamp) < series_.maturity) {
             // Series is not past maturity
             // Borrow to repay debt, move directly to the pool.
-            success = fyToken.flashLoan(
+            bool success = fyToken.flashLoan(
                 this, // Loan Receiver
                 address(fyToken), // Loan Token
                 maxAmount, // Loan Amount
@@ -259,31 +251,24 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                     abi.encode(msg.sender, vaultId, ink, art)
                 )
             );
+            if (!success) revert FlashLoanFailure();
         } else {
             // Series is past maturity, borrow and move directly to collateral pool
+            bytes memory data = abi.encode(vaultId, maxAmount, ink, art);
             uint128 base = cauldron.debtToBase(seriesId, art);
-            bytes memory data = abi.encode(
-                vaultId,
-                maxAmount,
-                ink,
-                art
-            );
-            success = flashJoin.flashLoan(
+            bool success = flashJoin.flashLoan(
                 this, // Loan Receiver
                 address(wsteth), // Loan Token
                 base, // Loan Amount
                 abi.encode(OperationType.CLOSE, data)
             );
+            if (!success) revert FlashLoanFailure();
         }
-        if (!success) revert FlashLoanFailure();
 
         // Give the vault back to the sender, just in case there is anything left
         giver.give(vaultId, msg.sender);
         // Transferring the leftover to the borrower
-        fyToken.safeTransfer(
-            msg.sender,
-            fyToken.balanceOf(address(this))
-        );
+        fyToken.safeTransfer(msg.sender, fyToken.balanceOf(address(this)));
     }
 
     function doRepay(
@@ -298,22 +283,16 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             vaultId,
             address(this),
             -int128(ink),
-            -int128(uint128(art)) // How much could I borrow?
+            -int128(art) // How much could I borrow?
         );
 
         // Convert wsteth - steth
         wsteth.safeTransfer(address(stEthConverter), ink);
-        stEthConverter.unwrap(address(this));
+        uint256 stEthUnwrapped = stEthConverter.unwrap(address(this));
         // convert steth- weth
         // 0: WETH
         // 1: STETH
-        stableSwap.exchange(
-            1,
-            0,
-            steth.balanceOf(address(this)), // balance of steth
-            1,
-            address(pool)
-        );
+        stableSwap.exchange(1, 0, stEthUnwrapped, 1, address(pool));
         uint128 wethToTran = pool.buyFYTokenPreview(borrowAmountPlusFee);
         // weth.transfer(address(pool), wethToTran);
         pool.sellBase(address(this), wethToTran);
@@ -321,32 +300,17 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         weth.safeTransfer(borrower, weth.balanceOf(address(this)));
     }
 
-    function doClose(
-        bytes memory data
-    ) internal {
-        (
-            bytes12 vaultId,
-            uint256 maxAmount,
-            uint128 ink,
-            uint128 art
-        ) = abi.decode(
-                data,
-                (bytes12, uint256, uint128, uint128)
-            );
+    function doClose(bytes memory data) internal {
+        (bytes12 vaultId, uint256 maxAmount, uint128 ink, uint128 art) = abi
+            .decode(data, (bytes12, uint256, uint128, uint128));
 
         // Convert wsteth - steth
         wsteth.safeTransfer(address(stEthConverter), maxAmount);
-        stEthConverter.unwrap(address(this));
+        uint256 stEthUnwrapped = stEthConverter.unwrap(address(this));
         // convert steth- weth
         // 0: WETH
         // 1: STETH
-        stableSwap.exchange(
-            1,
-            0,
-            steth.balanceOf(address(this)), // balance of steth
-            1,
-            address(this)
-        );
+        stableSwap.exchange(1, 0, stEthUnwrapped, 1, address(this));
 
         ladle.close(vaultId, address(this), -int128(ink), -int128(art));
     }
