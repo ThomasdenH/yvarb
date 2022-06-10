@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.14;
+pragma solidity ^0.8.10;
 
 import "erc3156/contracts/interfaces/IERC3156FlashBorrower.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
@@ -67,25 +67,31 @@ interface YieldLadle {
 }
 
 contract YieldStEthLever is IERC3156FlashBorrower {
-    IERC3156FlashLender fyToken;
+    IERC3156FlashLender immutable fyToken;
     YieldLadle constant ladle =
         YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
     ICauldron constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
+    /// @notice Curve.fi token swapping contract between Ether and stETH.
     IStableSwap stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
+    /// @notice Contract to wrap StEth to create WstEth. Unlike StEth, WstEth
+    ///     doesn't rebase balances and instead represents a share of the pool.
     StEthConverter constant stEthConverter =
         StEthConverter(0x93D232213cCA6e5e7105199ABD8590293C3eb106);
     bytes6 constant ilkId = bytes6(0x303400000000); //wsteth
+    /// @notice The Yield Protocol Join containing WstEth.
     FlashJoin constant flashJoin =
         FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
+    /// @notice The Yield Protocol Join containing Weth.
+    FlashJoin constant flashJoin2 =
+        FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0);
+    /// @notice Ether Yiels liquidity pool.
     IPool pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
-    Giver giver;
+    Giver immutable giver;
     address constant weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address constant wsteth = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
     address constant steth = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
-    FlashJoin constant flashJoin2 =
-        FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0); //WETH JOIN
 
     constructor(IERC3156FlashLender fyToken_, Giver giver_) {
         giver = giver_;
@@ -93,18 +99,16 @@ contract YieldStEthLever is IERC3156FlashBorrower {
 
         IERC20(address(fyToken_)).approve(address(pool), type(uint256).max);
         pool.base().approve(address(stableSwap), type(uint256).max);
-        IERC20(wsteth).approve(address(stableSwap), type(uint256).max); //wsteth
-        IERC20(steth).approve(address(stableSwap), type(uint256).max); //steth
-        IERC20(weth).approve(
-            0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0, //join
-            type(uint256).max
-        ); //weth
-        IERC20(wsteth).approve(
-            0x5364d336c2d2391717bD366b29B6F351842D7F82, //flashjoin
-            type(uint256).max
-        ); //wsteth
+        IERC20(wsteth).approve(address(stableSwap), type(uint256).max);
+        IERC20(steth).approve(address(stableSwap), type(uint256).max);
+        IERC20(weth).approve(address(flashJoin2), type(uint256).max);
+        IERC20(wsteth).approve(address(flashJoin), type(uint256).max);
     }
 
+    /// @notice Invest by creating a levered vault.
+    /// @param baseAmount The amount of own liquidity to supply.
+    /// @param borrowAmount The amount of additional liquidity to borrow.
+    /// @param seriesId The series to create the vault for.
     function invest(
         uint256 baseAmount,
         uint128 borrowAmount,
