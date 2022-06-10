@@ -75,6 +75,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     using TransferHelper for IERC20;
     using TransferHelper for FyToken;
 
+    bytes32 internal constant FLASH_LOAN_RETURN = keccak256("ERC3156FlashBorrower.onFlashLoan");
+
     /// @notice The encoding of the operation to execute.
     enum OperationType {
         LEVER_UP,
@@ -129,8 +131,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         uint128 borrowAmount,
         bytes6 seriesId
     ) external returns (bytes12) {
-        fyToken.safeTransferFrom(msg.sender, 
-            address(this), baseAmount);
+        fyToken.safeTransferFrom(msg.sender, address(this), baseAmount);
         (bytes12 vaultId, ) = ladle.build(seriesId, ilkId, 0);
         bool success = fyToken.flashLoan(
             this, // Loan Receiver
@@ -175,7 +176,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         } else if (status == OperationType.CLOSE) {
             doClose(data2);
         }
-        return keccak256("ERC3156FlashBorrower.onFlashLoan");
+        return FLASH_LOAN_RETURN;
     }
 
     function leverUp(
