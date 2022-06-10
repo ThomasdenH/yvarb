@@ -139,7 +139,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             borrowAmount, // Loan Amount
             abi.encode(
                 OperationType.LEVER_UP,
-                abi.encode(baseAmount, vaultId)
+                abi.encode(uint128(baseAmount), vaultId)
             )
         );
         if (!success) revert FlashLoanFailure();
@@ -193,19 +193,22 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             data,
             (uint128, bytes12)
         );
-        uint256 investAmount = baseAmount + borrowAmount;
-        IERC20(address(fyToken)).safeTransfer(address(pool), investAmount - fee);
+        // The total amount to invest. Equal to the base, the borrowed minus the flash loan fee.
+        uint128 netInvestAmount = uint128(baseAmount + borrowAmount - fee);
+        IERC20(address(fyToken)).safeTransfer(address(pool), netInvestAmount);
 
         // Get WETH
-        uint128 baseReceived = pool.buyBase(
+        // uint128 baseReceived = 
+        pool.buyBase(
             thisAdd,
-            uint128(pool.sellFYTokenPreview(uint128(investAmount - fee))),
-            uint128(investAmount - fee)
+            uint128(pool.sellFYTokenPreview(netInvestAmount)),
+            netInvestAmount
         );
         // Swap WETH for stETH on curve
         // 0: WETH
         // 1: STETH
-        uint256 stethReceived = stableSwap.exchange(
+        // uint256 stethReceived = 
+        stableSwap.exchange(
             0,
             1,
             pool.base().balanceOf(thisAdd), // This value is different from base received
@@ -257,10 +260,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             // Series is past maturity, borrow and move directly to collateral pool
             uint128 base = cauldron.debtToBase(seriesId, art);
             bytes memory data = abi.encode(
-                msg.sender,
                 vaultId,
                 maxAmount,
-                base,
                 ink,
                 art
             );
@@ -271,7 +272,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                 abi.encode(OperationType.CLOSE, data)
             );
         }
-        require(success, "Failed to flash loan");
+        if (!success) revert FlashLoanFailure();
 
         // Give the vault back to the sender, just in case there is anything left
         giver.give(vaultId, msg.sender);
@@ -319,20 +320,18 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     }
 
     function doClose(
-        uint256 borrowAmount, // Amount of FYToken received
-        uint256 fee,
+        uint256, // borrowAmount: Amount of FYToken received
+        uint256, // fee
         bytes memory data
     ) internal {
         (
-            address owner,
             bytes12 vaultId,
             uint256 maxAmount,
-            uint128 base,
             uint128 ink,
             uint128 art
         ) = abi.decode(
                 data,
-                (address, bytes12, uint256, uint128, uint128, uint128)
+                (bytes12, uint256, uint128, uint128)
             );
 
         // Convert wsteth - steth
