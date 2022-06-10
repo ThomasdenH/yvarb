@@ -75,9 +75,7 @@ contract YieldStEthLeverTest is Test {
     }
 
     function unwind(bytes12 vaultId) public returns (bytes12) {
-        DataTypes.Balances memory balances = ICauldron(
-            0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
-        ).balances(vaultId);
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.unwind(
             vaultId,
             balances.art,
@@ -90,17 +88,14 @@ contract YieldStEthLeverTest is Test {
 
     function testVault() public {
         bytes12 vaultId = leverUp(2e18, 6e18);
-        DataTypes.Vault memory vault = ICauldron(
-            0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
-        ).vaults(vaultId);
+        DataTypes.Vault memory vault = cauldron.vaults(vaultId);
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(vault.owner, address(this));
     }
 
     function testLever() public {
         bytes12 vaultId = leverUp(2e18, 5e18);
-        DataTypes.Balances memory balances = ICauldron(
-            0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
-        ).balances(vaultId);
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(balances.art, 5e18);
     }
 
@@ -108,9 +103,7 @@ contract YieldStEthLeverTest is Test {
         bytes12 vaultId = leverUp(2e18, 4e18);
         unwind(vaultId);
 
-        DataTypes.Balances memory balances = ICauldron(
-            0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
-        ).balances(vaultId);
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(balances.art, 0);
         assertEq(balances.ink, 0);
     }
@@ -118,17 +111,13 @@ contract YieldStEthLeverTest is Test {
     function testLoanAndClose() public {
         bytes12 vaultId = leverUp(2e18, 4e18);
 
-        DataTypes.Series memory series_ = ICauldron(
-            0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
-        ).series(seriesId);
+        DataTypes.Series memory series_ = cauldron.series(seriesId);
 
         vm.warp(series_.maturity);
 
         unwind(vaultId);
 
-        DataTypes.Balances memory balances = ICauldron(
-            0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
-        ).balances(vaultId);
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(balances.art, 0);
         assertEq(balances.ink, 0);
     }

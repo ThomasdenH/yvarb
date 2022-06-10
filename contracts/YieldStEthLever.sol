@@ -12,6 +12,9 @@ import "@yield-protocol/vault-v2/other/lido/StEthConverter.sol";
 import "@yield-protocol/vault-v2/utils/Giver.sol";
 import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "./interfaces/IStableSwap.sol";
+import "forge-std/Test.sol";
+
+error FlashLoanFailure();
 
 interface YieldLadle {
     function pools(bytes6 seriesId) external view returns (address);
@@ -66,7 +69,14 @@ interface YieldLadle {
         returns (uint256 repaid);
 }
 
-contract YieldStEthLever is IERC3156FlashBorrower {
+contract YieldStEthLever is IERC3156FlashBorrower, Test {
+    /// @notice The encoding of the operation to execute.
+    enum OperationType {
+        LEVER_UP,
+        REPAY,
+        CLOSE
+    }
+
     IERC3156FlashLender immutable fyToken;
     YieldLadle constant ladle =
         YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
@@ -125,13 +135,18 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             this, // Loan Receiver
             address(fyToken), // Loan Token
             investAmount, // Loan Amount
-            abi.encode(0, abi.encode(borrowAmount, vaultId))
+            abi.encode(
+                OperationType.LEVER_UP,
+                abi.encode(borrowAmount, vaultId)
+            )
         );
-        require(success, "Failed to flash loan");
+        if (!success) revert FlashLoanFailure();
         giver.give(vaultId, msg.sender);
         return vaultId;
     }
 
+    /// @param initiator The initator of the flash loan, must be `address(this)`.
+    /// @param amount The amount of fyTokens borrowed.
     function onFlashLoan(
         address initiator,
         address token,
@@ -139,25 +154,27 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         uint256 fee,
         bytes memory data
     ) external returns (bytes32) {
-        address thisAdd = address(this);
-        require(
-            initiator == thisAdd,
-            "FlashBorrower: Untrusted loan initiator"
-        );
+        // Test that the flash loan was sent from the lender contract and that
+        // this contract was the initiator.
+        if (
+            (msg.sender != address(fyToken) &&
+                msg.sender != address(flashJoin)) || initiator != address(this)
+        ) revert FlashLoanFailure();
 
-        (uint128 status, bytes memory data2) = abi.decode(
+        // Decode the operation to execute
+        (OperationType status, bytes memory data2) = abi.decode(
             data,
-            (uint128, bytes)
+            (OperationType, bytes)
         );
-        if (status == 0) {
+        if (status == OperationType.LEVER_UP) {
             leverUp(
                 amount, // Amount of FYToken received
                 fee,
                 data2
             );
-        } else if (status == 1) {
+        } else if (status == OperationType.REPAY) {
             doRepay(amount, fee, data2);
-        } else if (status == 2) {
+        } else if (status == OperationType.CLOSE) {
             doClose(amount, fee, data2);
         }
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
@@ -194,9 +211,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         );
 
         // Wrap steth to wsteth
-        uint256 wrappedamount = stEthConverter.wrap(
-            0x5364d336c2d2391717bD366b29B6F351842D7F82
-        );
+        uint256 wrappedamount = stEthConverter.wrap(address(flashJoin));
 
         // Deposit wstETH in the vault & borrow fyToken to payback
         ladle.pour(
@@ -232,7 +247,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                 address(fyToken), // Loan Token
                 maxAmount, // Loan Amount
                 abi.encode(
-                    1,
+                    OperationType.REPAY,
                     abi.encode(msg.sender, vaultId, maxAmount, ink, art)
                 )
             );
@@ -251,7 +266,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                 this, // Loan Receiver
                 wsteth, // Loan Token
                 base, // Loan Amount
-                abi.encode(2, data)
+                abi.encode(OperationType.CLOSE, data)
             );
         }
         require(success, "Failed to flash loan");
