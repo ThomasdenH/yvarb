@@ -69,9 +69,12 @@ interface YieldLadle {
         returns (uint256 repaid);
 }
 
+interface FyToken is IERC3156FlashLender, IERC20 {}
+
 contract YieldStEthLever is IERC3156FlashBorrower {
 
     using TransferHelper for IERC20;
+    using TransferHelper for FyToken;
 
     /// @notice The encoding of the operation to execute.
     enum OperationType {
@@ -80,7 +83,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         CLOSE
     }
 
-    IERC3156FlashLender immutable fyToken;
+    FyToken immutable fyToken;
     YieldLadle constant ladle =
         YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
     ICauldron constant cauldron =
@@ -102,20 +105,20 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     /// @notice Ether Yiels liquidity pool.
     IPool pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
     Giver immutable giver;
-    address constant weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address constant wsteth = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
-    address constant steth = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
+    IERC20 constant weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IERC20 constant wsteth = IERC20(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
+    IERC20 constant steth = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
 
-    constructor(IERC3156FlashLender fyToken_, Giver giver_) {
+    constructor(FyToken fyToken_, Giver giver_) {
         giver = giver_;
         fyToken = fyToken_;
 
-        IERC20(address(fyToken_)).approve(address(pool), type(uint256).max);
+        fyToken_.approve(address(pool), type(uint256).max);
         pool.base().approve(address(stableSwap), type(uint256).max);
-        IERC20(wsteth).approve(address(stableSwap), type(uint256).max);
-        IERC20(steth).approve(address(stableSwap), type(uint256).max);
-        IERC20(weth).approve(address(flashJoin2), type(uint256).max);
-        IERC20(wsteth).approve(address(flashJoin), type(uint256).max);
+        wsteth.approve(address(stableSwap), type(uint256).max);
+        steth.approve(address(stableSwap), type(uint256).max);
+        weth.approve(address(flashJoin2), type(uint256).max);
+        wsteth.approve(address(flashJoin), type(uint256).max);
     }
 
     /// @notice Invest by creating a levered vault.
@@ -123,11 +126,11 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     /// @param borrowAmount The amount of additional liquidity to borrow.
     /// @param seriesId The series to create the vault for.
     function invest(
-        uint256 baseAmount,
+        uint128 baseAmount,
         uint128 borrowAmount,
         bytes6 seriesId
     ) external returns (bytes12) {
-        IERC20(address(fyToken)).safeTransferFrom(
+        fyToken.safeTransferFrom(
             msg.sender,
             address(this),
             baseAmount
@@ -139,7 +142,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             borrowAmount, // Loan Amount
             abi.encode(
                 OperationType.LEVER_UP,
-                abi.encode(uint128(baseAmount), vaultId)
+                abi.encode(baseAmount, vaultId)
             )
         );
         if (!success) revert FlashLoanFailure();
@@ -175,9 +178,9 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                 data2
             );
         } else if (status == OperationType.REPAY) {
-            doRepay(borrowAmount, fee, data2);
+            doRepay(uint128(borrowAmount) + uint128(fee), data2);
         } else if (status == OperationType.CLOSE) {
-            doClose(borrowAmount, fee, data2);
+            doClose(data2);
         }
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }
@@ -194,8 +197,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             (uint128, bytes12)
         );
         // The total amount to invest. Equal to the base, the borrowed minus the flash loan fee.
-        uint128 netInvestAmount = uint128(baseAmount + borrowAmount - fee);
-        IERC20(address(fyToken)).safeTransfer(address(pool), netInvestAmount);
+        uint128 netInvestAmount = baseAmount + uint128(borrowAmount - fee);
+        fyToken.safeTransfer(address(pool), netInvestAmount);
 
         // Get WETH
         // uint128 baseReceived = 
@@ -253,7 +256,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                 maxAmount, // Loan Amount
                 abi.encode(
                     OperationType.REPAY,
-                    abi.encode(msg.sender, vaultId, maxAmount, ink, art)
+                    abi.encode(msg.sender, vaultId, ink, art)
                 )
             );
         } else {
@@ -267,7 +270,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             );
             success = flashJoin.flashLoan(
                 this, // Loan Receiver
-                wsteth, // Loan Token
+                address(wsteth), // Loan Token
                 base, // Loan Amount
                 abi.encode(OperationType.CLOSE, data)
             );
@@ -277,21 +280,20 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // Give the vault back to the sender, just in case there is anything left
         giver.give(vaultId, msg.sender);
         // Transferring the leftover to the borrower
-        IERC20(address(fyToken)).safeTransfer(
+        fyToken.safeTransfer(
             msg.sender,
-            IERC20(address(fyToken)).balanceOf(address(this))
+            fyToken.balanceOf(address(this))
         );
     }
 
     function doRepay(
-        uint256 borrowAmount, // Amount of FYToken received
-        uint256 fee,
+        uint128 borrowAmountPlusFee, // Amount of FYToken received
         bytes memory data
     ) internal {
-        (address borrower, bytes12 vaultId, , uint128 ink, uint128 art) = abi
-            .decode(data, (address, bytes12, uint256, uint128, uint128));
+        (address borrower, bytes12 vaultId, uint128 ink, uint128 art) = abi
+            .decode(data, (address, bytes12, uint128, uint128));
 
-        IERC20(address(fyToken)).approve(address(ladle), art);
+        fyToken.approve(address(ladle), art);
         ladle.pour(
             vaultId,
             address(this),
@@ -300,7 +302,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         );
 
         // Convert wsteth - steth
-        IERC20(wsteth).safeTransfer(address(stEthConverter), ink);
+        wsteth.safeTransfer(address(stEthConverter), ink);
         stEthConverter.unwrap(address(this));
         // convert steth- weth
         // 0: WETH
@@ -308,20 +310,18 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         stableSwap.exchange(
             1,
             0,
-            IERC20(steth).balanceOf(address(this)), // balance of steth
+            steth.balanceOf(address(this)), // balance of steth
             1,
             address(pool)
         );
-        uint128 wethToTran = pool.buyFYTokenPreview(uint128(borrowAmount + fee));
-        // IERC20(weth).transfer(address(pool), wethToTran);
+        uint128 wethToTran = pool.buyFYTokenPreview(borrowAmountPlusFee);
+        // weth.transfer(address(pool), wethToTran);
         pool.sellBase(address(this), wethToTran);
         // Transferring the leftover to the borrower
-        IERC20(weth).safeTransfer(borrower, IERC20(weth).balanceOf(address(this)));
+        weth.safeTransfer(borrower, weth.balanceOf(address(this)));
     }
 
     function doClose(
-        uint256, // borrowAmount: Amount of FYToken received
-        uint256, // fee
         bytes memory data
     ) internal {
         (
@@ -335,7 +335,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             );
 
         // Convert wsteth - steth
-        IERC20(wsteth).safeTransfer(address(stEthConverter), maxAmount);
+        wsteth.safeTransfer(address(stEthConverter), maxAmount);
         stEthConverter.unwrap(address(this));
         // convert steth- weth
         // 0: WETH
@@ -343,7 +343,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         stableSwap.exchange(
             1,
             0,
-            IERC20(steth).balanceOf(address(this)), // balance of steth
+            steth.balanceOf(address(this)), // balance of steth
             1,
             address(this)
         );

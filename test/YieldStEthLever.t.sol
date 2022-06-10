@@ -50,7 +50,7 @@ contract YieldStEthLeverTest is Test {
 
     function setUp() public {
         lever = new YieldStEthLever(
-            IERC3156FlashLender(0x53358d088d835399F1E97D2a01d79fC925c7D999),
+            FyToken(0x53358d088d835399F1E97D2a01d79fC925c7D999),
             giver
         );
 
@@ -66,7 +66,7 @@ contract YieldStEthLeverTest is Test {
         giverAccessControl.grantRole(0x35775afb, address(lever));
     }
 
-    function leverUp(uint256 baseAmount, uint128 borrowAmount)
+    function leverUp(uint128 baseAmount, uint128 borrowAmount)
         public
         returns (bytes12 vaultId)
     {
