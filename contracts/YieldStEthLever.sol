@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity ^0.8.14;
 
 import "erc3156/contracts/interfaces/IERC3156FlashBorrower.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
@@ -8,11 +8,11 @@ import "@yield-protocol/yieldspace-interfaces/IPool.sol";
 import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
 import "@yield-protocol/vault-interfaces/src/DataTypes.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
+import "@yield-protocol/utils-v2/contracts/token/TransferHelper.sol";
 import "@yield-protocol/vault-v2/other/lido/StEthConverter.sol";
 import "@yield-protocol/vault-v2/utils/Giver.sol";
 import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "./interfaces/IStableSwap.sol";
-import "forge-std/Test.sol";
 
 error FlashLoanFailure();
 
@@ -69,7 +69,10 @@ interface YieldLadle {
         returns (uint256 repaid);
 }
 
-contract YieldStEthLever is IERC3156FlashBorrower, Test {
+contract YieldStEthLever is IERC3156FlashBorrower {
+
+    using TransferHelper for IERC20;
+
     /// @notice The encoding of the operation to execute.
     enum OperationType {
         LEVER_UP,
@@ -124,20 +127,19 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         uint128 borrowAmount,
         bytes6 seriesId
     ) external returns (bytes12) {
-        IERC20(address(fyToken)).transferFrom(
+        IERC20(address(fyToken)).safeTransferFrom(
             msg.sender,
             address(this),
             baseAmount
         );
         (bytes12 vaultId, ) = ladle.build(seriesId, ilkId, 0);
-        uint256 investAmount = baseAmount + borrowAmount;
         bool success = fyToken.flashLoan(
             this, // Loan Receiver
             address(fyToken), // Loan Token
-            investAmount, // Loan Amount
+            borrowAmount, // Loan Amount
             abi.encode(
                 OperationType.LEVER_UP,
-                abi.encode(borrowAmount, vaultId)
+                abi.encode(baseAmount, vaultId)
             )
         );
         if (!success) revert FlashLoanFailure();
@@ -146,11 +148,11 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
     }
 
     /// @param initiator The initator of the flash loan, must be `address(this)`.
-    /// @param amount The amount of fyTokens borrowed.
+    /// @param borrowAmount The amount of fyTokens borrowed.
     function onFlashLoan(
         address initiator,
-        address token,
-        uint256 amount, // Amount of FYToken received
+        address, // token
+        uint256 borrowAmount, // Amount of FYToken received
         uint256 fee,
         bytes memory data
     ) external returns (bytes32) {
@@ -168,36 +170,37 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         );
         if (status == OperationType.LEVER_UP) {
             leverUp(
-                amount, // Amount of FYToken received
+                borrowAmount, // Amount of FYToken received
                 fee,
                 data2
             );
         } else if (status == OperationType.REPAY) {
-            doRepay(amount, fee, data2);
+            doRepay(borrowAmount, fee, data2);
         } else if (status == OperationType.CLOSE) {
-            doClose(amount, fee, data2);
+            doClose(borrowAmount, fee, data2);
         }
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }
 
     function leverUp(
-        uint256 amount, // Amount of FYToken received
+        uint256 borrowAmount, // Amount of FYToken received
         uint256 fee,
         bytes memory data
     ) internal {
         address thisAdd = address(this);
 
-        (uint128 borrowAmount, bytes12 vaultId) = abi.decode(
+        (uint128 baseAmount, bytes12 vaultId) = abi.decode(
             data,
             (uint128, bytes12)
         );
-        IERC20(address(fyToken)).transfer(address(pool), amount - fee);
+        uint256 investAmount = baseAmount + borrowAmount;
+        IERC20(address(fyToken)).safeTransfer(address(pool), investAmount - fee);
 
         // Get WETH
         uint128 baseReceived = pool.buyBase(
             thisAdd,
-            uint128(pool.sellFYTokenPreview(uint128(amount - fee))),
-            uint128(amount - fee)
+            uint128(pool.sellFYTokenPreview(uint128(investAmount - fee))),
+            uint128(investAmount - fee)
         );
         // Swap WETH for stETH on curve
         // 0: WETH
@@ -212,7 +215,6 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
 
         // Wrap steth to wsteth
         uint256 wrappedamount = stEthConverter.wrap(address(flashJoin));
-
         // Deposit wstETH in the vault & borrow fyToken to payback
         ladle.pour(
             vaultId,
@@ -274,14 +276,14 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         // Give the vault back to the sender, just in case there is anything left
         giver.give(vaultId, msg.sender);
         // Transferring the leftover to the borrower
-        IERC20(address(fyToken)).transfer(
+        IERC20(address(fyToken)).safeTransfer(
             msg.sender,
             IERC20(address(fyToken)).balanceOf(address(this))
         );
     }
 
     function doRepay(
-        uint256 amount, // Amount of FYToken received
+        uint256 borrowAmount, // Amount of FYToken received
         uint256 fee,
         bytes memory data
     ) internal {
@@ -297,7 +299,7 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         );
 
         // Convert wsteth - steth
-        IERC20(wsteth).transfer(address(stEthConverter), ink);
+        IERC20(wsteth).safeTransfer(address(stEthConverter), ink);
         stEthConverter.unwrap(address(this));
         // convert steth- weth
         // 0: WETH
@@ -309,15 +311,15 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
             1,
             address(pool)
         );
-        uint128 wethToTran = pool.buyFYTokenPreview(uint128(amount + fee));
+        uint128 wethToTran = pool.buyFYTokenPreview(uint128(borrowAmount + fee));
         // IERC20(weth).transfer(address(pool), wethToTran);
         pool.sellBase(address(this), wethToTran);
         // Transferring the leftover to the borrower
-        IERC20(weth).transfer(borrower, IERC20(weth).balanceOf(address(this)));
+        IERC20(weth).safeTransfer(borrower, IERC20(weth).balanceOf(address(this)));
     }
 
     function doClose(
-        uint256 amount, // Amount of FYToken received
+        uint256 borrowAmount, // Amount of FYToken received
         uint256 fee,
         bytes memory data
     ) internal {
@@ -334,7 +336,7 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
             );
 
         // Convert wsteth - steth
-        IERC20(wsteth).transfer(address(stEthConverter), maxAmount);
+        IERC20(wsteth).safeTransfer(address(stEthConverter), maxAmount);
         stEthConverter.unwrap(address(this));
         // convert steth- weth
         // 0: WETH
