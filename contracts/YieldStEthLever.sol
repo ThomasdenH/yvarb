@@ -125,6 +125,10 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         );
         require(success, "Failed to flash loan");
         giver.give(vaultId, msg.sender);
+        IERC20(address(fyToken)).transfer(
+            msg.sender,
+            IERC20(address(fyToken)).balanceOf(address(this))
+        );
         return vaultId;
     }
 
@@ -232,6 +236,12 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                     abi.encode(msg.sender, vaultId, maxAmount, ink, art)
                 )
             );
+
+            // Transferring the leftover to the user
+            IERC20(address(fyToken)).transfer(
+                msg.sender,
+                IERC20(address(fyToken)).balanceOf(address(this))
+            );
         } else {
             // Series is past maturity, borrow and move directly to collateral pool
             uint128 base = cauldron.debtToBase(seriesId, art);
@@ -249,16 +259,17 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                 base, // Loan Amount
                 abi.encode(2, data)
             );
+
+            // Transferring the leftover to the user
+            IERC20(wsteth).transfer(
+                msg.sender,
+                IERC20(wsteth).balanceOf(address(this))
+            );
         }
         require(success, "Failed to flash loan");
 
         // Give the vault back to the sender, just in case there is anything left
         giver.give(vaultId, msg.sender);
-        // Transferring the leftover to the borrower
-        IERC20(address(fyToken)).transfer(
-            msg.sender,
-            IERC20(address(fyToken)).balanceOf(address(this))
-        );
     }
 
     function doRepay(
@@ -318,8 +329,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         IERC20(wsteth).transfer(address(stEthConverter), maxAmount);
         stEthConverter.unwrap(address(this));
         // convert steth- weth
-        // 0: WETH
         // 1: STETH
+        // 0: WETH
         stableSwap.exchange(
             1,
             0,
