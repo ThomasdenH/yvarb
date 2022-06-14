@@ -189,10 +189,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         uint256 fee,
         bytes calldata data
     ) internal {
-        address thisAdd = address(this);
-
-        bytes12 vaultId = bytes12(data[1:13]);
         uint128 baseAmount = uint128(bytes16(data[13:29]));
+        bytes12 vaultId = bytes12(data[1:13]);
 
         // The total amount to invest. Equal to the base plus the borrowed minus the flash loan
         // fee.
@@ -201,7 +199,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
 
         // Get WETH
         pool.buyBase(
-            thisAdd,
+            address(this),
             uint128(pool.sellFYTokenPreview(netInvestAmount)),
             netInvestAmount
         );
@@ -212,7 +210,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         stableSwap.exchange(
             0,
             1,
-            pool.base().balanceOf(thisAdd), // This value is different from base received
+            pool.base().balanceOf(address(this)), // This value is different from base received
             1,
             address(stEthConverter)
         );
@@ -222,7 +220,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // Deposit wstETH in the vault & borrow fyToken to payback
         ladle.pour(
             vaultId,
-            thisAdd,
+            address(this),
             int128(uint128(wrappedamount)),
             int128(uint128(borrowAmount))
         );
