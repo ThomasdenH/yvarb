@@ -141,6 +141,10 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         );
         if (!success) revert FlashLoanFailure();
         giver.give(vaultId, msg.sender);
+        IERC20(address(fyToken)).transfer(
+            msg.sender,
+            IERC20(address(fyToken)).balanceOf(address(this))
+        );
         return vaultId;
     }
 
@@ -253,6 +257,12 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                 )
             );
             if (!success) revert FlashLoanFailure();
+
+            // Transferring the leftover to the user
+            IERC20(address(fyToken)).transfer(
+                msg.sender,
+                IERC20(address(fyToken)).balanceOf(address(this))
+            );
         } else {
             // Series is past maturity, borrow and move directly to collateral pool
             bytes memory data = abi.encode(vaultId, maxAmount, ink, art);
@@ -264,12 +274,16 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                 abi.encode(OperationType.CLOSE, data)
             );
             if (!success) revert FlashLoanFailure();
+
+            // Transferring the leftover to the user
+            IERC20(wsteth).transfer(
+                msg.sender,
+                IERC20(wsteth).balanceOf(address(this))
+            );
         }
 
         // Give the vault back to the sender, just in case there is anything left
         giver.give(vaultId, msg.sender);
-        // Transferring the leftover to the borrower
-        fyToken.safeTransfer(msg.sender, fyToken.balanceOf(address(this)));
     }
 
     function doRepay(
@@ -309,9 +323,15 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         wsteth.safeTransfer(address(stEthConverter), maxAmount);
         uint256 stEthUnwrapped = stEthConverter.unwrap(address(this));
         // convert steth- weth
-        // 0: WETH
         // 1: STETH
-        stableSwap.exchange(1, 0, stEthUnwrapped, 1, address(this));
+        // 0: WETH
+        stableSwap.exchange(
+            1,
+            0,
+            stEthUnwrapped, // balance of steth
+            1,
+            address(this)
+        );
 
         ladle.close(vaultId, address(this), -int128(ink), -int128(art));
     }
