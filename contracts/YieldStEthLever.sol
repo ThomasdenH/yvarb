@@ -114,6 +114,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         giver = giver_;
         fyToken = fyToken_;
 
+        // TODO: What if these approvals fail by returning `false`? Is that even a case worth
+        //  considering?
         fyToken_.approve(address(pool), type(uint256).max);
         pool.base().approve(address(stableSwap), type(uint256).max);
         wsteth.approve(address(stableSwap), type(uint256).max);
@@ -293,6 +295,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         (address borrower, bytes12 vaultId, uint128 ink, uint128 art) = abi
             .decode(data, (address, bytes12, uint128, uint128));
 
+        // TODO: Can this be in the constructor?
         fyToken.approve(address(ladle), art);
         ladle.pour(
             vaultId,
