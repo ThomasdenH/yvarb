@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "contracts/YieldStEthLever.sol";
+import "contracts/interfaces/IStableSwap.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/vault-v2/FYToken.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
@@ -25,6 +26,9 @@ contract YieldStEthLeverTest is Test {
     FlashJoin flashJoin;
     bytes6 seriesId = 0x303030370000;
     ICauldron cauldron;
+
+    IStableSwap constant stableSwap =
+        IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
 
     constructor() {
         protocol = new Protocol();
@@ -71,17 +75,26 @@ contract YieldStEthLeverTest is Test {
         returns (bytes12 vaultId)
     {
         fyToken.approve(address(lever), baseAmount);
-        vaultId = lever.invest(baseAmount, borrowAmount, seriesId);
+        // Expect at least 80% of the value to end up as collateral
+        uint256 wethAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
+        uint128 minCollateral = uint128(stableSwap.get_dy(0, 1, wethAmount) * 80 / 100);
+        vaultId = lever.invest(baseAmount, borrowAmount, minCollateral, seriesId);
     }
 
     function unwind(bytes12 vaultId) public returns (bytes12) {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
+
+        // Rough calculation of the minimal amount of weth that we want back.
+        // In reality, the debt is not in weth but in fyWeth.
+        uint256 collateralValueWeth = stableSwap.get_dy(1, 0, balances.ink);
+        uint256 minweth = (collateralValueWeth - balances.art) * 80 / 100;
+
         lever.unwind(
-            balances.art,
             balances.ink,
             balances.art,
             vaultId,
-            seriesId
+            seriesId,
+            minweth
         );
         return vaultId;
     }
