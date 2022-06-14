@@ -77,10 +77,10 @@ contract YieldStEthLeverTest is Test {
     function unwind(bytes12 vaultId) public returns (bytes12) {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.unwind(
-            vaultId,
             balances.art,
             balances.ink,
             balances.art,
+            vaultId,
             seriesId
         );
         return vaultId;
@@ -89,7 +89,6 @@ contract YieldStEthLeverTest is Test {
     function testVault() public {
         bytes12 vaultId = leverUp(2e18, 6e18);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
-        DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(vault.owner, address(this));
     }
 

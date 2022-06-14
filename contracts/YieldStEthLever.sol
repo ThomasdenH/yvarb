@@ -77,20 +77,12 @@ contract YieldStEthLever is IERC3156FlashBorrower {
 
     bytes32 internal constant FLASH_LOAN_RETURN = keccak256("ERC3156FlashBorrower.onFlashLoan");
 
-    /// @notice The encoding of the operation to execute.
-    enum OperationType {
-        LEVER_UP,
-        REPAY,
-        CLOSE
-    }
-
-    FyToken immutable fyToken;
     YieldLadle constant ladle =
         YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
     ICauldron constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
     /// @notice Curve.fi token swapping contract between Ether and stETH.
-    IStableSwap stableSwap =
+    IStableSwap constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
     /// @notice Contract to wrap StEth to create WstEth. Unlike StEth, WstEth
     ///     doesn't rebase balances and instead represents a share of the pool.
@@ -104,15 +96,16 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     FlashJoin constant flashJoin2 =
         FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0);
     /// @notice Ether Yiels liquidity pool.
-    IPool pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
-    Giver immutable giver;
+    IPool constant pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
     IERC20 constant weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC20 constant wsteth = IERC20(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
     IERC20 constant steth = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
+    FyToken immutable fyToken;
+    Giver immutable giver;
 
     constructor(FyToken fyToken_, Giver giver_) {
-        giver = giver_;
         fyToken = fyToken_;
+        giver = giver_;
 
         // TODO: What if these approvals fail by returning `false`? Is that even a case worth
         //  considering?
@@ -135,11 +128,20 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     ) external returns (bytes12) {
         fyToken.safeTransferFrom(msg.sender, address(this), baseAmount);
         (bytes12 vaultId, ) = ladle.build(seriesId, ilkId, 0);
+        // Encode data of
+        // OperationType    1 byte      [0]
+        // vaultId          12 bytes    [1:13]
+        // baseAmount       16 bytes    [13:29]
+        bytes memory data = bytes.concat(
+            bytes1(0x01),
+            vaultId,
+            bytes16(baseAmount)
+        );
         bool success = fyToken.flashLoan(
             this, // Loan Receiver
             address(fyToken), // Loan Token
             borrowAmount, // Loan Amount
-            abi.encode(OperationType.LEVER_UP, abi.encode(baseAmount, vaultId))
+            data
         );
         if (!success) revert FlashLoanFailure();
         giver.give(vaultId, msg.sender);
@@ -157,7 +159,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         address, // token
         uint256 borrowAmount, // Amount of FYToken received
         uint256 fee,
-        bytes memory data
+        bytes calldata data
     ) external returns (bytes32) {
         // Test that the flash loan was sent from the lender contract and that
         // this contract was the initiator.
@@ -167,20 +169,17 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         ) revert FlashLoanFailure();
 
         // Decode the operation to execute
-        (OperationType status, bytes memory data2) = abi.decode(
-            data,
-            (OperationType, bytes)
-        );
-        if (status == OperationType.LEVER_UP) {
+        bytes1 status = data[0];
+        if (status == 0x01) {
             leverUp(
                 borrowAmount, // Amount of FYToken received
                 fee,
-                data2
+                data
             );
-        } else if (status == OperationType.REPAY) {
-            doRepay(uint128(borrowAmount) + uint128(fee), data2);
-        } else if (status == OperationType.CLOSE) {
-            doClose(data2);
+        } else if (status == 0x02) {
+            doRepay(uint128(borrowAmount) + uint128(fee), data);
+        } else if (status == 0x03) {
+            doClose(data);
         }
         return FLASH_LOAN_RETURN;
     }
@@ -188,14 +187,13 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     function leverUp(
         uint256 borrowAmount, // Amount of FYToken received
         uint256 fee,
-        bytes memory data
+        bytes calldata data
     ) internal {
         address thisAdd = address(this);
 
-        (uint128 baseAmount, bytes12 vaultId) = abi.decode(
-            data,
-            (uint128, bytes12)
-        );
+        bytes12 vaultId = bytes12(data[1:13]);
+        uint128 baseAmount = uint128(bytes16(data[13:29]));
+
         // The total amount to invest. Equal to the base plus the borrowed minus the flash loan
         // fee.
         uint128 netInvestAmount = baseAmount + uint128(borrowAmount - fee);
@@ -231,10 +229,10 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     }
 
     function unwind(
-        bytes12 vaultId,
         uint256 maxAmount,
         uint128 ink,
         uint128 art,
+        bytes12 vaultId,
         bytes6 seriesId
     ) external {
         // Test that the caller is the owner of the vault.
@@ -249,14 +247,18 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         if (uint32(block.timestamp) < series_.maturity) {
             // Series is not past maturity
             // Borrow to repay debt, move directly to the pool.
+            bytes memory data = bytes.concat(
+                bytes1(0x02),           // [0]
+                vaultId,                // [1:13]
+                bytes16(ink),           // [13:29]
+                bytes16(art),           // [29:45]
+                bytes20(msg.sender)     // [45:65]
+            );
             bool success = fyToken.flashLoan(
                 this, // Loan Receiver
                 address(fyToken), // Loan Token
                 maxAmount, // Loan Amount
-                abi.encode(
-                    OperationType.REPAY,
-                    abi.encode(msg.sender, vaultId, ink, art)
-                )
+                data
             );
             if (!success) revert FlashLoanFailure();
 
@@ -267,13 +269,19 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             );
         } else {
             // Series is past maturity, borrow and move directly to collateral pool
-            bytes memory data = abi.encode(vaultId, maxAmount, ink, art);
+            bytes memory data = bytes.concat(
+                bytes1(0x03),           // [0]
+                vaultId,                // [1:13]
+                bytes16(ink),           // [13:29]
+                bytes16(art),           // [29:45]
+                bytes32(maxAmount)      // [45:77]
+            );
             uint128 base = cauldron.debtToBase(seriesId, art);
             bool success = flashJoin.flashLoan(
                 this, // Loan Receiver
                 address(wsteth), // Loan Token
                 base, // Loan Amount
-                abi.encode(OperationType.CLOSE, data)
+                data
             );
             if (!success) revert FlashLoanFailure();
 
@@ -290,10 +298,12 @@ contract YieldStEthLever is IERC3156FlashBorrower {
 
     function doRepay(
         uint128 borrowAmountPlusFee, // Amount of FYToken received
-        bytes memory data
+        bytes calldata data
     ) internal {
-        (address borrower, bytes12 vaultId, uint128 ink, uint128 art) = abi
-            .decode(data, (address, bytes12, uint128, uint128));
+        bytes12 vaultId = bytes12(data[1:13]);
+        uint128 ink = uint128(bytes16(data[13:29]));
+        uint128 art = uint128(bytes16(data[29:45]));
+        address borrower = address(bytes20(data[45:65]));
 
         // TODO: Can this be in the constructor?
         fyToken.approve(address(ladle), art);
@@ -318,9 +328,11 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         weth.safeTransfer(borrower, weth.balanceOf(address(this)));
     }
 
-    function doClose(bytes memory data) internal {
-        (bytes12 vaultId, uint256 maxAmount, uint128 ink, uint128 art) = abi
-            .decode(data, (bytes12, uint256, uint128, uint128));
+    function doClose(bytes calldata data) internal {        
+        bytes12 vaultId = bytes12(data[1:13]);
+        uint128 ink = uint128(bytes16(data[13:29]));
+        uint128 art = uint128(bytes16(data[29:45]));
+        uint256 maxAmount = uint256(bytes32(data[45:77]));
 
         // Convert wsteth - steth
         wsteth.safeTransfer(address(stEthConverter), maxAmount);
