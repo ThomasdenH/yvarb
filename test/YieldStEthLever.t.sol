@@ -18,7 +18,6 @@ contract YieldStEthLeverTest is Test {
     address timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;
     address fyTokenWhale = 0x1c15b746360BB8E792C6ED8cB83f272Ce1D170E0;
     YieldStEthLever lever;
-    FYToken fyToken;
     Protocol protocol;
     Giver giver;
 
@@ -26,6 +25,12 @@ contract YieldStEthLeverTest is Test {
     FlashJoin flashJoin;
     bytes6 seriesId = 0x303030370000;
     ICauldron cauldron;
+
+    
+    IERC20 constant weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    WstEth constant wsteth = WstEth(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
+    IERC20 constant steth = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
+    FYToken immutable fyToken;
 
     IStableSwap constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
@@ -54,7 +59,7 @@ contract YieldStEthLeverTest is Test {
 
     function setUp() public {
         lever = new YieldStEthLever(
-            FyToken(0x53358d088d835399F1E97D2a01d79fC925c7D999),
+            FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999),
             giver
         );
 
@@ -92,9 +97,9 @@ contract YieldStEthLeverTest is Test {
         lever.unwind(
             balances.ink,
             balances.art,
+            minweth,
             vaultId,
-            seriesId,
-            minweth
+            seriesId
         );
         return vaultId;
     }
@@ -103,12 +108,24 @@ contract YieldStEthLeverTest is Test {
         bytes12 vaultId = leverUp(2e18, 6e18);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
+
+        // No tokens should be left in the contract
+        assertEq(weth.balanceOf(address(lever)), 0);
+        assertEq(wsteth.balanceOf(address(lever)), 0);
+        assertEq(steth.balanceOf(address(lever)), 0);
+        assertEq(fyToken.balanceOf(address(lever)), 0);
     }
 
     function testLever() public {
         bytes12 vaultId = leverUp(2e18, 5e18);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(balances.art, 5e18);
+
+        // No tokens should be left in the contract
+        assertEq(weth.balanceOf(address(lever)), 0);
+        assertEq(wsteth.balanceOf(address(lever)), 0);
+        assertEq(steth.balanceOf(address(lever)), 0);
+        assertEq(fyToken.balanceOf(address(lever)), 0);
     }
 
     function testLoanAndRepay() public {
@@ -118,6 +135,15 @@ contract YieldStEthLeverTest is Test {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(balances.art, 0);
         assertEq(balances.ink, 0);
+
+        // A very weak condition, but we should have at least some weth back.
+        assertGt(weth.balanceOf(address(this)), 0);
+
+        // No tokens should be left in the contract
+        assertEq(weth.balanceOf(address(lever)), 0);
+        assertEq(wsteth.balanceOf(address(lever)), 0);
+        assertEq(steth.balanceOf(address(lever)), 0);
+        assertEq(fyToken.balanceOf(address(lever)), 0);
     }
 
     function testLoanAndClose() public {
@@ -132,5 +158,14 @@ contract YieldStEthLeverTest is Test {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(balances.art, 0);
         assertEq(balances.ink, 0);
+
+        // A very weak condition, but we should have at least some weth back.
+        assertGt(weth.balanceOf(address(this)), 0);
+
+        // No tokens should be left in the contract
+        assertEq(weth.balanceOf(address(lever)), 0);
+        assertEq(wsteth.balanceOf(address(lever)), 0);
+        assertEq(steth.balanceOf(address(lever)), 0);
+        assertEq(fyToken.balanceOf(address(lever)), 0);
     }
 }
