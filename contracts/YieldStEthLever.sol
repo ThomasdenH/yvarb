@@ -8,11 +8,11 @@ import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
 import "@yield-protocol/vault-interfaces/src/DataTypes.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
 import "@yield-protocol/utils-v2/contracts/token/TransferHelper.sol";
-import "@yield-protocol/vault-v2/other/lido/StEthConverter.sol";
 import "@yield-protocol/vault-v2/utils/Giver.sol";
 import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "@yield-protocol/vault-v2/FYToken.sol";
 import "./interfaces/IStableSwap.sol";
+import "forge-std/Test.sol";
 
 error FlashLoanFailure();
 error SlippageFailure();
@@ -76,7 +76,7 @@ interface YieldLadle {
         returns (uint256 repaid);
 }
 
-contract YieldStEthLever is IERC3156FlashBorrower {
+contract YieldStEthLever is IERC3156FlashBorrower, Test {
     using TransferHelper for IERC20;
     using TransferHelper for FYToken;
     using TransferHelper for WstEth;
@@ -91,10 +91,6 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     /// @notice Curve.fi token swapping contract between Ether and stETH.
     IStableSwap constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
-    /// @notice Contract to wrap StEth to create WstEth. Unlike StEth, WstEth
-    ///     doesn't rebase balances and instead represents a share of the pool.
-    StEthConverter constant stEthConverter =
-        StEthConverter(0x93D232213cCA6e5e7105199ABD8590293C3eb106);
     bytes6 constant ilkId = bytes6(0x303400000000); //wsteth
     /// @notice The Yield Protocol Join containing WstEth.
     FlashJoin constant flashJoin =
@@ -162,7 +158,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         giver.give(vaultId, msg.sender);
         // We put everything that we borrowed into the vault, so there can't be
         // any FYTokens left. Check:
-        // assert(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
+        assert(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
         return vaultId;
     }
 
@@ -209,33 +205,31 @@ contract YieldStEthLever is IERC3156FlashBorrower {
 
         fyToken.safeTransfer(address(pool), netInvestAmount);
 
-        // Get WETH
-        pool.buyBase(
-            address(this),
-            uint128(pool.sellFYTokenPreview(netInvestAmount)),
-            netInvestAmount
-        );
+        // Get WETH by selling borrowed FYTokens. We don't need to check for a
+        // minimum since we check that we have enough collateral later on.
+        uint256 receivedWeth = pool.sellFYToken(address(this), 0);
+
         // Swap WETH for stETH on curve
         // 0: WETH
         // 1: STETH
-        stableSwap.exchange(
+        uint256 boughtStEth = stableSwap.exchange(
             0,
             1,
-            pool.base().balanceOf(address(this)), // This value is different from base received
+            receivedWeth,
             1,
-            address(stEthConverter)
+            address(this)
         );
 
         // Wrap steth to wsteth
-        uint128 wrappedamount = uint128(
-            stEthConverter.wrap(address(flashJoin))
-        );
-        if (wrappedamount < minCollateral) revert SlippageFailure();
+        uint128 wrappedStEth = uint128(wsteth.wrap(boughtStEth));
+        if (wrappedStEth < minCollateral) revert SlippageFailure();
+
         // Deposit wstETH in the vault & borrow fyToken to payback
+        wsteth.safeTransfer(address(flashJoin), wrappedStEth);
         ladle.pour(
             vaultId,
             address(this),
-            int128(uint128(wrappedamount)),
+            int128(uint128(wrappedStEth)),
             int128(uint128(borrowAmount))
         );
     }
@@ -381,7 +375,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
 
     /// @dev    - We have borrowed WstEth
     ///         - Sell it all for WEth and close position.
-    function doClose(uint256 borrowAmount, bytes calldata data) internal {
+    function doClose(uint256, bytes calldata data) internal {
         bytes12 vaultId = bytes12(data[1:13]);
         uint128 ink = uint128(bytes16(data[13:29]));
         uint128 art = uint128(bytes16(data[29:45]));
