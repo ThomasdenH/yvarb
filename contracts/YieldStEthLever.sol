@@ -123,6 +123,11 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
     }
 
     /// @notice Invest by creating a levered vault.
+    ///
+    ///     We invest `FYToken`. (Give approval first) We borrow `borrowAmount`
+    ///     extra. We use it to buy Weth, exchange it to (W)StEth, which we use
+    ///     as collateral. The contract tests that at least `minCollateral` is
+    /// 	attained.
     /// @param baseAmount The amount of own liquidity to supply.
     /// @param borrowAmount The amount of additional liquidity to borrow.
     /// @param minCollateral The minimum amount of collateral to end up with in
@@ -158,7 +163,7 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         giver.give(vaultId, msg.sender);
         // We put everything that we borrowed into the vault, so there can't be
         // any FYTokens left. Check:
-        assert(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
+        // assert(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
         return vaultId;
     }
 
@@ -191,7 +196,7 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
     }
 
     function leverUp(
-        uint256 borrowAmount, // Amount of FYToken received
+        uint256 borrowAmount,
         uint256 fee,
         bytes calldata data
     ) internal {
@@ -199,8 +204,9 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         uint128 minCollateral = uint128(bytes16(data[29:45]));
         bytes12 vaultId = bytes12(data[1:13]);
 
-        // The total amount to invest. Equal to the base plus the borrowed minus the flash loan
-        // fee.
+        // The total amount to invest. Equal to the base plus the borrowed
+        // minus the flash loan fee. The fee saved here together with the
+        // borrowed amount later pays off the flash loan.
         uint128 netInvestAmount = uint128(baseAmount + borrowAmount - fee);
 
         fyToken.safeTransfer(address(pool), netInvestAmount);
@@ -222,6 +228,8 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
 
         // Wrap steth to wsteth
         uint128 wrappedStEth = uint128(wsteth.wrap(boughtStEth));
+
+        // This is the amount to deposit, so we check for slippage here.
         if (wrappedStEth < minCollateral) revert SlippageFailure();
 
         // Deposit wstETH in the vault & borrow fyToken to payback
