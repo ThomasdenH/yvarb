@@ -38,16 +38,16 @@ contract YieldStEthLeverTest is Test {
     constructor() {
         protocol = new Protocol();
         fyToken = FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999);
-        flashJoin = FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82); //wsteth
+        flashJoin = FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0); // weth
         cauldron = ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
+
         // Set the flash fee factor
         vm.prank(timeLock);
         fyToken.setFlashFeeFactor(1);
 
         vm.prank(timeLock);
         flashJoin.setFlashFeeFactor(1);
-        vm.label(address(fyToken), "FYToken");
-        vm.label(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0, "WETH JOIN");
+
         giver = new Giver(cauldron);
         // Orchestrate Giver
         AccessControl cauldronAccessControl = AccessControl(

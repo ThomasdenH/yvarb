@@ -179,7 +179,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // this contract was the initiator.
         if (
             (msg.sender != address(fyToken) &&
-                msg.sender != address(flashJoin)) || initiator != address(this)
+                msg.sender != address(flashJoin2)) || initiator != address(this)
         ) revert FlashLoanFailure();
 
         // Decode the operation to execute
@@ -301,28 +301,20 @@ contract YieldStEthLever is IERC3156FlashBorrower {
                 bytes16(ink), // [13:29]
                 bytes16(art) // [29:45]
             );
+            // We have a debt in terms of fyWeth, but should pay back in Weth.
+            // `base` is how much Weth we should pay back.
             uint128 base = cauldron.debtToBase(seriesId, art);
-            bool success = flashJoin.flashLoan(
+            bool success = flashJoin2.flashLoan(
                 this, // Loan Receiver
-                address(wsteth), // Loan Token
+                address(weth), // Loan Token
                 base, // Loan Amount
                 data
             );
             if (!success) revert FlashLoanFailure();
 
-            // At this point, there may be a remainder of WEth (from selling),
-            // as well as WStEth (hopefully, this is our collateral). Sell all
-            // WStEth for WEth and test if it is sufficient.
-            uint256 stEthUnwrapped = wsteth.unwrap(
-                wsteth.balanceOf(address(this))
-            );
-            stableSwap.exchange(
-                1, // StEth
-                0, // WEth
-                stEthUnwrapped, // balance of steth
-                1,
-                address(this)
-            );
+            // At this point, we have only Weth left. Hopefully: this comes
+            // from the collateral in our vault!
+
             uint256 wethBalance = weth.balanceOf(address(this));
             if (wethBalance < minWeth) revert SlippageFailure();
             // Transferring the leftover to the user
@@ -394,22 +386,21 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         uint128 ink = uint128(bytes16(data[13:29]));
         uint128 art = uint128(bytes16(data[29:45]));
 
-        // Convert wsteth - steth
-        uint256 stEthUnwrapped = wsteth.unwrap(borrowAmount);
+        // We have obtained Weth, exactly enough to repay the vault. This will
+        // give us our WStEth collateral back.
+        ladle.close(vaultId, address(this), -int128(ink), -int128(art));
 
-        // convert steth- weth
+        // Convert wsteth to steth
+        uint256 stEthUnwrapped = wsteth.unwrap(ink);
+
+        // convert steth - weth
         // 1: STETH
         // 0: WETH
-        stableSwap.exchange(
-            1,
-            0,
-            stEthUnwrapped, // balance of steth
-            art, // We want to use it to repay the debt, so we better obtain at least `art`.
-            address(this)
-        );
+        // No minimal amount is necessary: The flashloan will try to take the
+        // borrowed amount and fee, and we will check for slippage afterwards.
+        stableSwap.exchange(1, 0, stEthUnwrapped, 0, address(this));
 
-        // Close vault. We obtain `ink` StEth, which will be used to repay the
-        // loan. The rest is returned to the vault owner in `unwind`.
-        ladle.close(vaultId, address(this), -int128(ink), -int128(art));
+        // At the end of the flash loan, we repay in terms of Weth and have
+        // used everything for the vault, so we have better obtained it!
     }
 }
