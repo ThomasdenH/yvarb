@@ -241,16 +241,12 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         uint256 fee,
         bytes calldata data
     ) internal {
-        // Decode the variables.
-        uint128 baseAmount = uint128(bytes16(data[13:29]));
-        uint128 minCollateral = uint128(bytes16(data[29:45]));
-        bytes12 vaultId = bytes12(data[1:13]);
-
         // The total amount to invest. Equal to the base plus the borrowed
         // minus the flash loan fee. The fee saved here together with the
         // borrowed amount later pays off the flash loan. This makes sure we
         // borrow exactly `borrowAmount`.
-        uint128 netInvestAmount = uint128(baseAmount + borrowAmount - fee);
+        uint128 netInvestAmount = uint128(uint128(bytes16(data[13:29])) // baseAmount
+             + borrowAmount - fee);
 
         // Get WEth by selling borrowed FYTokens. We don't need to check for a
         // minimum since we check that we have enough collateral later on.
@@ -275,13 +271,14 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         // This is the amount to deposit, so we check for slippage here. As
         // long as we end up with the desired amount, it doesn't matter what
         // slippage occurred where.
-        if (wrappedStEth < minCollateral) revert SlippageFailure();
+        // `wrappedStEth < minCollateral`
+        if (wrappedStEth < uint128(bytes16(data[29:45]))) revert SlippageFailure();
 
         // Deposit WStEth in the vault & borrow `borrowAmount` fyToken to
         // pay back.
         wsteth.safeTransfer(address(flashJoin), wrappedStEth);
         ladle.pour(
-            vaultId,
+            bytes12(data[1:13]), // vaultId
             address(this),
             int128(uint128(wrappedStEth)),
             int128(uint128(borrowAmount))
@@ -393,18 +390,13 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         uint128 borrowAmountPlusFee, // Amount of FYToken received
         bytes calldata data
     ) internal {
-        bytes12 vaultId = bytes12(data[1:13]);
         uint128 ink = uint128(bytes16(data[13:29]));
-        uint128 art = uint128(bytes16(data[29:45]));
-        address borrower = address(bytes20(data[45:65]));
-        uint256 minWeth = uint256(bytes32(data[65:97]));
-
         // Repay the vault, get collateral back.
         ladle.pour(
-            vaultId,
+            bytes12(data[1:13]), // vaultId
             address(this),
             -int128(ink),
-            -int128(art) // How much could I borrow?
+            -int128(uint128(bytes16(data[29:45]))) // art
         );
 
         // Unwrap WStEth to obtain StEth.
@@ -434,8 +426,10 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
             // Unchecked: This is equal to our balance, so it must be positive.
             wethRemaining = wethReceived - wethToTran;
         }
-        if (wethRemaining < minWeth) revert SlippageFailure();
-        weth.safeTransfer(borrower, wethRemaining);
+        // data[65:97]: minWeth
+        if (wethRemaining < uint256(bytes32(data[65:97]))) revert SlippageFailure();
+        // data[45:65]: borrower
+        weth.safeTransfer(address(bytes20(data[45:65])), wethRemaining);
 
         // We should have exactly `borrowAmountPlusFee` fyWeth as that is what
         // we have bought. This pays back the flash loan exactly.
@@ -446,13 +440,13 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
     ///         - Use it to repay the debt and take the collateral.
     ///         - Sell it all for WEth and close position.
     function doClose(bytes calldata data) internal {
-        bytes12 vaultId = bytes12(data[1:13]);
         uint128 ink = uint128(bytes16(data[13:29]));
-        uint128 art = uint128(bytes16(data[29:45]));
 
         // We have obtained Weth, exactly enough to repay the vault. This will
         // give us our WStEth collateral back.
-        ladle.close(vaultId, address(this), -int128(ink), -int128(art));
+        // data[1:13]: vaultId
+        // data[29:45]: art
+        ladle.close(bytes12(data[1:13]), address(this), -int128(ink), -int128(uint128(bytes16(data[29:45]))));
 
         // Convert wsteth to steth
         uint256 stEthUnwrapped = wsteth.unwrap(ink);
