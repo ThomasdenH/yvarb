@@ -14,7 +14,7 @@ import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
 import "@yield-protocol/yieldspace-interfaces/IPool.sol";
 
-contract YieldStEthLeverTest is Test {
+abstract contract ZeroState is Test {
     address timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;
     address fyTokenWhale = 0x1c15b746360BB8E792C6ED8cB83f272Ce1D170E0;
     YieldStEthLever lever;
@@ -56,7 +56,7 @@ contract YieldStEthLeverTest is Test {
         cauldronAccessControl.grantRole(0x798a828b, address(giver));
     }
 
-    function setUp() public {
+    function setUp() public virtual {
         lever = new YieldStEthLever(giver);
 
         //Label
@@ -71,6 +71,7 @@ contract YieldStEthLeverTest is Test {
         giverAccessControl.grantRole(0x35775afb, address(lever));
     }
 
+    /// @notice Create a vault.
     function leverUp(uint128 baseAmount, uint128 borrowAmount)
         public
         returns (bytes12 vaultId)
@@ -88,8 +89,17 @@ contract YieldStEthLeverTest is Test {
             seriesId
         );
     }
+}
 
-    function unwind(bytes12 vaultId) public returns (bytes12) {
+abstract contract VaultCreatedState is ZeroState {
+    bytes12 vaultId;
+
+    function setUp() public override {
+        super.setUp();
+        vaultId = leverUp(2e18, 4e18);
+    }
+
+    function unwind() internal returns (bytes12) {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
 
         // Rough calculation of the minimal amount of weth that we want back.
@@ -100,7 +110,9 @@ contract YieldStEthLeverTest is Test {
         lever.unwind(balances.ink, balances.art, minweth, vaultId, seriesId);
         return vaultId;
     }
+}
 
+contract ZeroStateTest is ZeroState {
     function testVault() public {
         bytes12 vaultId = leverUp(2e18, 6e18);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
@@ -124,10 +136,12 @@ contract YieldStEthLeverTest is Test {
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
     }
+}
 
+
+contract VaultCreatedStateTest is VaultCreatedState {
     function testLoanAndRepay() public {
-        bytes12 vaultId = leverUp(2e18, 4e18);
-        unwind(vaultId);
+        unwind();
 
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(balances.art, 0);
@@ -144,13 +158,11 @@ contract YieldStEthLeverTest is Test {
     }
 
     function testLoanAndClose() public {
-        bytes12 vaultId = leverUp(2e18, 4e18);
-
         DataTypes.Series memory series_ = cauldron.series(seriesId);
 
         vm.warp(series_.maturity);
 
-        unwind(vaultId);
+        unwind();
 
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(balances.art, 0);
