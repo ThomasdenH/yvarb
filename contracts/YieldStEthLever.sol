@@ -19,7 +19,6 @@ error SlippageFailure();
 
 interface WstEth is IERC20 {
     function wrap(uint256 _stETHAmount) external returns (uint256);
-
     function unwrap(uint256 _wstETHAmount) external returns (uint256);
 }
 
@@ -190,7 +189,7 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         } else if (status == 0x02) {
             doRepay(uint128(borrowAmount + fee), data);
         } else if (status == 0x03) {
-            doClose(borrowAmount, data);
+            doClose(data);
         }
         return FLASH_LOAN_RETURN;
     }
@@ -383,7 +382,7 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
 
     /// @dev    - We have borrowed WstEth
     ///         - Sell it all for WEth and close position.
-    function doClose(uint256, bytes calldata data) internal {
+    function doClose(bytes calldata data) internal {
         bytes12 vaultId = bytes12(data[1:13]);
         uint128 ink = uint128(bytes16(data[13:29]));
         uint128 art = uint128(bytes16(data[29:45]));
