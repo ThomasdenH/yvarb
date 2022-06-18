@@ -136,12 +136,9 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         // TODO: What if these approvals fail by returning `false`? Is that even a case worth
         //  considering?
         fyToken.approve(address(ladle), type(uint256).max);
-        fyToken.approve(address(pool), type(uint256).max);
-        pool.base().approve(address(stableSwap), type(uint256).max);
-        wsteth.approve(address(stableSwap), type(uint256).max);
+        weth.approve(address(stableSwap), type(uint256).max);
         steth.approve(address(stableSwap), type(uint256).max);
         weth.approve(address(flashJoin2), type(uint256).max);
-        wsteth.approve(address(flashJoin), type(uint256).max);
         steth.approve(address(wsteth), type(uint256).max);
     }
 
