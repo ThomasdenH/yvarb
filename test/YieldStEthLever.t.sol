@@ -26,7 +26,6 @@ contract YieldStEthLeverTest is Test {
     bytes6 seriesId = 0x303030370000;
     ICauldron cauldron;
 
-    
     IERC20 constant weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     WstEth constant wsteth = WstEth(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
     IERC20 constant steth = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
@@ -58,10 +57,7 @@ contract YieldStEthLeverTest is Test {
     }
 
     function setUp() public {
-        lever = new YieldStEthLever(
-            FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999),
-            giver
-        );
+        lever = new YieldStEthLever(giver);
 
         //Label
         vm.label(address(lever), "YieldLever");
@@ -82,8 +78,15 @@ contract YieldStEthLeverTest is Test {
         fyToken.approve(address(lever), baseAmount);
         // Expect at least 80% of the value to end up as collateral
         uint256 wethAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
-        uint128 minCollateral = uint128(stableSwap.get_dy(0, 1, wethAmount) * 80 / 100);
-        vaultId = lever.invest(baseAmount, borrowAmount, minCollateral, seriesId);
+        uint128 minCollateral = uint128(
+            (stableSwap.get_dy(0, 1, wethAmount) * 80) / 100
+        );
+        vaultId = lever.invest(
+            baseAmount,
+            borrowAmount,
+            minCollateral,
+            seriesId
+        );
     }
 
     function unwind(bytes12 vaultId) public returns (bytes12) {
@@ -92,15 +95,9 @@ contract YieldStEthLeverTest is Test {
         // Rough calculation of the minimal amount of weth that we want back.
         // In reality, the debt is not in weth but in fyWeth.
         uint256 collateralValueWeth = stableSwap.get_dy(1, 0, balances.ink);
-        uint256 minweth = (collateralValueWeth - balances.art) * 80 / 100;
+        uint256 minweth = ((collateralValueWeth - balances.art) * 80) / 100;
 
-        lever.unwind(
-            balances.ink,
-            balances.art,
-            minweth,
-            vaultId,
-            seriesId
-        );
+        lever.unwind(balances.ink, balances.art, minweth, vaultId, seriesId);
         return vaultId;
     }
 
