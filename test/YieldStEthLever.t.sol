@@ -136,11 +136,46 @@ contract ZeroStateTest is ZeroState {
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
     }
+
+    /// @notice This function should fail if called externally.
+    function testOnFlashLoan() public {
+        vm.expectRevert(FlashLoanFailure.selector);
+        lever.onFlashLoan(
+            address(lever), // Lie!
+            address(fyToken),
+            1e18,
+            1e16,
+            bytes.concat(
+                bytes1(0x01),
+                bytes12(0),
+                bytes16(0),
+                bytes16(0)
+            )
+        );
+    }
+
+    function testInvestRevertOnMinEth() public {
+        uint128 baseAmount = 4e17;
+        uint128 borrowAmount = 8e17;
+        fyToken.approve(address(lever), baseAmount);
+
+        // Unreasonable expectation: twice the total value as collateral?
+        uint256 wethAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
+        uint128 minCollateral = uint128(stableSwap.get_dy(0, 1, wethAmount) * 2);
+
+        vm.expectRevert(SlippageFailure.selector);
+        lever.invest(
+            baseAmount,
+            borrowAmount,
+            minCollateral,
+            seriesId
+        );
+    }
 }
 
 
 contract VaultCreatedStateTest is VaultCreatedState {
-    function testLoanAndRepay() public {
+    function testRepay() public {
         unwind();
 
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
@@ -157,7 +192,7 @@ contract VaultCreatedStateTest is VaultCreatedState {
         assertEq(fyToken.balanceOf(address(lever)), 0);
     }
 
-    function testLoanAndClose() public {
+    function testClose() public {
         DataTypes.Series memory series_ = cauldron.series(seriesId);
 
         vm.warp(series_.maturity);
@@ -176,5 +211,32 @@ contract VaultCreatedStateTest is VaultCreatedState {
         assertEq(wsteth.balanceOf(address(lever)), 0);
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
+    }
+    
+    function testRepayRevertOnSlippage() public {
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+
+        // Rough calculation of the minimal amount of weth that we want back.
+        // In reality, the debt is not in weth but in fyWeth.
+        uint256 collateralValueWeth = stableSwap.get_dy(1, 0, balances.ink);
+        uint256 minweth = (collateralValueWeth - balances.art) * 2;
+
+        vm.expectRevert(SlippageFailure.selector);
+        lever.unwind(balances.ink, balances.art, minweth, vaultId, seriesId);
+    }
+
+    function testCloseRevertOnSlippage() public {
+        DataTypes.Series memory series_ = cauldron.series(seriesId);
+        vm.warp(series_.maturity);
+        
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+
+        // Rough calculation of the minimal amount of weth that we want back.
+        // In reality, the debt is not in weth but in fyWeth.
+        uint256 collateralValueWeth = stableSwap.get_dy(1, 0, balances.ink);
+        uint256 minweth = (collateralValueWeth - balances.art) * 2;
+
+        vm.expectRevert(SlippageFailure.selector);
+        lever.unwind(balances.ink, balances.art, minweth, vaultId, seriesId);
     }
 }

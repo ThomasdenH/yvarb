@@ -160,9 +160,9 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         uint128 borrowAmount,
         uint128 minCollateral,
         bytes6 seriesId
-    ) external returns (bytes12) {
+    ) external returns (bytes12 vaultId) {
         fyToken.safeTransferFrom(msg.sender, address(this), baseAmount);
-        (bytes12 vaultId, ) = ladle.build(seriesId, ilkId, 0);
+        (vaultId, ) = ladle.build(seriesId, ilkId, 0);
         // Since we know the sizes exactly, packing values in this way is more
         // efficient than using `abi.encode`.
         //
@@ -188,7 +188,6 @@ contract YieldStEthLever is IERC3156FlashBorrower, Test {
         // We put everything that we borrowed into the vault, so there can't be
         // any FYTokens left. Check:
         // assert(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
-        return vaultId;
     }
 
     /// @notice Called by a flash lender, which can be `fyToken` or
