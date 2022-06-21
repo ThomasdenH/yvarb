@@ -1,7 +1,7 @@
 [default]
 src = 'contracts'
 out = 'out'
+libs = ['lib']
+gas_reports = ['YieldStEthLever']
 
-fuzz_runs = 2048
-fuzz_max_local_rejects = 524288
-fuzz_max_global_rejects = 524288
+# See more config options https://github.com/foundry-rs/foundry/tree/master/config
