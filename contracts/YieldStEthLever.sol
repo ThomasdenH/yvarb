@@ -12,7 +12,6 @@ import "@yield-protocol/vault-v2/utils/Giver.sol";
 import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "@yield-protocol/vault-v2/FYToken.sol";
 import "./interfaces/IStableSwap.sol";
-import "forge-std/Test.sol";
 
 error FlashLoanFailure();
 error SlippageFailure();
@@ -83,7 +82,7 @@ interface YieldLadle {
 ///     The way to do this in practice is by first borrowing the desired debt
 ///     through a flash loan and using this in additon to your own collateral.
 ///     The flash loan is repayed using funds borrowed using your collateral.
-contract YieldStEthLever is IERC3156FlashBorrower, Test {
+contract YieldStEthLever is IERC3156FlashBorrower {
     using TransferHelper for IERC20;
     using TransferHelper for FYToken;
     using TransferHelper for WstEth;
