@@ -124,6 +124,13 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     ///     permission.
     Giver public immutable giver;
 
+    /// @notice The operation to execute in the flash loan.
+    enum Operation {
+        LEVER_UP,
+        REPAY,
+        CLOSE
+    }
+
     /// @notice Deploy this contract.
     /// @param giver_ The `Giver` contract to use.
     /// @dev The contract should never own anything in between transactions;
@@ -171,7 +178,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // baseAmount       16 bytes    [13:29]
         // minCollateral    16 bytes    [29:45]
         bytes memory data = bytes.concat(
-            bytes1(0x01),
+            bytes1(uint8(uint256(Operation.LEVER_UP))),
             vaultId,
             bytes16(baseAmount),
             bytes16(minCollateral)
@@ -217,12 +224,12 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             revert FlashLoanFailure();
 
         // Decode the operation to execute and then call that function.
-        bytes1 status = data[0];
-        if (status == 0x01) {
+        Operation status = Operation(uint256(uint8(data[0])));
+        if (status == Operation.LEVER_UP) {
             leverUp(borrowAmount, fee, data);
-        } else if (status == 0x02) {
+        } else if (status == Operation.REPAY) {
             doRepay(uint128(borrowAmount + fee), data);
-        } else if (status == 0x03) {
+        } else if (status == Operation.CLOSE) {
             doClose(data);
         }
         return FLASH_LOAN_RETURN;
@@ -327,7 +334,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             // Series is not past maturity.
             // Borrow to repay debt, move directly to the pool.
             bytes memory data = bytes.concat(
-                bytes1(0x02), // [0:1]
+                bytes1(bytes1(uint8(uint256(Operation.REPAY)))), // [0:1]
                 vaultId, // [1:13]
                 bytes16(ink), // [13:29]
                 bytes16(art), // [29:45]
@@ -350,7 +357,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             // Repay:
             // Series is past maturity, borrow and move directly to collateral pool.
             bytes memory data = bytes.concat(
-                bytes1(0x03), // [0:1]
+                bytes1(bytes1(uint8(uint256(Operation.CLOSE)))), // [0:1]
                 vaultId, // [1:13]
                 bytes16(ink), // [13:29]
                 bytes16(art) // [29:45]
