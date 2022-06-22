@@ -126,7 +126,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
 
     /// @notice Deploy this contract.
     /// @param giver_ The `Giver` contract to use.
-    /// @dev The contreact should never own anything in between transactions;
+    /// @dev The contract should never own anything in between transactions;
     ///     no tokens, no vaults. To save gas we give these tokens full
     ///     approval.
     constructor(Giver giver_) {
@@ -186,7 +186,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         giver.give(vaultId, msg.sender);
         // We put everything that we borrowed into the vault, so there can't be
         // any FYTokens left. Check:
-        // assert(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
+        require(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
     }
 
     /// @notice Called by a flash lender, which can be `wstethJoin` or
@@ -344,7 +344,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             // We have borrowed exactly enough for the debt and bought back
             // exactly enough for the loan + fee, so there is no balance of
             // FYToken left. Check:
-            // assert(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
+            require(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
         } else {
             // Repay:
             // Series is past maturity, borrow and move directly to collateral pool.
