@@ -111,10 +111,10 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     /// @notice The ild ID for WStEth.
     bytes6 constant ilkId = bytes6(0x303400000000);
     /// @notice The Yield Protocol Join containing WstEth.
-    FlashJoin constant flashJoin =
+    FlashJoin constant wstethJoin =
         FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
     /// @notice The Yield Protocol Join containing Weth.
-    FlashJoin constant flashJoin2 =
+    FlashJoin constant wethJoin =
         FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0);
     /// @notice Ether Yield liquidity pool. Exchanges Weth with FYWeth.
     IPool constant pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
@@ -137,7 +137,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         fyToken.approve(address(ladle), type(uint256).max);
         weth.approve(address(stableSwap), type(uint256).max);
         steth.approve(address(stableSwap), type(uint256).max);
-        weth.approve(address(flashJoin2), type(uint256).max);
+        weth.approve(address(wethJoin), type(uint256).max);
         steth.approve(address(wsteth), type(uint256).max);
     }
 
@@ -189,8 +189,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // assert(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
     }
 
-    /// @notice Called by a flash lender, which can be `fyToken` or
-    ///     `flashJoin2` (for Weth). The primary purpose is to check conditions
+    /// @notice Called by a flash lender, which can be `wstethJoin` or
+    ///     `wethJoin` (for Weth). The primary purpose is to check conditions
     ///     and route to the correct internal function.
     ///
     ///     This function reverts if not called through a flashloan initiated
@@ -212,7 +212,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // contract was the initiator.
         if (
             (msg.sender != address(fyToken) &&
-                msg.sender != address(flashJoin2)) || initiator != address(this)
+                msg.sender != address(wethJoin)) || initiator != address(this)
         ) revert FlashLoanFailure();
 
         // Decode the operation to execute and then call that function.
@@ -275,7 +275,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
 
         // Deposit WStEth in the vault & borrow `borrowAmount` fyToken to
         // pay back.
-        wsteth.safeTransfer(address(flashJoin), wrappedStEth);
+        wsteth.safeTransfer(address(wstethJoin), wrappedStEth);
         ladle.pour(
             bytes12(data[1:13]), // vaultId
             address(this),
@@ -357,7 +357,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             // We have a debt in terms of fyWEth, but should pay back in WEth.
             // `base` is how much WEth we should pay back.
             uint128 base = cauldron.debtToBase(seriesId, art);
-            bool success = flashJoin2.flashLoan(
+            bool success = wethJoin.flashLoan(
                 this, // Loan Receiver
                 address(weth), // Loan Token
                 base, // Loan Amount
