@@ -208,12 +208,13 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         uint256 fee,
         bytes calldata data
     ) external returns (bytes32) {
-        // Test that the flash loan was sent from the a contract and that this
-        // contract was the initiator.
-        if (
-            (msg.sender != address(fyToken) &&
-                msg.sender != address(wethJoin)) || initiator != address(this)
-        ) revert FlashLoanFailure();
+        // Test that the lender is either the fyToken contract or the Weth
+        // Join.
+        if (msg.sender != address(fyToken) && msg.sender != address(wethJoin))
+            revert FlashLoanFailure();
+        // We trust the lender, so now we can check that we were the initiator.
+        if (initiator != address(this))
+            revert FlashLoanFailure();
 
         // Decode the operation to execute and then call that function.
         bytes1 status = data[0];
