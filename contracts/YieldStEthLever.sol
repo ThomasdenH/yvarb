@@ -88,41 +88,41 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     using TransferHelper for WstEth;
 
     /// @notice By IERC3156, the flash loan should return this constant.
-    bytes32 internal constant FLASH_LOAN_RETURN =
+    bytes32 public constant FLASH_LOAN_RETURN =
         keccak256("ERC3156FlashBorrower.onFlashLoan");
 
     /// @notice WEth.
-    IERC20 constant weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IERC20 public constant weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     /// @notice StEth, represents Ether stakes on Lido.
-    IERC20 constant steth = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
+    IERC20 public constant steth = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
     /// @notice WStEth, wrapped StEth, useful because StEth rebalances.
-    WstEth constant wsteth = WstEth(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
+    WstEth public constant wsteth = WstEth(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
 
     /// @notice The Yield Ladle, the primary entry point for most high-level
     ///     operations.
-    YieldLadle constant ladle =
+    YieldLadle public constant ladle =
         YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
     /// @notice The Yield Cauldron, handles debt and collateral balances.
-    ICauldron constant cauldron =
+    ICauldron public constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
     /// @notice Curve.fi token swapping contract between Ether and StETH.
-    IStableSwap constant stableSwap =
+    IStableSwap public constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
     /// @notice The ild ID for WStEth.
-    bytes6 constant ilkId = bytes6(0x303400000000);
+    bytes6 public constant ilkId = bytes6(0x303400000000);
     /// @notice The Yield Protocol Join containing WstEth.
-    FlashJoin constant wstethJoin =
+    FlashJoin public constant wstethJoin =
         FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
     /// @notice The Yield Protocol Join containing Weth.
-    FlashJoin constant wethJoin =
+    FlashJoin public constant wethJoin =
         FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0);
     /// @notice Ether Yield liquidity pool. Exchanges Weth with FYWeth.
-    IPool constant pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
+    IPool public constant pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
     /// @notice FyWeth, used to borrow based on Weth.
-    FYToken constant fyToken = FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999);
+    FYToken public constant fyToken = FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999);
     /// @notice The Giver contract can give vaults on behalf on a user who gave
     ///     permission.
-    Giver immutable giver;
+    Giver public immutable giver;
 
     /// @notice Deploy this contract.
     /// @param giver_ The `Giver` contract to use.
