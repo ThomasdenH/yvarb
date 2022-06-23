@@ -1,6 +1,7 @@
-import { BigNumber, ethers } from "ethers";
-import { ContractContext as Cauldron } from "../abi/Cauldron";
-import { ILK_ID } from "../App";
+import { BigNumber, ethers, Signer } from "ethers";
+import { Contracts } from "../App";
+import { CAULDRON, getContract } from "../contracts";
+import { ICauldron } from "../contracts/ICauldron";
 
 export interface SeriesDefinition {
   poolAddress: string;
@@ -39,7 +40,8 @@ const BLOCK_STEPS = 10000;
  * Look for vaults that have been created on or transferred to the address.
  */
 export async function loadVaults(
-  cauldron: Cauldron,
+  contracts: Contracts,
+  signer: Signer,
   account: string,
   provider: ethers.providers.Web3Provider,
   vaultDiscseriesDiscoveredovered: (vaultId: string) => void,
@@ -56,6 +58,7 @@ export async function loadVaults(
       seriesId: "0x303230360000",
     });
   } else {
+    const cauldron: ICauldron = getContract(CAULDRON, contracts, signer);
     const currentBlock: number = await provider.getBlockNumber();
     const vaultsBuiltFilter = cauldron.filters.VaultBuilt(null, account, null);
     const vaultsReceivedFilter = cauldron.filters.VaultGiven(null, account);

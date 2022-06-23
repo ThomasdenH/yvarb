@@ -29,7 +29,3 @@ export function formatNumber(
   }
   return s;
 }
-
-export function formatUSDC(usdc: BigNumber): string {
-  return formatNumber(usdc, 6, 2) + " USDC";
-}

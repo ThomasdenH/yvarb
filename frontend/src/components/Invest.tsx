@@ -1,10 +1,10 @@
 import { BigNumber, utils } from "ethers";
-import React from "react";
-import { Contracts, ILK_ID } from "../App";
+import React, { useState, useEffect } from "react";
+import { Contracts, ILK_ID, Strategy } from "../App";
 import "./Invest.scss";
 import Slippage, { addSlippage, SLIPPAGE_OPTIONS } from "./Slippage";
-import UsdcInput from "./UsdcInput";
-import ValueDisplay, { ValueType } from "./ValueDisplay";
+import UsdcInput, { BalanceInput } from "./UsdcInput";
+import ValueDisplay, { Balance, ValueType } from "./ValueDisplay";
 import {
   DebtResponse as Debt,
   SeriesResponse as Series,
@@ -16,7 +16,9 @@ const UNITS_USDC = 6;
 const UNITS_LEVERAGE = 2;
 
 interface Properties {
-  usdcBalance: BigNumber;
+  /** Relevant token balances. */
+  strategy: Strategy;
+  balances: Balance[];
   account: string;
   label: string;
   contracts: Readonly<Contracts>;
@@ -34,7 +36,6 @@ enum ApprovalState {
 }
 
 interface State {
-  usdcBalance: BigNumber;
   usdcToInvest: BigNumber;
   leverage: BigNumber;
   approvalState: ApprovalState;
@@ -45,205 +46,162 @@ interface State {
   seriesInterest: { [seriesId: string]: number };
 }
 
-export default class Invest extends React.Component<Properties, State> {
-  private readonly contracts: Readonly<Contracts>;
-  private readonly account: string;
+export const Invest = () => {
+  const [slippage, setSlippage] = useState<number>(SLIPPAGE_OPTIONS[1].value);
+  const [leverage, setLeverage] = useState<BigNumber>(BigNumber.from(300));
+  const [balances, setBalances] = useState<BigNumber[] | undefined>(undefined);
+  const [balanceInput, setBalanceInput] = useState<BigNumber>(BigNumber.from(0));
 
-  constructor(props: Properties) {
-    super(props);
-    this.account = props.account;
-    this.contracts = props.contracts;
-    this.state = {
-      usdcBalance: props.usdcBalance,
-      usdcToInvest: props.usdcBalance,
-      leverage: BigNumber.from(300),
-      approvalState: ApprovalState.Loading,
-      slippage: SLIPPAGE_OPTIONS[1].value,
-      seriesInterest: {},
-    };
+  const onLeverageChange = (leverage: string) => {
+    setLeverage(utils.parseUnits(leverage, UNITS_LEVERAGE));
+    setApprovalState(ApprovalState.Loading);
+  };
+
+  const [approvalState, setApprovalState] = useState<ApprovalState>(
+    ApprovalState.Loading
+  );
+  
+  let component;
+  switch (approvalState) {
+    case ApprovalState.Loading:
+      component = (
+        <input
+          key="loading"
+          className="button"
+          type="button"
+          value="Loading..."
+          disabled={true}
+        />
+      );
+      break;
+    case ApprovalState.ApprovalRequired:
+      component = (
+        <input
+          key="approve"
+          className="button"
+          type="button"
+          value="Approve"
+          onClick={() => void this.approve()}
+        />
+      );
+      break;
+    case ApprovalState.Transactable:
+      component = (
+        <input
+          key="transact"
+          className="button"
+          type="button"
+          value="Transact!"
+          onClick={() => void this.transact()}
+        />
+      );
+      break;
+    case ApprovalState.DebtTooLow:
+      component = (
+        <input
+          key="debttoolow"
+          className="button"
+          type="button"
+          value="Debt too low!"
+          disabled={true}
+        />
+      );
+      break;
+    case ApprovalState.Undercollateralized:
+      component = (
+        <input
+          key="undercollateralized"
+          className="button"
+          type="button"
+          value="Undercollateralized!"
+          disabled={true}
+        />
+      );
+      break;
   }
 
-  render(): React.ReactNode {
-    let component;
-    switch (this.state.approvalState) {
-      case ApprovalState.Loading:
-        component = (
-          <input
-            key="loading"
-            className="button"
-            type="button"
-            value="Loading..."
-            disabled={true}
-          />
-        );
-        break;
-      case ApprovalState.ApprovalRequired:
-        component = (
-          <input
-            key="approve"
-            className="button"
-            type="button"
-            value="Approve"
-            onClick={() => void this.approve()}
-          />
-        );
-        break;
-      case ApprovalState.Transactable:
-        component = (
-          <input
-            key="transact"
-            className="button"
-            type="button"
-            value="Transact!"
-            onClick={() => void this.transact()}
-          />
-        );
-        break;
-      case ApprovalState.DebtTooLow:
-        component = (
-          <input
-            key="debttoolow"
-            className="button"
-            type="button"
-            value="Debt too low!"
-            disabled={true}
-          />
-        );
-        break;
-      case ApprovalState.Undercollateralized:
-        component = (
-          <input
-            key="undercollateralized"
-            className="button"
-            type="button"
-            value="Undercollateralized!"
-            disabled={true}
-          />
-        );
-        break;
-    }
+  if (balances === undefined)
+    return <></>;
 
-    return (
-      <div className="invest">
-        <ValueDisplay
+  return (
+    <div className="invest">
+      {
+        balances.map((balance: BigNumber) => <ValueDisplay
           label="Balance:"
           valueType={ValueType.Usdc}
-          value={this.state.usdcBalance}
-        />
-        <select
-          value={this.state.selectedSeriesId}
-          onSelect={(e) =>
-            this.setState({ selectedSeriesId: e.currentTarget.value })
-          }
-        >
-          {this.props.seriesDefinitions.map(
-            (seriesInterface: SeriesDefinition) => (
-              <option
-                key={seriesInterface.seriesId}
-                value={seriesInterface.seriesId}
-                disabled={Invest.isPastMaturity(
-                  this.props.seriesInfo[seriesInterface.seriesId]
-                )}
-              >
-                {this.state.seriesInterest[seriesInterface.seriesId] ===
-                undefined
-                  ? `${seriesInterface.seriesId}`
-                  : `${seriesInterface.seriesId} (${
-                      this.state.seriesInterest[seriesInterface.seriesId]
-                    }%)`}
-              </option>
-            )
-          )}
-        </select>
-        <label htmlFor="invest_amount">Amount to invest:</label>
-        <UsdcInput
-          max={this.state.usdcBalance}
-          defaultValue={this.state.usdcBalance}
-          onValueChange={(v) => this.onUsdcInputChange(v)}
-        />
-        <label htmlFor="leverage">
-          Leverage: ({utils.formatUnits(this.state.leverage, 2)}×)
-        </label>
-        <input
-          className="leverage"
-          name="leverage"
-          type="range"
-          min="1.01"
-          max="5"
-          step="0.01"
-          value={utils.formatUnits(this.state.leverage, 2)}
-          onChange={(el) => this.onLeverageChange(el.target.value)}
-        />
-        <Slippage
-          value={this.state.slippage}
-          onChange={(val: number) => this.onSlippageChange(val)}
-        />
+          value={balance}
+        />)
+      }
+      <label htmlFor="invest_amount">Amount to invest:</label>
+      <BalanceInput
+        max={balances[0]}
+        defaultValue={balances[0]}
+        onValueChange={(v) => setBalanceInput(v)}
+      />
+      <label htmlFor="leverage">
+        Leverage: ({utils.formatUnits(leverage, 2)}×)
+      </label>
+      <input
+        className="leverage"
+        name="leverage"
+        type="range"
+        min="1.01"
+        max="5"
+        step="0.01"
+        value={utils.formatUnits(this.state.leverage, 2)}
+        onChange={(el) => this.onLeverageChange(el.target.value)}
+      />
+      <Slippage
+        value={this.state.slippage}
+        onChange={(val: number) => this.onSlippageChange(val)}
+      />
+      <ValueDisplay
+        label="To borrow:"
+        valueType={ValueType.Usdc}
+        value={this.toBorrow()}
+      />
+      {this.state.fyTokens === undefined ? (
+        <></>
+      ) : (
+        <>
+          <ValueDisplay
+            label="Total interest:"
+            valueType={ValueType.Usdc}
+            value={this.state.fyTokens.sub(this.toBorrow())}
+          />
+          <ValueDisplay
+            className="value_sum"
+            key="fytokens"
+            label="Debt on maturity:"
+            valueType={ValueType.Usdc}
+            value={this.state.fyTokens}
+          />
+        </>
+      )}
+      {this.state.selectedSeriesId !== undefined &&
+      this.state.seriesInterest[this.state.selectedSeriesId] !== undefined ? (
         <ValueDisplay
-          label="To borrow:"
-          valueType={ValueType.Usdc}
-          value={this.toBorrow()}
+          label="Yield interest:"
+          value={`${
+            this.state.seriesInterest[this.state.selectedSeriesId]
+          } % APY`}
+          valueType={ValueType.Literal}
         />
-        {this.state.fyTokens === undefined ? (
-          <></>
-        ) : (
-          <>
-            <ValueDisplay
-              label="Total interest:"
-              valueType={ValueType.Usdc}
-              value={this.state.fyTokens.sub(this.toBorrow())}
-            />
-            <ValueDisplay
-              className="value_sum"
-              key="fytokens"
-              label="Debt on maturity:"
-              valueType={ValueType.Usdc}
-              value={this.state.fyTokens}
-            />
-          </>
-        )}
-        {this.state.selectedSeriesId !== undefined &&
-        this.state.seriesInterest[this.state.selectedSeriesId] !== undefined ? (
-          <ValueDisplay
-            label="Yield interest:"
-            value={`${
-              this.state.seriesInterest[this.state.selectedSeriesId]
-            } % APY`}
-            valueType={ValueType.Literal}
-          />
-        ) : null}
-        {this.props.yearnApi !== undefined ? (
-          <ValueDisplay
-            label="Yearn interest (after fees):"
-            value={`${Math.round(this.props.yearnApi * 1000) / 10} % APY`}
-            valueType={ValueType.Literal}
-          />
-        ) : null}
-        {component}
-      </div>
-    );
-  }
+      ) : null}
+      {this.props.yearnApi !== undefined ? (
+        <ValueDisplay
+          label="Yearn interest (after fees):"
+          value={`${Math.round(this.props.yearnApi * 1000) / 10} % APY`}
+          valueType={ValueType.Literal}
+        />
+      ) : null}
+      {component}
+    </div>
+  );
+};
 
-  private onSlippageChange(slippage: number) {
-    this.setState({ slippage });
-    void this.checkApprovalState();
-  }
-
-  private onUsdcInputChange(usdcToInvest: BigNumber) {
-    this.setState({ usdcToInvest, approvalState: ApprovalState.Loading });
-    void this.checkApprovalState();
-  }
-
-  private onLeverageChange(leverage: string) {
-    this.setState({
-      leverage: utils.parseUnits(leverage, UNITS_LEVERAGE),
-      approvalState: ApprovalState.Loading,
-    });
-    void this.checkApprovalState();
-  }
-
-  public componentDidMount() {
-    void this.checkApprovalState();
-  }
+/*
+export default class Invest extends React.Component<Properties, State> {
 
   private totalToInvest(): BigNumber {
     try {
@@ -255,88 +213,6 @@ export default class Invest extends React.Component<Properties, State> {
 
   private toBorrow(): BigNumber {
     return this.totalToInvest().sub(this.state.usdcToInvest);
-  }
-
-  private async checkApprovalState() {
-    let seriesId: string;
-    if (this.state.selectedSeriesId === undefined) {
-      const series = this.props.seriesDefinitions.find(
-        (ser) => !Invest.isPastMaturity(this.props.seriesInfo[ser.seriesId])
-      );
-      if (series === undefined) {
-        return;
-      } else {
-        seriesId = series.seriesId;
-        this.setState({ selectedSeriesId: series.seriesId });
-      }
-    } else {
-      seriesId = this.state.selectedSeriesId;
-    }
-
-    void this.computeSeriesInterests();
-
-    // First, set to loading
-    this.setState({
-      approvalState: ApprovalState.Loading,
-    });
-
-    const series = this.props.seriesInfo[seriesId];
-    const allowance: BigNumber = await this.contracts.usdcContract.allowance(
-      this.account,
-      this.contracts.yieldLeverContract.address
-    );
-    const cauldronDebt = await this.cauldronDebt(
-      this.contracts.cauldronContract,
-      series.baseId
-    );
-    const minDebt = BigNumber.from(cauldronDebt.min).mul(
-      BigNumber.from(10).pow(cauldronDebt.dec)
-    );
-
-    console.log(
-      "Allowance: " +
-        utils.formatUnits(allowance, UNITS_USDC) +
-        ". To spend: " +
-        utils.formatUnits(this.state.usdcToInvest, UNITS_USDC)
-    );
-
-    // Compute the amount of Fytokens
-    const fyTokens = await this.fyTokens();
-
-    const { ratio } = await this.contracts.cauldronContract.spotOracles(
-      series.baseId,
-      ILK_ID
-    );
-
-    if (minDebt.gt(fyTokens)) {
-      // Check whether the minimum debt is reached
-      this.setState({
-        fyTokens,
-        approvalState: ApprovalState.DebtTooLow,
-      });
-    } else if (this.collateralizationRatio(fyTokens).lt(ratio)) {
-      // Check whether the vault would be collateralized
-      this.setState({
-        fyTokens,
-        approvalState: ApprovalState.Undercollateralized,
-      });
-    } else {
-      const toBorrow = this.totalToInvest().sub(this.state.usdcToInvest);
-      const interest = await this.computeInterest(seriesId, toBorrow);
-      if (allowance.lt(this.state.usdcToInvest)) {
-        this.setState({
-          fyTokens,
-          approvalState: ApprovalState.ApprovalRequired,
-          interest,
-        });
-      } else {
-        this.setState({
-          fyTokens,
-          approvalState: ApprovalState.Transactable,
-          interest,
-        });
-      }
-    }
   }
 
   private async computeSeriesInterests() {
@@ -380,6 +256,7 @@ export default class Invest extends React.Component<Properties, State> {
    * Compute the amount of fyTokens that would be drawn with the current settings.
    * @returns
    */
+/*
   private async fyTokens(): Promise<BigNumber> {
     if (this.totalToInvest().eq(0) || this.state.selectedSeriesId === undefined)
       return BigNumber.from(0);
@@ -448,3 +325,4 @@ export default class Invest extends React.Component<Properties, State> {
     return seriesInfo.maturity <= Date.now() / 1000;
   }
 }
+*/

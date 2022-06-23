@@ -1,6 +1,11 @@
 import { BigNumber } from "ethers";
-import { formatNumber, formatUSDC } from "../utils";
+import { formatNumber } from "../utils";
 import "./ValueDisplay.scss";
+
+export interface Balance {
+  valueType: ValueType;
+  value: BigNumber;
+}
 
 export enum ValueType {
   Usdc,
@@ -31,7 +36,7 @@ type Value =
 export default function ValueDisplay(value: Value): JSX.Element {
   let val;
   if (value.valueType === ValueType.Usdc) {
-    val = formatUSDC(value.value);
+    val = formatNumber(value.value, 6, 2) + " USDC";
   } else if (value.valueType === ValueType.FyUsdc) {
     val = formatNumber(value.value, 6, 2) + " FYUSDC";
   } else if (value.valueType === ValueType.Literal) {

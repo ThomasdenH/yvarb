@@ -1,4 +1,4 @@
-import { BigNumber, utils } from "ethers";
+/*import { BigNumber, utils } from "ethers";
 import React from "react";
 import { Contracts } from "../App";
 import { Balance, Vault as VaultI } from "../objects/Vault";
@@ -163,3 +163,4 @@ export default class Vault extends React.Component<Properties, State> {
     }
   }
 }
+*/
