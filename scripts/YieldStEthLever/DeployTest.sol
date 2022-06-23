@@ -25,14 +25,14 @@ contract DeployTest is Test {
         vm.stopPrank();
 
         // Deploy the giver contract
-        vm.broadcast(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+        vm.broadcast();
         giver = new Giver(cauldron);
 
         vm.prank(timeLock);
         cauldronAccessControl.grantRole(0x798a828b, address(giver));
 
         // Deploy the contract
-        vm.broadcast(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+        vm.broadcast();
         lever = new YieldStEthLever(giver);
     }
 }

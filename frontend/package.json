@@ -18,7 +18,6 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "prepare": "cp ../build/contracts/YieldLever.json ./src/abi/ && npx abi-types-generator ./src/abi/YieldLever.json --provider=ethers_v5",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
