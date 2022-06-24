@@ -49,6 +49,13 @@ export const ValueInput = (props: Props) => {
     }
   };
 
+  let max;
+  try {
+    max = props.max.div(BigNumber.from(10).pow(props.decimals)).toNumber()
+  } catch (e) {
+    max = undefined;
+  }
+
   const displayValue =
     !focus && prettyValue !== undefined ? prettyValue : value;
   const valid = prettyValue !== undefined;
@@ -58,7 +65,7 @@ export const ValueInput = (props: Props) => {
       name="invest_amount"
       type="text"
       min="0"
-      max={props.max.toNumber()}
+      max={max}
       value={displayValue}
       onChange={(el) => onChange(el.target.value)}
       onFocus={() => setFocus(true)}

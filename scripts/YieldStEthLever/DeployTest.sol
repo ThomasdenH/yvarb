@@ -18,18 +18,9 @@ contract DeployTest is Test {
     YieldStEthLever lever;
 
     function run() public {
-        // Allow flash loans
-        vm.startPrank(timeLock);
-        fyToken.setFlashFeeFactor(1);
-        flashJoin.setFlashFeeFactor(1);
-        vm.stopPrank();
-
         // Deploy the giver contract
         vm.broadcast();
         giver = new Giver(cauldron);
-
-        vm.prank(timeLock);
-        cauldronAccessControl.grantRole(0x798a828b, address(giver));
 
         // Deploy the contract
         vm.broadcast();
