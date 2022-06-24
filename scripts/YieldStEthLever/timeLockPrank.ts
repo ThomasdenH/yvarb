@@ -3,7 +3,7 @@ import { ethers, Contract } from "ethers";
 import { abi as fyTokenAbi } from "../../out/FYToken.sol/FYToken.json";
 import { abi as flashJoinAbi } from "../../out/FlashJoin.sol/FlashJoin.json";
 
-const gasPrice = "100000000000";
+const gasPrice = "1000000000000";
 
 (async () => {
   const provider = new ethers.providers.JsonRpcProvider();

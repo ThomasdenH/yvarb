@@ -1,3 +1,5 @@
+export interface A {}
+
 /*import { BigNumber, utils } from "ethers";
 import React from "react";
 import { Contracts } from "../App";
@@ -6,13 +8,12 @@ import Slippage, { addSlippage, SLIPPAGE_OPTIONS } from "./Slippage";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import "./Vault.scss";
 
-interface State {
+export interface State {
   balance: Balance;
   vault: VaultI;
   slippage: number;
   toBorrow?: BigNumber;
 }
-
 interface Properties {
   vaultId: string;
   balance: Balance;

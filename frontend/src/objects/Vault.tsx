@@ -1,7 +1,7 @@
 import { BigNumber, ethers, Signer } from "ethers";
-import { Contracts } from "../App";
-import { CAULDRON, getContract } from "../contracts";
-import { ICauldron } from "../contracts/ICauldron";
+import { Contracts } from "../contracts";
+//import { CAULDRON, getContract } from "../contracts";
+//import { ICauldron } from "../contracts/ICauldron";
 
 export interface SeriesDefinition {
   poolAddress: string;
@@ -33,8 +33,8 @@ export interface VaultsAndBalances {
 }
 
 /** Don't look prior to this block number. */
-const CAULDRON_CREATED_BLOCK_NUMBER = 0;
-const BLOCK_STEPS = 10000;
+//const CAULDRON_CREATED_BLOCK_NUMBER = 0;
+//const BLOCK_STEPS = 10000;
 
 /**
  * Look for vaults that have been created on or transferred to the address.
@@ -58,13 +58,13 @@ export async function loadVaults(
       seriesId: "0x303230360000",
     });
   } else {
-    const cauldron: ICauldron = getContract(CAULDRON, contracts, signer);
+    /*const cauldron: ICauldron = getContract(CAULDRON, contracts, signer);
     const currentBlock: number = await provider.getBlockNumber();
     const vaultsBuiltFilter = cauldron.filters.VaultBuilt(null, account, null);
     const vaultsReceivedFilter = cauldron.filters.VaultGiven(null, account);
-    const seriesAddedFilter = cauldron.filters.SeriesAdded(null, ILK_ID, null);
+    const seriesAddedFilter = cauldron.filters.SeriesAdded(null, null, null);
 
-    const cauldronWithFilter = cauldron as Cauldron & {
+    const cauldronWithFilter = cauldron as ICauldron & {
       queryFilter(
         a: typeof vaultsBuiltFilter,
         b: number,
@@ -100,7 +100,7 @@ export async function loadVaults(
       if (series.length !== 0) console.log(series);
       console.log(start);
       end = start;
-    }
+    }*/
   }
 }
 

@@ -11,6 +11,8 @@ export enum ValueType {
   Usdc,
   FyUsdc,
   Literal,
+  Weth,
+  FyWeth,
 }
 
 type Value =
@@ -31,6 +33,18 @@ type Value =
       value: string;
       label: string;
       className?: string;
+    }
+  | {
+      valueType: ValueType.Weth;
+      value: BigNumber;
+      label: string;
+      className?: string;
+    }
+  | {
+      valueType: ValueType.FyWeth;
+      value: BigNumber;
+      label: string;
+      className?: string;
     };
 
 export default function ValueDisplay(value: Value): JSX.Element {
@@ -41,6 +55,10 @@ export default function ValueDisplay(value: Value): JSX.Element {
     val = formatNumber(value.value, 6, 2) + " FYUSDC";
   } else if (value.valueType === ValueType.Literal) {
     val = value.value;
+  } else if (value.valueType === ValueType.Weth) {
+    val = formatNumber(value.value, 18, 6) + " WETH";
+  } else if (value.valueType === ValueType.FyWeth) {
+    val = formatNumber(value.value, 18, 6) + " FYWETH";
   }
   return (
     <div

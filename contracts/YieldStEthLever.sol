@@ -4,13 +4,13 @@ pragma solidity ^0.8.14;
 import "erc3156/contracts/interfaces/IERC3156FlashBorrower.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/yieldspace-interfaces/IPool.sol";
-import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
 import "@yield-protocol/vault-interfaces/src/DataTypes.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
 import "@yield-protocol/utils-v2/contracts/token/TransferHelper.sol";
 import "@yield-protocol/vault-v2/utils/Giver.sol";
 import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "@yield-protocol/vault-v2/FYToken.sol";
+import "@yield-protocol/vault-v2/Cauldron.sol";
 import "./interfaces/IStableSwap.sol";
 
 error FlashLoanFailure();
@@ -18,6 +18,7 @@ error SlippageFailure();
 
 interface WstEth is IERC20 {
     function wrap(uint256 _stETHAmount) external returns (uint256);
+
     function unwrap(uint256 _wstETHAmount) external returns (uint256);
 }
 
@@ -103,8 +104,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     YieldLadle constant ladle =
         YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
     /// @notice The Yield Cauldron, handles debt and collateral balances.
-    ICauldron constant cauldron =
-        ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
+    Cauldron constant cauldron =
+        Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
     /// @notice Curve.fi token swapping contract between Ether and StETH.
     IStableSwap constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
@@ -119,7 +120,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     /// @notice Ether Yield liquidity pool. Exchanges Weth with FYWeth.
     IPool constant pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
     /// @notice FyWeth, used to borrow based on Weth.
-    FYToken constant fyToken = FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999);
+    FYToken constant fyToken =
+        FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999);
     /// @notice The Giver contract can give vaults on behalf on a user who gave
     ///     permission.
     Giver immutable giver;
@@ -244,8 +246,11 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // minus the flash loan fee. The fee saved here together with the
         // borrowed amount later pays off the flash loan. This makes sure we
         // borrow exactly `borrowAmount`.
-        uint128 netInvestAmount = uint128(uint128(bytes16(data[13:29])) // baseAmount
-             + borrowAmount - fee);
+        uint128 netInvestAmount = uint128(
+            uint128(bytes16(data[13:29])) + // baseAmount
+                borrowAmount -
+                fee
+        );
 
         // Get WEth by selling borrowed FYTokens. We don't need to check for a
         // minimum since we check that we have enough collateral later on.
@@ -271,7 +276,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // long as we end up with the desired amount, it doesn't matter what
         // slippage occurred where.
         // `wrappedStEth < minCollateral`
-        if (wrappedStEth < uint128(bytes16(data[29:45]))) revert SlippageFailure();
+        if (wrappedStEth < uint128(bytes16(data[29:45])))
+            revert SlippageFailure();
 
         // Deposit WStEth in the vault & borrow `borrowAmount` fyToken to
         // pay back.
@@ -315,13 +321,15 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     ) external {
         // Test that the caller is the owner of the vault.
         // This is important as we will take the vault from the user.
-        require(cauldron.vaults(vaultId).owner == msg.sender);
+        (address owner, , ) = cauldron.vaults(vaultId);
+        require(owner == msg.sender);
 
         // Give the vault to the contract
         giver.seize(vaultId, address(this));
 
         // Check if we're pre or post maturity.
-        if (uint32(block.timestamp) < cauldron.series(seriesId).maturity) {
+        (, , uint32 maturity) = cauldron.series(seriesId);
+        if (uint32(block.timestamp) < maturity) {
             // Close:
             // Series is not past maturity.
             // Borrow to repay debt, move directly to the pool.
@@ -426,7 +434,8 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             wethRemaining = wethReceived - wethToTran;
         }
         // data[65:97]: minWeth
-        if (wethRemaining < uint256(bytes32(data[65:97]))) revert SlippageFailure();
+        if (wethRemaining < uint256(bytes32(data[65:97])))
+            revert SlippageFailure();
         // data[45:65]: borrower
         weth.safeTransfer(address(bytes20(data[45:65])), wethRemaining);
 
@@ -445,7 +454,12 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // give us our WStEth collateral back.
         // data[1:13]: vaultId
         // data[29:45]: art
-        ladle.close(bytes12(data[1:13]), address(this), -int128(ink), -int128(uint128(bytes16(data[29:45]))));
+        ladle.close(
+            bytes12(data[1:13]),
+            address(this),
+            -int128(ink),
+            -int128(uint128(bytes16(data[29:45])))
+        );
 
         // Convert wsteth to steth
         uint256 stEthUnwrapped = wsteth.unwrap(ink);

@@ -1,30 +1,22 @@
-import { BigNumber, utils } from "ethers";
-import React, { useState, useEffect } from "react";
-import { Contracts, ILK_ID, Strategy } from "../App";
+import { BigNumber, Signer, utils } from "ethers";
+import React, { useState } from "react";
+import { Strategy } from "../App";
 import "./Invest.scss";
-import Slippage, { addSlippage, SLIPPAGE_OPTIONS } from "./Slippage";
-import UsdcInput, { BalanceInput } from "./UsdcInput";
-import ValueDisplay, { Balance, ValueType } from "./ValueDisplay";
-import {
-  DebtResponse as Debt,
-  SeriesResponse as Series,
-  ContractContext as Cauldron,
-} from "../abi/Cauldron";
-import { SeriesDefinition } from "../objects/Vault";
-
-const UNITS_USDC = 6;
-const UNITS_LEVERAGE = 2;
+import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
+import { ValueInput } from "./ValueInput";
+import ValueDisplay, { ValueType } from "./ValueDisplay";
+import { Balances } from "../balances";
+import { Contracts, getContract } from "../contracts";
+import { useEffect } from "react";
 
 interface Properties {
   /** Relevant token balances. */
   strategy: Strategy;
-  balances: Balance[];
-  account: string;
+  account: Signer;
   label: string;
-  contracts: Readonly<Contracts>;
+  contracts: Contracts;
   yearnApi?: number;
-  seriesDefinitions: SeriesDefinition[];
-  seriesInfo: { [seriesId: string]: Series };
+  balances: Balances;
 }
 
 enum ApprovalState {
@@ -35,22 +27,30 @@ enum ApprovalState {
   Undercollateralized,
 }
 
-interface State {
-  usdcToInvest: BigNumber;
-  leverage: BigNumber;
-  approvalState: ApprovalState;
-  fyTokens?: BigNumber;
-  slippage: number;
-  selectedSeriesId?: string;
-  interest?: number;
-  seriesInterest: { [seriesId: string]: number };
-}
+const UNITS_LEVERAGE = 2;
 
-export const Invest = () => {
+const Loading = () => (
+  <div className="invest">
+    <p>Loading...</p>
+  </div>
+);
+
+export const Invest = ({
+  balances,
+  contracts,
+  strategy,
+  account,
+}: Readonly<Properties>) => {
   const [slippage, setSlippage] = useState<number>(SLIPPAGE_OPTIONS[1].value);
   const [leverage, setLeverage] = useState<BigNumber>(BigNumber.from(300));
-  const [balances, setBalances] = useState<BigNumber[] | undefined>(undefined);
-  const [balanceInput, setBalanceInput] = useState<BigNumber>(BigNumber.from(0));
+  const [balanceInput, setBalanceInput] = useState<BigNumber>(
+    BigNumber.from(0)
+  );
+
+  const changeInput = (v: BigNumber) => {
+    setApprovalState(ApprovalState.Loading);
+    setBalanceInput(v)
+  };
 
   const onLeverageChange = (leverage: string) => {
     setLeverage(utils.parseUnits(leverage, UNITS_LEVERAGE));
@@ -60,7 +60,48 @@ export const Invest = () => {
   const [approvalState, setApprovalState] = useState<ApprovalState>(
     ApprovalState.Loading
   );
-  
+  const checkApprovalState = async () => {
+    const investable = totalToInvest();
+    const token = getContract(strategy.investToken[0], contracts, account);
+    const approval = await token.allowance(
+      account.getAddress(),
+      strategy.lever
+    );
+    if (approval.lt(investable)) {
+      setApprovalState(ApprovalState.ApprovalRequired);
+    } else {
+      setApprovalState(ApprovalState.Transactable);
+    }
+  };
+
+  const approve = async () => {
+    const investable = totalToInvest();
+    const token = getContract(strategy.investToken[0], contracts, account);
+    const gasLimit = (
+      await token.estimateGas.approve(strategy.lever, investable)
+    ).mul(2);
+    const tx = await token.approve(strategy.lever, investable, { gasLimit });
+    await tx.wait();
+    void checkApprovalState();
+  };
+  const transact = () => {
+    console.log("transact");
+  };
+
+  const toBorrow = (): BigNumber => totalToInvest().sub(balanceInput);
+
+  const totalToInvest = (): BigNumber => {
+    try {
+      return balanceInput.mul(leverage).div(100);
+    } catch (e) {
+      return BigNumber.from(0);
+    }
+  };
+
+  useEffect(() => {
+    if (approvalState === ApprovalState.Loading) void checkApprovalState();
+  });
+
   let component;
   switch (approvalState) {
     case ApprovalState.Loading:
@@ -81,7 +122,7 @@ export const Invest = () => {
           className="button"
           type="button"
           value="Approve"
-          onClick={() => void this.approve()}
+          onClick={() => void approve()}
         />
       );
       break;
@@ -92,7 +133,7 @@ export const Invest = () => {
           className="button"
           type="button"
           value="Transact!"
-          onClick={() => void this.transact()}
+          onClick={() => void transact()}
         />
       );
       break;
@@ -120,23 +161,38 @@ export const Invest = () => {
       break;
   }
 
-  if (balances === undefined)
-    return <></>;
+  // Collect all relevant balances of this strategy.
+  const balancesAndDebtElements = [];
+  for (const [address, valueType] of strategy.tokenAddresses.concat(
+    strategy.debtTokens
+  )) {
+    const balance = balances[address];
+    if (balance === undefined) {
+      return Loading();
+    }
+    balancesAndDebtElements.push(
+      <ValueDisplay
+        key={address}
+        label="Balance:"
+        // TODO: Fix typing
+        valueType={valueType as ValueType.Weth}
+        value={balance}
+      />
+    );
+  }
+
+  const investTokenBalance = balances[strategy.investToken[0]];
+  if (investTokenBalance === undefined) return Loading();
 
   return (
     <div className="invest">
-      {
-        balances.map((balance: BigNumber) => <ValueDisplay
-          label="Balance:"
-          valueType={ValueType.Usdc}
-          value={balance}
-        />)
-      }
+      {balancesAndDebtElements}
       <label htmlFor="invest_amount">Amount to invest:</label>
-      <BalanceInput
-        max={balances[0]}
-        defaultValue={balances[0]}
-        onValueChange={(v) => setBalanceInput(v)}
+      <ValueInput
+        max={investTokenBalance}
+        defaultValue={investTokenBalance}
+        onValueChange={(v) => changeInput(v)}
+        decimals={18}
       />
       <label htmlFor="leverage">
         Leverage: ({utils.formatUnits(leverage, 2)}×)
@@ -148,53 +204,15 @@ export const Invest = () => {
         min="1.01"
         max="5"
         step="0.01"
-        value={utils.formatUnits(this.state.leverage, 2)}
-        onChange={(el) => this.onLeverageChange(el.target.value)}
+        value={utils.formatUnits(leverage, 2)}
+        onChange={(el) => onLeverageChange(el.currentTarget.value)}
       />
-      <Slippage
-        value={this.state.slippage}
-        onChange={(val: number) => this.onSlippageChange(val)}
-      />
+      <Slippage value={slippage} onChange={(val: number) => setSlippage(val)} />
       <ValueDisplay
         label="To borrow:"
-        valueType={ValueType.Usdc}
-        value={this.toBorrow()}
+        valueType={strategy.investToken[1] as ValueType.FyUsdc}
+        value={toBorrow()}
       />
-      {this.state.fyTokens === undefined ? (
-        <></>
-      ) : (
-        <>
-          <ValueDisplay
-            label="Total interest:"
-            valueType={ValueType.Usdc}
-            value={this.state.fyTokens.sub(this.toBorrow())}
-          />
-          <ValueDisplay
-            className="value_sum"
-            key="fytokens"
-            label="Debt on maturity:"
-            valueType={ValueType.Usdc}
-            value={this.state.fyTokens}
-          />
-        </>
-      )}
-      {this.state.selectedSeriesId !== undefined &&
-      this.state.seriesInterest[this.state.selectedSeriesId] !== undefined ? (
-        <ValueDisplay
-          label="Yield interest:"
-          value={`${
-            this.state.seriesInterest[this.state.selectedSeriesId]
-          } % APY`}
-          valueType={ValueType.Literal}
-        />
-      ) : null}
-      {this.props.yearnApi !== undefined ? (
-        <ValueDisplay
-          label="Yearn interest (after fees):"
-          value={`${Math.round(this.props.yearnApi * 1000) / 10} % APY`}
-          valueType={ValueType.Literal}
-        />
-      ) : null}
       {component}
     </div>
   );
@@ -209,10 +227,6 @@ export default class Invest extends React.Component<Properties, State> {
     } catch (e) {
       return BigNumber.from(0);
     }
-  }
-
-  private toBorrow(): BigNumber {
-    return this.totalToInvest().sub(this.state.usdcToInvest);
   }
 
   private async computeSeriesInterests() {

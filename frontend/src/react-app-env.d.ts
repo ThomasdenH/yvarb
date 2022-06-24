@@ -1,9 +1,9 @@
 /// <reference types="react-scripts" />
 
-import { MetaMaskInpageProvider } from "@metamask/providers";
+import { Web3Provider, ExternalProvider } from "@ethersproject/providers";
 
 declare global {
   interface Window {
-    ethereum: MetaMaskInpageProvider;
+    ethereum: Web3Provider & ExternalProvider;
   }
 }
