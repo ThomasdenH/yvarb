@@ -4,6 +4,7 @@ pragma solidity ^0.8.14;
 import "erc3156/contracts/interfaces/IERC3156FlashBorrower.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/yieldspace-interfaces/IPool.sol";
+import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
 import "@yield-protocol/vault-interfaces/src/DataTypes.sol";
 import "@yield-protocol/vault-interfaces/src/ILadle.sol";
 import "@yield-protocol/vault-interfaces/src/IFYToken.sol";
@@ -18,7 +19,6 @@ error SlippageFailure();
 
 interface WstEth is IERC20 {
     function wrap(uint256 _stETHAmount) external returns (uint256);
-
     function unwrap(uint256 _wstETHAmount) external returns (uint256);
 }
 
@@ -303,8 +303,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
     ) external {
         // Test that the caller is the owner of the vault.
         // This is important as we will take the vault from the user.
-        (address owner, , ) = cauldron.vaults(vaultId);
-        require(owner == msg.sender);
+        require(cauldron.vaults(vaultId).owner == msg.sender);
 
         // Give the vault to the contract
         giver.seize(vaultId, address(this));
