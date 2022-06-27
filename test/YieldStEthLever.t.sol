@@ -58,6 +58,7 @@ abstract contract ZeroState is Test {
 
     function setUp() public virtual {
         lever = new YieldStEthLever(giver);
+        lever.approveFyToken(seriesId);
 
         //Label
         vm.label(address(lever), "YieldLever");
@@ -147,6 +148,7 @@ contract ZeroStateTest is ZeroState {
             1e16,
             bytes.concat(
                 bytes1(0x01),
+                seriesId,
                 bytes12(0),
                 bytes16(0),
                 bytes16(0)
