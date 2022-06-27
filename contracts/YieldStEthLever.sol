@@ -229,17 +229,17 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         // minus the flash loan fee. The fee saved here together with the
         // borrowed amount later pays off the flash loan. This makes sure we
         // borrow exactly `borrowAmount`.
-        uint128 netInvestAmount = uint128(baseAmount + borrowAmount - fee);
+        IPool pool;
+        {
+            uint128 netInvestAmount = uint128(baseAmount + borrowAmount - fee);
 
-        // Get WEth by selling borrowed FYTokens. We don't need to check for a
-        // minimum since we check that we have enough collateral later on.
-        IPool pool = IPool(ladle.pools(seriesId));
-        IFYToken fyToken = pool.fyToken();
-        fyToken.safeTransfer(address(pool), netInvestAmount);
-        // Variable fee is reused to save stack space. It's proper name would
-        // now be `wethReceived` and it is used only in the next exchange for
-        // StEth.
-        fee = pool.sellFYToken(address(this), 0);
+            // Get WEth by selling borrowed FYTokens. We don't need to check for a
+            // minimum since we check that we have enough collateral later on.
+            pool = IPool(ladle.pools(seriesId));
+            IFYToken fyToken = pool.fyToken();
+            fyToken.safeTransfer(address(pool), netInvestAmount);
+        }
+        uint256 wethReceived = pool.sellFYToken(address(this), 0);
 
         // Swap WEth for StEth on Curve.fi. Again, we do not check for a
         // minimum.
@@ -248,7 +248,7 @@ contract YieldStEthLever is IERC3156FlashBorrower {
         uint256 boughtStEth = stableSwap.exchange(
             0,
             1,
-            fee,
+            wethReceived,
             0,
             address(this)
         );
@@ -429,7 +429,6 @@ contract YieldStEthLever is IERC3156FlashBorrower {
             wethRemaining = wethReceived - wethToTran;
         }
         if (wethRemaining < minWeth) revert SlippageFailure();
-        // data[45:65]: borrower
         weth.safeTransfer(borrower, wethRemaining);
 
         // We should have exactly `borrowAmountPlusFee` fyWeth as that is what
