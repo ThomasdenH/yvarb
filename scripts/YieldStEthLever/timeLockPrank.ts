@@ -2,6 +2,18 @@
 import { ethers, Contract } from "ethers";
 import { abi as fyTokenAbi } from "../../out/FYToken.sol/FYToken.json";
 import { abi as flashJoinAbi } from "../../out/FlashJoin.sol/FlashJoin.json";
+import { abi as accessControlAbi } from "../../out/AccessControl.sol/AccessControl.json";
+
+const giverAddress: string = process.argv[2];
+if (!giverAddress) {
+  console.log("Please supply the Giver address");
+  process.exit();
+}
+const leverAddress: string = process.argv[3];
+if (!leverAddress) {
+  console.log("Please supply the Lever address");
+  process.exit();
+}
 
 const gasPrice = "1000000000000";
 
@@ -23,6 +35,11 @@ const gasPrice = "1000000000000";
     flashJoinAbi,
     signer
   );
+  const cauldronAccessControl = new Contract(
+    "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867",
+    accessControlAbi,
+    signer
+  );
 
   const allowFlashLoans = async () => {
     const tx1 = await fyToken.setFlashFeeFactor(1, {
@@ -33,7 +50,23 @@ const gasPrice = "1000000000000";
       gasPrice,
     });
     await tx2;
+    console.log("- configured flash loans");
   };
 
+  const grantGiverRole = async () => {
+    const tx = await cauldronAccessControl.grantRole("0x798a828b", giverAddress, { gasPrice, gasLimit: '50000' });
+    await tx;
+    console.log("- granted Giver role");
+    /*const giverAccessControl = new Contract(
+      giverAddress,
+      accessControlAbi,
+      signer
+    );
+    await giverAccessControl.grantRole("0xe4fd9dc5", timeLock, { gasPrice, gasLimit: '50000' });
+    await giverAccessControl.grantRole("0x35775afb", leverAddress, { gasPrice, gasLimit: '50000' });
+    */
+  };
+
+  await grantGiverRole();
   await allowFlashLoans();
 })();

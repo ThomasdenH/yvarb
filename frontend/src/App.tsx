@@ -2,26 +2,42 @@ import React, { useState } from "react";
 import "./App.css";
 import { ConnectWallet } from "./components/ConnectWallet";
 import { Invest } from "./components/Invest";
-import { emptyVaults, VaultsAndBalances } from "./objects/Vault";
+import {
+  Balance,
+  emptyVaults,
+  loadVaults,
+  Vault,
+  Vaults,
+  VaultsAndBalances,
+  Balances as VaultBalances,
+} from "./objects/Vault";
 // import VaultComponent from "./components/Vault";
 import { Tabs } from "./components/Tabs";
 import { ValueType } from "./components/ValueDisplay";
-import { Contracts } from "./contracts";
 import {
-  Balances,
+  CAULDRON,
+  ContractAddress,
+  Contracts,
+  getContract,
+  YIELD_ST_ETH_LEVER,
+} from "./contracts";
+import {
+  Balances as AddressBalances,
   FY_WETH,
   IERC20Address,
   loadBalance,
   WETH,
 } from "./balances";
-import { Signer, providers, BigNumber } from "ethers";
+import { Signer, providers } from "ethers";
 import { useEffect } from "react";
+
+const POLLING_INTERVAL = 20_000;
 
 export interface Strategy {
   tokenAddresses: [IERC20Address, ValueType][];
   debtTokens: [IERC20Address, ValueType][];
   investToken: [IERC20Address, ValueType];
-  lever: string;
+  lever: ContractAddress;
 }
 
 enum StrategyName {
@@ -33,7 +49,7 @@ const strategies: { [strat in StrategyName]: Strategy } = {
     tokenAddresses: [[WETH, ValueType.Weth]],
     debtTokens: [[FY_WETH, ValueType.FyWeth]],
     investToken: [FY_WETH, ValueType.FyWeth],
-    lever: "0x8fc8cfb7f7362e44e472c690a6e025b80e406458",
+    lever: YIELD_ST_ETH_LEVER,
   },
 };
 
@@ -42,6 +58,8 @@ export const App: React.FunctionComponent = () => {
     StrategyName.WStEth
   );
 
+  const [vaultsToMonitor, setVaultsToMonitor] = useState<string[]>([]);
+
   const [selectedAccount, setSelectedAccount] = useState<Signer>();
   const [vaults, setVaults] = useState<VaultsAndBalances>(emptyVaults());
 
@@ -49,7 +67,7 @@ export const App: React.FunctionComponent = () => {
 
   const contracts: Contracts = {};
 
-  const [balances, setBalances] = useState<Balances>({});
+  const [balances, setBalances] = useState<AddressBalances>({});
 
   let provider: providers.Web3Provider | undefined;
 
@@ -73,6 +91,7 @@ export const App: React.FunctionComponent = () => {
 
     // Once we have the address, we can initialize the application.
     // TODO: Check the network
+    const signer = provider.getSigner(selectedAddress);
     setSelectedAccount(provider.getSigner(selectedAddress));
 
     // We reinitialize it whenever the user changes their account.
@@ -89,29 +108,75 @@ export const App: React.FunctionComponent = () => {
     });
 
     // We reset the dapp state if the network is changed
-
     window.ethereum.on("chainChanged", () => {
       stopPollingData();
       setSelectedAccount(undefined);
     });
+
+    // Start loading vaults
+    void loadVaults(
+      contracts,
+      signer,
+      provider,
+      (vaultId) => setVaultsToMonitor([...vaultsToMonitor, vaultId]),
+      () => { console.log(); }
+    );
   };
 
   let pollId: number | undefined = undefined;
   const startPollingData = () => {
-    pollId = setInterval(() => { void pollData(); }, 1000) as any as number;
+    pollId = window.setInterval(() => {
+      void pollData();
+    }, POLLING_INTERVAL);
   };
   const stopPollingData = () => {
-    clearInterval(pollId);
+    window.clearInterval(pollId);
     pollId = undefined;
   };
   const pollData = async () => {
-    if (selectedAccount === undefined)
-      return;
+    if (selectedAccount === undefined) return;
     const strategy = strategies[selectedStrategy];
-    const balances: Balances = {};
-    for (const [address, ] of [...strategy.tokenAddresses, ...strategy.debtTokens])
-      balances[address] = await loadBalance(address, contracts, selectedAccount);
+    const balances: AddressBalances = {};
+    for (const [address] of [
+      ...strategy.tokenAddresses,
+      ...strategy.debtTokens,
+    ])
+      balances[address] = await loadBalance(
+        address,
+        contracts,
+        selectedAccount
+      );
     setBalances(balances);
+
+    // Poll for vault status
+    const cauldron = getContract(CAULDRON, contracts, selectedAccount);
+    const address = await selectedAccount.getAddress();
+    const vaults: Vaults = {};
+    const vaultbalances: VaultBalances = {};
+    (
+      await Promise.all(
+        vaultsToMonitor.map((vaultId) =>
+          cauldron
+            .vaults(vaultId)
+            .then((vault): [string, Vault] => [vaultId, vault])
+            .then(([vaultId, vault]) =>
+              cauldron
+                .balances(vaultId)
+                .then((balance): [string, Vault, Balance] => [
+                  vaultId,
+                  vault,
+                  balance,
+                ])
+            )
+        )
+      )
+    )
+      .filter(([, vault]) => vault.owner === address)
+      .forEach(([vaultId, vault, balance]) => {
+        vaults[vaultId] = vault;
+        vaultbalances[vaultId] = balance;
+      });
+    setVaults({ vaults, balances: vaultbalances });
   };
 
   useEffect(() => {
@@ -143,6 +208,7 @@ export const App: React.FunctionComponent = () => {
   }
 
   const vaultIds = Object.keys(vaults.vaults);
+  console.log(vaultIds);
 
   const elements = [
     <Invest
@@ -153,17 +219,17 @@ export const App: React.FunctionComponent = () => {
       strategy={strategies[selectedStrategy]}
       balances={balances}
     />,
-    /*...vaultIds.map((vaultId) => (
+    ...vaultIds.map((vaultId) => (
       <VaultComponent
         key={vaultId}
         label={"Vault: " + vaultId.substring(0, 8) + "..."}
         vaultId={vaultId}
-        balance={this.state.vaults.balances[vaultId]}
-        vault={this.state.vaults.vaults[vaultId]}
-        pollData={() => this.pollData()}
+        balance={vaults.balances[vaultId]}
+        vault={vaults.vaults[vaultId]}
+        pollData={() => void pollData()}
         contracts={contracts}
       />
-    )),*/
+    )),
   ];
 
   return <Tabs>{elements}</Tabs>;

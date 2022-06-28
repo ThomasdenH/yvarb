@@ -13,6 +13,7 @@ export enum ValueType {
   Literal,
   Weth,
   FyWeth,
+  WStEth
 }
 
 type Value =
@@ -45,6 +46,11 @@ type Value =
       value: BigNumber;
       label: string;
       className?: string;
+    } | {
+      valueType: ValueType.WStEth;
+      value: BigNumber;
+      label: string;
+      className?: string;
     };
 
 export default function ValueDisplay(value: Value): JSX.Element {
@@ -59,6 +65,8 @@ export default function ValueDisplay(value: Value): JSX.Element {
     val = formatNumber(value.value, 18, 6) + " WETH";
   } else if (value.valueType === ValueType.FyWeth) {
     val = formatNumber(value.value, 18, 6) + " FYWETH";
+  } else if (value.valueType === ValueType.WStEth) {
+    val = formatNumber(value.value, 18, 6) + " WSTETH";
   }
   return (
     <div

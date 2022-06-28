@@ -7,7 +7,7 @@
     "test": "test"
   },
   "scripts": {
-    "createTypings": "typechain --target ethers-v5 --out-dir frontend/contracts './out/**/*.json'"
+    "createTypings": "typechain --target ethers-v5 --out-dir frontend/src/contracts/YieldStEthLever.sol './out/**/*.json' && typechain --target ethers-v5 --out-dir frontend/src/contracts/Cauldron.sol './contracts/interfaces/Cauldron.json'"
   },
   "author": "",
   "license": "ISC",

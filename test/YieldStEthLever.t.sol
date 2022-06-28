@@ -8,7 +8,6 @@ import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/vault-v2/FYToken.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
 import "@yield-protocol/utils-v2/contracts/access/AccessControl.sol";
-import "./Protocol.sol";
 import "@yield-protocol/vault-v2/utils/Giver.sol";
 import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
@@ -18,7 +17,6 @@ abstract contract ZeroState is Test {
     address timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;
     address fyTokenWhale = 0x1c15b746360BB8E792C6ED8cB83f272Ce1D170E0;
     YieldStEthLever lever;
-    Protocol protocol;
     Giver giver;
 
     IPool pool = IPool(0xc3348D8449d13C364479B1F114bcf5B73DFc0dc6);
@@ -35,7 +33,6 @@ abstract contract ZeroState is Test {
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
 
     constructor() {
-        protocol = new Protocol();
         fyToken = FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999);
         flashJoin = FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0); // weth
         cauldron = ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);

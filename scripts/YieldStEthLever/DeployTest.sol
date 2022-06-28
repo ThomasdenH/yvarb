@@ -13,6 +13,7 @@ contract DeployTest is Test {
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
     AccessControl constant cauldronAccessControl = AccessControl(address(cauldron));
     FlashJoin constant flashJoin = FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0);
+    bytes6 seriesId = 0x303030370000;
 
     Giver giver;
     YieldStEthLever lever;
@@ -25,5 +26,6 @@ contract DeployTest is Test {
         // Deploy the contract
         vm.broadcast();
         lever = new YieldStEthLever(giver);
+        lever.approveFyToken(seriesId);
     }
 }

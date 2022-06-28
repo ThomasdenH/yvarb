@@ -1,13 +1,15 @@
 import { BigNumber, Signer, utils } from "ethers";
 import React, { useState } from "react";
-import { Strategy } from "../App";
+import { App, Strategy } from "../App";
 import "./Invest.scss";
 import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
 import { ValueInput } from "./ValueInput";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import { Balances } from "../balances";
-import { Contracts, getContract } from "../contracts";
+import { Contracts, getContract, YIELD_ST_ETH_LEVER } from "../contracts";
 import { useEffect } from "react";
+
+const SERIES_ID = "0x303030370000";
 
 interface Properties {
   /** Relevant token balances. */
@@ -17,6 +19,7 @@ interface Properties {
   contracts: Contracts;
   yearnApi?: number;
   balances: Balances;
+  //vaultAdded(vaultId: string): void;
 }
 
 enum ApprovalState {
@@ -49,7 +52,7 @@ export const Invest = ({
 
   const changeInput = (v: BigNumber) => {
     setApprovalState(ApprovalState.Loading);
-    setBalanceInput(v)
+    setBalanceInput(v);
   };
 
   const onLeverageChange = (leverage: string) => {
@@ -82,10 +85,37 @@ export const Invest = ({
     ).mul(2);
     const tx = await token.approve(strategy.lever, investable, { gasLimit });
     await tx.wait();
-    void checkApprovalState();
+    setApprovalState(ApprovalState.Loading);
   };
-  const transact = () => {
-    console.log("transact");
+
+  const transact = async () => {
+    if (strategy.lever === YIELD_ST_ETH_LEVER) {
+      const lever = getContract(strategy.lever, contracts, account);
+      console.log(
+        balanceInput.toString(),
+        toBorrow().toString(),
+        BigNumber.from(0),
+        SERIES_ID
+      );
+      // TODO: Minimum collateral
+      const gasLimit = (
+        await lever.estimateGas.invest(
+          balanceInput,
+          toBorrow(),
+          BigNumber.from(0),
+          SERIES_ID
+        )
+      ).mul(2);
+      const invextTx = await lever.invest(
+        balanceInput,
+        toBorrow(),
+        BigNumber.from(0),
+        SERIES_ID,
+        { gasLimit }
+      );
+      await invextTx.wait();
+      setApprovalState(ApprovalState.Loading);
+    }
   };
 
   const toBorrow = (): BigNumber => totalToInvest().sub(balanceInput);

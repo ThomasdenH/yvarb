@@ -1,10 +1,8 @@
-export interface A {}
-
-/*import { BigNumber, utils } from "ethers";
+import { BigNumber } from "ethers";
 import React from "react";
-import { Contracts } from "../App";
+import { Contracts } from "../contracts";
 import { Balance, Vault as VaultI } from "../objects/Vault";
-import Slippage, { addSlippage, SLIPPAGE_OPTIONS } from "./Slippage";
+import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import "./Vault.scss";
 
@@ -42,17 +40,19 @@ export default class Vault extends React.Component<Properties, State> {
         />
         <ValueDisplay
           label="Collateral:"
-          valueType={ValueType.Usdc}
+          valueType={ValueType.WStEth}
           value={this.props.balance.ink}
         />
         <ValueDisplay
-          label="Debt:"
-          valueType={ValueType.Usdc}
+          label="Debt at maturity:"
+          valueType={ValueType.Weth}
           value={this.props.balance.art}
         />
         <Slippage
           value={this.state.slippage}
-          onChange={(s) => this.onSlippageChange(s)}
+          onChange={(s) => {
+            console.error("a");
+          }}
         />
         {this.state.toBorrow !== undefined ? (
           <ValueDisplay
@@ -65,12 +65,15 @@ export default class Vault extends React.Component<Properties, State> {
           className="button"
           value="Unwind"
           type="button"
-          onClick={() => void this.unwind()}
+          onClick={() => {
+            console.error("b");
+          }}
         />
       </div>
     );
   }
 
+  /**
   componentDidMount() {
     void this.updateToBorrow();
   }
@@ -162,6 +165,5 @@ export default class Vault extends React.Component<Properties, State> {
       await tx.wait();
       await Promise.all([this.props.pollData(), this.updateToBorrow()]);
     }
-  }
+  }*/
 }
-*/
