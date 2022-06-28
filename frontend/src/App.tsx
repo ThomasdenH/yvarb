@@ -11,7 +11,7 @@ import {
   VaultsAndBalances,
   Balances as VaultBalances,
 } from "./objects/Vault";
-// import VaultComponent from "./components/Vault";
+import VaultComponent from "./components/Vault";
 import { Tabs } from "./components/Tabs";
 import { ValueType } from "./components/ValueDisplay";
 import {
@@ -207,6 +207,7 @@ export const App: React.FunctionComponent = () => {
     );
   }
 
+  console.log('vaults to monitor', vaultsToMonitor);
   const vaultIds = Object.keys(vaults.vaults);
   console.log(vaultIds);
 
@@ -226,7 +227,7 @@ export const App: React.FunctionComponent = () => {
         vaultId={vaultId}
         balance={vaults.balances[vaultId]}
         vault={vaults.vaults[vaultId]}
-        pollData={() => void pollData()}
+        pollData={() => pollData()}
         contracts={contracts}
       />
     )),

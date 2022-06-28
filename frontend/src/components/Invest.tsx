@@ -113,6 +113,7 @@ export const Invest = ({
         SERIES_ID,
         { gasLimit }
       );
+      console.log(invextTx);
       await invextTx.wait();
       setApprovalState(ApprovalState.Loading);
     }
@@ -127,6 +128,14 @@ export const Invest = ({
       return BigNumber.from(0);
     }
   };
+
+  /*const computeMinWeth = () => {
+    // Expect at least 80% of the value to end up as collateral
+    // uint256 wethAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
+    // uint128 minCollateral = uint128(
+    //    (stableSwap.get_dy(0, 1, wethAmount) * 80) / 100
+    // );
+  };*/
 
   useEffect(() => {
     if (approvalState === ApprovalState.Loading) void checkApprovalState();

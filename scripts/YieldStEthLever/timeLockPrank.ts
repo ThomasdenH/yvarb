@@ -54,19 +54,22 @@ const gasPrice = "1000000000000";
   };
 
   const grantGiverRole = async () => {
-    const tx = await cauldronAccessControl.grantRole("0x798a828b", giverAddress, { gasPrice, gasLimit: '50000' });
+    console.log(giverAddress);
+    const tx = await cauldronAccessControl.grantRole("0x798a828b", giverAddress, { gasPrice });
     await tx;
-    console.log("- granted Giver role");
-    /*const giverAccessControl = new Contract(
+
+    const deployer = provider.getSigner('0x70997970c51812dc3a010c7d01b50e0d17dc79c8');
+    const giverAccessControl = new Contract(
       giverAddress,
       accessControlAbi,
-      signer
+      deployer
     );
-    await giverAccessControl.grantRole("0xe4fd9dc5", timeLock, { gasPrice, gasLimit: '50000' });
-    await giverAccessControl.grantRole("0x35775afb", leverAddress, { gasPrice, gasLimit: '50000' });
-    */
+    const tx1 = await giverAccessControl.grantRole("0xe4fd9dc5", timeLock, { gasPrice });
+    await tx1;
+    const tx2 = await giverAccessControl.grantRole("0x35775afb", leverAddress, { gasPrice });
+    await tx2;
   };
 
-  await grantGiverRole();
   await allowFlashLoans();
+  await grantGiverRole();
 })();
