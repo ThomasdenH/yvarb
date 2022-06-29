@@ -1,6 +1,7 @@
 [default]
-src = 'src'
+src = 'contracts'
 out = 'out'
 libs = ['lib']
+gas_reports = ['contracts\YieldStEthLever.sol:YieldStEthLever']
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
