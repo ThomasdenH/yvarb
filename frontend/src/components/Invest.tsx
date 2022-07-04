@@ -5,8 +5,8 @@ import "./Invest.scss";
 import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
 import { ValueInput } from "./ValueInput";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
-import { Balances } from "../balances";
-import { Contracts, getContract, YIELD_ST_ETH_LEVER } from "../contracts";
+import { Balances, FY_WETH } from "../balances";
+import { Contracts, getContract, getPool, WETH_ST_ETH_STABLESWAP, WST_ETH, YIELD_LADLE, YIELD_ST_ETH_LEVER } from "../contracts";
 import { useEffect } from "react";
 
 const SERIES_ID = "0x303030370000";
@@ -29,6 +29,8 @@ enum ApprovalState {
   DebtTooLow,
   Undercollateralized,
 }
+
+const gasPrice = utils.parseUnits("100", "gwei");
 
 const UNITS_LEVERAGE = 2;
 
@@ -83,18 +85,41 @@ export const Invest = ({
     const gasLimit = (
       await token.estimateGas.approve(strategy.lever, investable)
     ).mul(2);
-    const tx = await token.approve(strategy.lever, investable, { gasLimit });
+    const tx = await token.approve(strategy.lever, investable, {
+      gasLimit,
+      gasPrice,
+    });
     await tx.wait();
     setApprovalState(ApprovalState.Loading);
+  };
+
+  const computeStEthMinCollateral = async (): Promise<BigNumber> => {
+    // - netInvestAmount = baseAmount + borrowAmount - fee
+    const baseAmount = balanceInput;
+    const borrowAmount = toBorrow();
+    const fyWeth = getContract(FY_WETH, contracts, account);
+    const fee = await fyWeth.flashFee(fyWeth.address, borrowAmount);
+    const netInvestAmount = baseAmount.add(borrowAmount).sub(fee);
+    // - sellFyWeth: FyWEth -> WEth
+    const pool = await getPool(SERIES_ID, contracts, account);
+    const obtainedWEth = await pool.sellFYTokenPreview(netInvestAmount);
+    // - stableSwap exchange: WEth -> StEth
+    const stableswap = getContract(WETH_ST_ETH_STABLESWAP, contracts, account);
+    const boughtStEth = await stableswap.get_dy(0, 1, obtainedWEth);
+    // - Wrap: StEth -> WStEth
+    const wStEth = getContract(WST_ETH, contracts, account);
+    const wrapped = await wStEth.getWstETHByStETH(boughtStEth);
+    return wrapped.mul(1000 - slippage).div(1000);
   };
 
   const transact = async () => {
     if (strategy.lever === YIELD_ST_ETH_LEVER) {
       const lever = getContract(strategy.lever, contracts, account);
+      const minCollateral = await computeStEthMinCollateral();
       console.log(
         balanceInput.toString(),
         toBorrow().toString(),
-        BigNumber.from(0),
+        minCollateral.toString(),
         SERIES_ID
       );
       // TODO: Minimum collateral
@@ -102,16 +127,16 @@ export const Invest = ({
         await lever.estimateGas.invest(
           balanceInput,
           toBorrow(),
-          BigNumber.from(0),
+          minCollateral,
           SERIES_ID
         )
       ).mul(2);
       const invextTx = await lever.invest(
         balanceInput,
         toBorrow(),
-        BigNumber.from(0),
+        minCollateral,
         SERIES_ID,
-        { gasLimit }
+        { gasLimit, gasPrice }
       );
       console.log(invextTx);
       await invextTx.wait();
@@ -128,14 +153,6 @@ export const Invest = ({
       return BigNumber.from(0);
     }
   };
-
-  /*const computeMinWeth = () => {
-    // Expect at least 80% of the value to end up as collateral
-    // uint256 wethAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
-    // uint128 minCollateral = uint128(
-    //    (stableSwap.get_dy(0, 1, wethAmount) * 80) / 100
-    // );
-  };*/
 
   useEffect(() => {
     if (approvalState === ApprovalState.Loading) void checkApprovalState();

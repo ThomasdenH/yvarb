@@ -1,5 +1,5 @@
 /** Execute transactions to set the correct configuration for the StEth YieldLever contract. */
-import { ethers, Contract } from "ethers";
+import { ethers, Contract, utils } from "ethers";
 import { abi as fyTokenAbi } from "../../out/FYToken.sol/FYToken.json";
 import { abi as flashJoinAbi } from "../../out/FlashJoin.sol/FlashJoin.json";
 import { abi as accessControlAbi } from "../../out/AccessControl.sol/AccessControl.json";
@@ -15,15 +15,20 @@ if (!leverAddress) {
   process.exit();
 }
 
+const rpcUrl: string = process.argv[4];
+if (!rpcUrl) {
+  console.log("Please supply the RPC url");
+  process.exit();
+}
+
 const gasPrice = "1000000000000";
 
 (async () => {
-  const provider = new ethers.providers.JsonRpcProvider();
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
   const timeLock = "0x3b870db67a45611CF4723d44487EAF398fAc51E3";
-  await provider.send("anvil_impersonateAccount", [timeLock]);
-  await provider.send("anvil_setCode", [timeLock, ""]);
-  await provider.send("anvil_setBalance", [timeLock, "1000000000000000000"]);
   const signer = provider.getSigner(timeLock);
+
+  await provider.send('evm_setAccountBalance', [timeLock, utils.parseUnits('1000', 'ether').toHexString()]);
 
   const fyToken = new Contract(
     "0x53358d088d835399F1E97D2a01d79fC925c7D999",
@@ -57,7 +62,7 @@ const gasPrice = "1000000000000";
     const tx = await cauldronAccessControl.grantRole("0x798a828b", giverAddress, { gasPrice });
     await tx;
 
-    const deployer = provider.getSigner('0x70997970c51812dc3a010c7d01b50e0d17dc79c8');
+    const deployer = provider.getSigner('0x70997970C51812dc3A010C7d01b50e0d17dc79C8');
     const giverAccessControl = new Contract(
       giverAddress,
       accessControlAbi,

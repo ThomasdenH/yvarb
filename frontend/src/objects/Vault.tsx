@@ -32,7 +32,7 @@ export interface VaultsAndBalances {
 
 /** Don't look prior to this block number. */
 const CAULDRON_CREATED_BLOCK_NUMBER = 0;
-const BLOCK_STEPS = 10000;
+const BLOCK_STEPS = 20_000_000;
 
 /**
  * Look for vaults that have been created on or transferred to the address.
@@ -56,7 +56,7 @@ export async function loadVaults(
   );
   const seriesAddedFilter = cauldron.filters.SeriesAdded(null, null, null);
 
-  const currentBlock: number = await provider.getBlockNumber();
+  /*const currentBlock: number = await provider.getBlockNumber();
   let end = currentBlock;
   while (end > CAULDRON_CREATED_BLOCK_NUMBER) {
     const start = Math.max(end - BLOCK_STEPS, CAULDRON_CREATED_BLOCK_NUMBER);
@@ -77,7 +77,7 @@ export async function loadVaults(
       seriesDiscovered(serie.args[0]);
     console.log(start);
     end = start;
-  }
+  }*/
 
   cauldron.on(vaultsBuiltFilter, (vauldId) => vaultDiscovered(vauldId));
   cauldron.on(vaultsReceivedFilter, (vaultId) => vaultDiscovered(vaultId));

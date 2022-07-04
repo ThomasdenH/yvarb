@@ -20,12 +20,12 @@ contract DeployTest is Test {
 
     function run() public {
         // Deploy the giver contract
-        vm.broadcast();
+        vm.startBroadcast();
         giver = new Giver(cauldron);
 
         // Deploy the contract
-        vm.broadcast();
         lever = new YieldStEthLever(giver);
         lever.approveFyToken(seriesId);
+        vm.stopBroadcast();
     }
 }

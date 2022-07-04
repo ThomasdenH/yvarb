@@ -31,7 +31,7 @@ import {
 import { Signer, providers } from "ethers";
 import { useEffect } from "react";
 
-const POLLING_INTERVAL = 20_000;
+const POLLING_INTERVAL = 2_000;
 
 export interface Strategy {
   tokenAddresses: [IERC20Address, ValueType][];
@@ -47,6 +47,7 @@ enum StrategyName {
 const strategies: { [strat in StrategyName]: Strategy } = {
   [StrategyName.WStEth]: {
     tokenAddresses: [[WETH, ValueType.Weth]],
+    // TODO: Every series has their own FYWEth...
     debtTokens: [[FY_WETH, ValueType.FyWeth]],
     investToken: [FY_WETH, ValueType.FyWeth],
     lever: YIELD_ST_ETH_LEVER,
