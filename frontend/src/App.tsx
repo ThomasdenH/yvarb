@@ -11,13 +11,14 @@ import {
   VaultsAndBalances,
   Balances as VaultBalances,
 } from "./objects/Vault";
-import VaultComponent from "./components/Vault";
+import {Vault as VaultComponent} from "./components/Vault";
 import { Tabs } from "./components/Tabs";
 import { ValueType } from "./components/ValueDisplay";
 import {
   CAULDRON,
   ContractAddress,
   Contracts,
+  FyTokenAddress,
   FY_WETH_WETH_POOL,
   getContract,
   YIELD_ST_ETH_LEVER,
@@ -31,13 +32,12 @@ import {
 } from "./balances";
 import { Signer, providers, BytesLike } from "ethers";
 import { useEffect } from "react";
-import { hexlify } from "ethers/lib/utils";
 
-const POLLING_INTERVAL = 2_000;
+const POLLING_INTERVAL = 5_000;
 
 export interface Strategy {
   tokenAddresses: [IERC20Address, ValueType][];
-  debtTokens: [IERC20Address, ValueType][];
+  debtTokens: [FyTokenAddress, ValueType][];
   investToken: [IERC20Address, ValueType];
   lever: ContractAddress;
   ilkId: BytesLike;
@@ -134,6 +134,7 @@ export const App: React.FunctionComponent = () => {
 
   let pollId: number | undefined = undefined;
   const startPollingData = () => {
+    void pollData();
     pollId = window.setInterval(() => {
       void pollData();
     }, POLLING_INTERVAL);
@@ -216,10 +217,7 @@ export const App: React.FunctionComponent = () => {
     );
   }
 
-  console.log('vaults to monitor', vaultsToMonitor);
   const vaultIds = Object.keys(vaults.vaults);
-  console.log(vaultIds);
-
   const elements = [
     <Invest
       label="Invest"
@@ -238,6 +236,9 @@ export const App: React.FunctionComponent = () => {
         vault={vaults.vaults[vaultId]}
         pollData={() => pollData()}
         contracts={contracts}
+        // TODO: Use vault strategy
+        strategy={strategies[selectedStrategy]}
+        account={selectedAccount}
       />
     )),
   ];

@@ -2,7 +2,7 @@ import { BigNumber, Signer, utils } from "ethers";
 import React, { useState } from "react";
 import { App, Strategy } from "../App";
 import "./Invest.scss";
-import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
+import Slippage, { SLIPPAGE_OPTIONS, useSlippage } from "./Slippage";
 import { ValueInput } from "./ValueInput";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import { Balances, FY_WETH } from "../balances";
@@ -59,7 +59,7 @@ export const Invest = ({
   strategy,
   account,
 }: Readonly<Properties>) => {
-  const [slippage, setSlippage] = useState<number>(SLIPPAGE_OPTIONS[1].value);
+  const [slippage, setSlippage] = useSlippage();
   const [leverage, setLeverage] = useState<BigNumber>(BigNumber.from(300));
   const [balanceInput, setBalanceInput] = useState<BigNumber>(
     BigNumber.from(0)

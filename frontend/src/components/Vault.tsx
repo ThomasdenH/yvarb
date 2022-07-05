@@ -1,86 +1,168 @@
-import { BigNumber } from "ethers";
-import React from "react";
-import { Contracts } from "../contracts";
+import { BigNumber, ethers, Signer } from "ethers";
+import React, { useEffect, useState } from "react";
+import { Strategy } from "../App";
+import {
+  Contracts,
+  getContract,
+  getPool,
+  WETH_ST_ETH_STABLESWAP,
+  WST_ETH,
+  YIELD_ST_ETH_LEVER,
+} from "../contracts";
 import { Balance, Vault as VaultI } from "../objects/Vault";
-import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
+import Slippage, {
+  removeSlippage,
+  SLIPPAGE_OPTIONS,
+  useSlippage,
+} from "./Slippage";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import "./Vault.scss";
 
-export interface State {
-  balance: Balance;
-  vault: VaultI;
-  slippage: number;
-  toBorrow?: BigNumber;
-}
 interface Properties {
   vaultId: string;
   balance: Balance;
   vault: VaultI;
   label: string;
   contracts: Readonly<Contracts>;
+  strategy: Strategy;
+  account: Signer;
   pollData(): Promise<void>;
 }
 
-export default class Vault extends React.Component<Properties, State> {
-  constructor(props: Properties) {
-    super(props);
-    this.state = {
-      ...props,
-      slippage: SLIPPAGE_OPTIONS[1].value,
+export const Vault = ({
+  strategy,
+  contracts,
+  account,
+  balance,
+  vault,
+  vaultId,
+}: Properties) => {
+  const [slippage, setSlippage] = useSlippage();
+
+  /** How much weth we'll obtain, at a minimum. Includes slippage. */
+  const [finalWeth, setFinalWeth] = useState<BigNumber | undefined>();
+  useEffect(() => {
+    /**
+     * Compute how much WEth the user has at the end of the operation.
+     */
+    const computeResultWeth = async () => {
+      const fyToken = getContract(
+        strategy.debtTokens[0][0],
+        contracts,
+        account
+      );
+      const maturity = await fyToken.maturity();
+      const blockNumber = (await account.provider?.getBlockNumber()) as number;
+      const blockTime = (await account.provider?.getBlock(blockNumber))
+        ?.timestamp as number;
+      if (BigNumber.from(blockTime).lt(maturity)) {
+        // Repay!
+        // Basically rerun the entire process and see how much we end up with.
+        const wStEth = getContract(WST_ETH, contracts, account);
+        const stEthUnwrapped = await wStEth.getStETHByWstETH(balance.ink);
+        const stableSwap = getContract(
+          WETH_ST_ETH_STABLESWAP,
+          contracts,
+          account
+        );
+        const wethReceived = await stableSwap.get_dy(1, 0, stEthUnwrapped);
+        const fee = await fyToken.flashFee(fyToken.address, balance.art);
+        const borrowAmountPlusFee = fee.add(balance.art);
+        const pool = await getPool(vault.seriesId, contracts, account);
+        const wethToTran = await pool.buyFYTokenPreview(borrowAmountPlusFee);
+        const wethRemaining = wethReceived.sub(wethToTran);
+        return wethRemaining;
+      } else {
+        throw new Error("Unimplemented");
+      }
     };
-  }
+    setFinalWeth(undefined);
+    void computeResultWeth()
+      .then((val) => removeSlippage(val, slippage))
+      .then((val) => setFinalWeth(val));
+  }, [account, balance, contracts, strategy, vault.seriesId, slippage]);
 
-  /**
-   * Compute how much WEth the user has at the end of the operation.
-   */
-  private async computeResultWeth() {
+  /** The current value of the debt. */
+  const [currentDebt, setCurrentDebt] = useState<BigNumber | undefined>();
+  useEffect(() => {
+    const computeCurrentDebt = async (): Promise<BigNumber> => {
+      const pool = await getPool(vault.seriesId, contracts, account);
+      const art = await pool.sellFYTokenPreview(balance.art);
+      return art;
+    };
+    setCurrentDebt(undefined);
+    void computeCurrentDebt().then((debt) => setCurrentDebt(debt));
+  }, [balance.art, account, contracts, vault]);
 
-  }
+  const [unwindEnabled, setUnwindEnabled] = useState(false);
+  useEffect(() => {
+    setUnwindEnabled(finalWeth !== undefined);
+  }, [finalWeth]);
+
+  const unwind = async () => {
+    if (finalWeth === undefined)
+      return; // Not yet ready for unwinding
+    if (strategy.lever === YIELD_ST_ETH_LEVER) {
+      const lever = getContract(strategy.lever, contracts, account);
+      const gasLimit = await lever.estimateGas.unwind(balance.ink, balance.art, finalWeth, vaultId, vault.seriesId);
+      const tx = await lever.unwind(balance.ink, balance.art, finalWeth, vaultId, vault.seriesId, { gasLimit });
+      await tx.wait();
+    }
+  };
+
+  return (
+    <div className="vault">
+      <ValueDisplay
+        label="Vault ID:"
+        value={vaultId}
+        valueType={ValueType.Literal}
+      />
+      <ValueDisplay
+        label="Collateral:"
+        valueType={ValueType.WStEth}
+        value={balance.ink}
+      />
+      {currentDebt === undefined ? null : (
+        <ValueDisplay
+          label="Current debt"
+          valueType={ValueType.Weth}
+          value={currentDebt}
+        />
+      )}
+      <ValueDisplay
+        label="Debt at maturity:"
+        valueType={ValueType.Weth}
+        value={balance.art}
+      />
+      <Slippage
+        value={slippage}
+        onChange={(s) => {
+          setSlippage(s);
+        }}
+      />
+      {finalWeth !== undefined ? (
+        <ValueDisplay
+          label="Final WETH:"
+          valueType={ValueType.Weth}
+          value={finalWeth}
+        />
+      ) : null}
+      <input
+        className="button"
+        value="Unwind"
+        type="button"
+        disabled={!unwindEnabled}
+        onClick={() => void unwind()}
+      />
+    </div>
+  );
+};
+/*xport default class Vault extends React.Component<Properties, State> {
+ 
 
   render(): React.ReactNode {
-    return (
-      <div className="vault">
-        <ValueDisplay
-          label="Vault ID:"
-          value={this.props.vaultId}
-          valueType={ValueType.Literal}
-        />
-        <ValueDisplay
-          label="Collateral:"
-          valueType={ValueType.WStEth}
-          value={this.props.balance.ink}
-        />
-        <ValueDisplay
-          label="Debt at maturity:"
-          valueType={ValueType.Weth}
-          value={this.props.balance.art}
-        />
-        <Slippage
-          value={this.state.slippage}
-          onChange={(s) => {
-            console.error("a");
-          }}
-        />
-        {this.state.toBorrow !== undefined ? (
-          <ValueDisplay
-            label="To borrow:"
-            valueType={ValueType.Usdc}
-            value={this.state.toBorrow}
-          />
-        ) : null}
-        <input
-          className="button"
-          value="Unwind"
-          type="button"
-          onClick={() => {
-            console.error("b");
-          }}
-        />
-      </div>
-    );
+    
   }
-
-  /**
   componentDidMount() {
     void this.updateToBorrow();
   }
@@ -171,4 +253,3 @@ export default class Vault extends React.Component<Properties, State> {
       await Promise.all([this.props.pollData(), this.updateToBorrow()]);
     }
   }*/
-}

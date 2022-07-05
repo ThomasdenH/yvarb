@@ -3,7 +3,7 @@
  */
 
 import { BigNumber } from "ethers";
-import React from "react";
+import React, { useState } from "react";
 import "./Slippage.scss";
 
 export interface Properties {
@@ -24,8 +24,14 @@ const OPTIONS: { value: number; label: string }[] = [
 
 export const SLIPPAGE_OPTIONS = OPTIONS;
 
+export const useSlippage = () => useState(SLIPPAGE_OPTIONS[1].value);
+
 export function addSlippage(num: BigNumber, slippage: number) {
   return num.mul(1000 + slippage).div(1000);
+}
+
+export function removeSlippage(num: BigNumber, slippage: number) {
+  return num.mul(1000 - slippage).div(1000);
 }
 
 export default class Slippage extends React.Component<Properties, State> {

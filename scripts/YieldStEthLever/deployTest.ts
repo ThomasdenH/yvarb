@@ -1,8 +1,10 @@
 import { BigNumber, ContractFactory, ethers, Wallet } from "ethers";
+import { YieldStEthLever } from "../../frontend/src/contracts/YieldStEthLever.sol";
 import giverContractJson from "../../out/Giver.sol/Giver.json";
 import yieldStLeverJson from "../../out/YieldStEthLever.sol/YieldStEthLever.json";
 
 const gasPrice = BigNumber.from("1000000000000");
+const seriesId = "0x303030370000";
 
 const sender: string = process.argv[2];
 if (!sender) {
@@ -42,4 +44,8 @@ const signer = provider.getSigner(sender);
   await contract2.deployTransaction.wait();
   console.log("- deployed YieldStEthLever contract");
   console.log(`\t${contract2.address}`);
+
+  const approveSeries = await (contract2 as YieldStEthLever).approveFyToken(seriesId);
+  await approveSeries.wait();
+  console.log(`- Approved series\n\t${seriesId}`);
 })();

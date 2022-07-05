@@ -32,6 +32,7 @@ export interface WstEthInterface extends utils.Interface {
     "allowance(address,address)": FunctionFragment;
     "approve(address,uint256)": FunctionFragment;
     "balanceOf(address)": FunctionFragment;
+    "getStETHByWstETH(uint256)": FunctionFragment;
     "getWstETHByStETH(uint256)": FunctionFragment;
     "totalSupply()": FunctionFragment;
     "transfer(address,uint256)": FunctionFragment;
@@ -45,6 +46,7 @@ export interface WstEthInterface extends utils.Interface {
       | "allowance"
       | "approve"
       | "balanceOf"
+      | "getStETHByWstETH"
       | "getWstETHByStETH"
       | "totalSupply"
       | "transfer"
@@ -64,6 +66,10 @@ export interface WstEthInterface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "balanceOf",
     values: [PromiseOrValue<string>]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getStETHByWstETH",
+    values: [PromiseOrValue<BigNumberish>]
   ): string;
   encodeFunctionData(
     functionFragment: "getWstETHByStETH",
@@ -97,6 +103,10 @@ export interface WstEthInterface extends utils.Interface {
   decodeFunctionResult(functionFragment: "allowance", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "approve", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "balanceOf", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "getStETHByWstETH",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "getWstETHByStETH",
     data: BytesLike
@@ -190,6 +200,11 @@ export interface WstEth extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[BigNumber]>;
 
+    getStETHByWstETH(
+      _wstEthAmount: PromiseOrValue<BigNumberish>,
+      overrides?: CallOverrides
+    ): Promise<[BigNumber]>;
+
     getWstETHByStETH(
       _stETHAmount: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
@@ -238,6 +253,11 @@ export interface WstEth extends BaseContract {
     overrides?: CallOverrides
   ): Promise<BigNumber>;
 
+  getStETHByWstETH(
+    _wstEthAmount: PromiseOrValue<BigNumberish>,
+    overrides?: CallOverrides
+  ): Promise<BigNumber>;
+
   getWstETHByStETH(
     _stETHAmount: PromiseOrValue<BigNumberish>,
     overrides?: CallOverrides
@@ -283,6 +303,11 @@ export interface WstEth extends BaseContract {
 
     balanceOf(
       account: PromiseOrValue<string>,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    getStETHByWstETH(
+      _wstEthAmount: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
@@ -359,6 +384,11 @@ export interface WstEth extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
+    getStETHByWstETH(
+      _wstEthAmount: PromiseOrValue<BigNumberish>,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
     getWstETHByStETH(
       _stETHAmount: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
@@ -405,6 +435,11 @@ export interface WstEth extends BaseContract {
 
     balanceOf(
       account: PromiseOrValue<string>,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    getStETHByWstETH(
+      _wstEthAmount: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
