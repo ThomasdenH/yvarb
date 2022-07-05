@@ -30,6 +30,13 @@ export default class Vault extends React.Component<Properties, State> {
     };
   }
 
+  /**
+   * Compute how much WEth the user has at the end of the operation.
+   */
+  private async computeResultWeth() {
+
+  }
+
   render(): React.ReactNode {
     return (
       <div className="vault">
@@ -86,8 +93,7 @@ export default class Vault extends React.Component<Properties, State> {
   private async updateToBorrow() {
     this.setState({ toBorrow: await this.computeToBorrow() });
   }
-
-  private async computeToBorrow(): Promise<BigNumber> {
+   private async computeToBorrow(): Promise<BigNumber> {
     const balance = await this.props.contracts.cauldronContract.balances(
       this.props.vaultId
     );
@@ -114,7 +120,6 @@ export default class Vault extends React.Component<Properties, State> {
       return BigNumber.from(0);
     }
   }
-
   private async unwind() {
     const [poolAddress, balances] = await Promise.all([
       this.props.contracts.ladleContract.pools(this.props.vault.seriesId),
