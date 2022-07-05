@@ -20,17 +20,21 @@ import {
 export const CAULDRON = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
 export const YIELD_ST_ETH_LEVER = "0x0cf17d5dcda9cf25889cec9ae5610b0fb9725f65";
 export const YIELD_LADLE = "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A";
+export const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 export const WETH_ST_ETH_STABLESWAP = "0x828b154032950C8ff7CF8085D841723Db2696056";
 export const WST_ETH = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0";
+export const FY_WETH = "0x53358d088d835399F1E97D2a01d79fC925c7D999";
+export const FY_WETH_WETH_POOL = "";
 
 type DefinitelyContracts = {
   [CAULDRON]: Cauldron;
-  "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": IERC20;
-  "0x53358d088d835399F1E97D2a01d79fC925c7D999": FYToken;
+  [WETH]: IERC20;
+  [FY_WETH]: FYToken;
   [YIELD_ST_ETH_LEVER]: YieldStEthLever;
   [YIELD_LADLE]: YieldLadle;
   [WETH_ST_ETH_STABLESWAP]: IStableSwap;
   [WST_ETH]: WstEth;
+  [FY_WETH_WETH_POOL]: IPool;
 };
 
 export type Contracts = {
@@ -50,12 +54,13 @@ export type ContractAddress = keyof DefinitelyContracts;
 
 const contractFactories: ContractFactories = {
   [CAULDRON]: Cauldron__factory,
-  ["0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"]: IERC20__factory,
-  ["0x53358d088d835399F1E97D2a01d79fC925c7D999"]: FYToken__factory,
+  [WETH]: IERC20__factory,
+  [FY_WETH]: FYToken__factory,
   [YIELD_ST_ETH_LEVER]: YieldStEthLever__factory,
   [YIELD_LADLE]: YieldLadle__factory,
   [WETH_ST_ETH_STABLESWAP]: IStableSwap__factory,
-  [WST_ETH]: WstEth__factory
+  [WST_ETH]: WstEth__factory,
+  [FY_WETH_WETH_POOL]: IPool__factory
 };
 
 /** Get a (typed) contract instance. */

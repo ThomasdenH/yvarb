@@ -18,6 +18,7 @@ import {
   CAULDRON,
   ContractAddress,
   Contracts,
+  FY_WETH_WETH_POOL,
   getContract,
   YIELD_ST_ETH_LEVER,
 } from "./contracts";
@@ -28,8 +29,9 @@ import {
   loadBalance,
   WETH,
 } from "./balances";
-import { Signer, providers } from "ethers";
+import { Signer, providers, BytesLike } from "ethers";
 import { useEffect } from "react";
+import { hexlify } from "ethers/lib/utils";
 
 const POLLING_INTERVAL = 2_000;
 
@@ -38,6 +40,9 @@ export interface Strategy {
   debtTokens: [IERC20Address, ValueType][];
   investToken: [IERC20Address, ValueType];
   lever: ContractAddress;
+  ilkId: BytesLike;
+  baseId: BytesLike;
+  pool: ContractAddress;
 }
 
 enum StrategyName {
@@ -51,6 +56,9 @@ const strategies: { [strat in StrategyName]: Strategy } = {
     debtTokens: [[FY_WETH, ValueType.FyWeth]],
     investToken: [FY_WETH, ValueType.FyWeth],
     lever: YIELD_ST_ETH_LEVER,
+    ilkId: "0x303400000000",
+    baseId: "0x303000000000",
+    pool: FY_WETH_WETH_POOL
   },
 };
 

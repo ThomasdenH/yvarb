@@ -6,8 +6,21 @@ import Slippage, { SLIPPAGE_OPTIONS } from "./Slippage";
 import { ValueInput } from "./ValueInput";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import { Balances, FY_WETH } from "../balances";
-import { Contracts, getContract, getPool, WETH_ST_ETH_STABLESWAP, WST_ETH, YIELD_LADLE, YIELD_ST_ETH_LEVER } from "../contracts";
+import {
+  CAULDRON,
+  Contracts,
+  getContract,
+  getPool,
+  WETH_ST_ETH_STABLESWAP,
+  WST_ETH,
+  YIELD_LADLE,
+  YIELD_ST_ETH_LEVER,
+} from "../contracts";
 import { useEffect } from "react";
+import { Cauldron } from "../contracts/Cauldron.sol";
+import { IPool } from "../contracts/YieldStEthLever.sol";
+import { IOracle__factory } from "../contracts/IOracle.sol";
+import { zeroPad } from "ethers/lib/utils";
 
 const SERIES_ID = "0x303030370000";
 
@@ -66,16 +79,45 @@ export const Invest = ({
     ApprovalState.Loading
   );
   const checkApprovalState = async () => {
-    const investable = totalToInvest();
-    const token = getContract(strategy.investToken[0], contracts, account);
-    const approval = await token.allowance(
-      account.getAddress(),
-      strategy.lever
-    );
-    if (approval.lt(investable)) {
-      setApprovalState(ApprovalState.ApprovalRequired);
+    // First check if the debt is too low
+    if (totalToInvest().eq(0)) {
+      setApprovalState(ApprovalState.DebtTooLow);
     } else {
-      setApprovalState(ApprovalState.Transactable);
+      const [debt, currentDebt] = await Promise.all([
+        cauldronDebt(),
+        computeStEthCollateral(),
+      ]);
+      const minDebt = BigNumber.from(debt.min).mul(
+        BigNumber.from(10).pow(debt.dec)
+      );
+      if (currentDebt.lt(minDebt)) {
+        setApprovalState(ApprovalState.DebtTooLow);
+      } else {
+        // Now check collateralization ratio
+        const art = toBorrow();
+        const ink = totalToInvest();
+        const level = await vaultLevel(ink, art);
+        if (level.lt(0)) {
+          setApprovalState(ApprovalState.Undercollateralized);
+        } else {
+          // Now check for approval
+          const investable = totalToInvest();
+          const token = getContract(
+            strategy.investToken[0],
+            contracts,
+            account
+          );
+          const approval = await token.allowance(
+            account.getAddress(),
+            strategy.lever
+          );
+          if (approval.lt(investable)) {
+            setApprovalState(ApprovalState.ApprovalRequired);
+          } else {
+            setApprovalState(ApprovalState.Transactable);
+          }
+        }
+      }
     }
   };
 
@@ -93,7 +135,7 @@ export const Invest = ({
     setApprovalState(ApprovalState.Loading);
   };
 
-  const computeStEthMinCollateral = async (): Promise<BigNumber> => {
+  const computeStEthCollateral = async (): Promise<BigNumber> => {
     // - netInvestAmount = baseAmount + borrowAmount - fee
     const baseAmount = balanceInput;
     const borrowAmount = toBorrow();
@@ -109,7 +151,38 @@ export const Invest = ({
     // - Wrap: StEth -> WStEth
     const wStEth = getContract(WST_ETH, contracts, account);
     const wrapped = await wStEth.getWstETHByStETH(boughtStEth);
-    return wrapped.mul(1000 - slippage).div(1000);
+    return wrapped;
+  };
+
+  const computeStEthMinCollateral = async (): Promise<BigNumber> =>
+    (await computeStEthCollateral()).mul(1000 - slippage).div(1000);
+
+  const cauldronDebt = async () => {
+    const cauldron = getContract(CAULDRON, contracts, account);
+    return await cauldron.debt(strategy.baseId, strategy.ilkId);
+  };
+
+  const vaultLevel = async (
+    ink: BigNumber,
+    art: BigNumber
+  ): Promise<BigNumber> => {
+    const cauldron = getContract(CAULDRON, contracts, account);
+    const spotOracle = await cauldron.spotOracles(
+      strategy.baseId,
+      strategy.ilkId
+    );
+    const ratio = BigNumber.from(spotOracle.ratio).mul(
+      BigNumber.from(10).pow(12)
+    );
+    const inkValue = (
+      await IOracle__factory.connect(spotOracle.oracle, account).peek(
+        utils.concat([strategy.ilkId, zeroPad([], 32 - 6)]),
+        utils.concat([strategy.baseId, zeroPad([], 32 - 6)]),
+        ink
+      )
+    ).value;
+    console.log(inkValue.toString(), art.toString(), art.mul(ratio).div(BigNumber.from(10).pow(18)).toString());
+    return inkValue.sub(art.mul(ratio).div(BigNumber.from(10).pow(18)));
   };
 
   const transact = async () => {
@@ -304,13 +377,6 @@ export default class Invest extends React.Component<Properties, State> {
 
   private collateralizationRatio(fyTokens: BigNumber): BigNumber {
     return this.totalToInvest().div(fyTokens.div(1_000_000));
-  }
-
-  private async cauldronDebt(
-    cauldronContract: Cauldron,
-    baseId: string
-  ): Promise<Debt> {
-    return await cauldronContract.debt(baseId, ILK_ID);
   }
 
   private async approve() {
