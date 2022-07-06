@@ -1,5 +1,8 @@
 import { BigNumber, ethers, Signer } from "ethers";
+import { MutableRefObject } from "react";
 import { CAULDRON, Contracts, getContract } from "../contracts";
+import { SeriesAddedEvent, VaultBuiltEvent } from "../contracts/Cauldron.sol/Cauldron";
+import { TypedListener } from "../contracts/Cauldron.sol/common";
 
 export interface SeriesDefinition {
   poolAddress: string;
@@ -37,22 +40,22 @@ const BLOCK_STEPS = 20_000_000;
 /**
  * Look for vaults that have been created on or transferred to the address.
  */
-export async function loadVaults(
-  contracts: Contracts,
+export function loadVaultsAndStartListening(
+  contracts: MutableRefObject<Contracts>,
+  address: string,
   signer: Signer,
-  provider: ethers.providers.Web3Provider,
-  vaultDiscovered: (vaultId: string) => void,
-  seriesDiscovered: (series: string) => void
-) {
+  vaultDiscovered: TypedListener<VaultBuiltEvent>,
+  seriesDiscovered: TypedListener<SeriesAddedEvent>
+): () => void {
   const cauldron = getContract(CAULDRON, contracts, signer);
   const vaultsBuiltFilter = cauldron.filters.VaultBuilt(
     null,
-    await signer.getAddress(),
+    address,
     null
   );
   const vaultsReceivedFilter = cauldron.filters.VaultGiven(
     null,
-    await signer.getAddress()
+    address
   );
   const seriesAddedFilter = cauldron.filters.SeriesAdded(null, null, null);
 
@@ -79,9 +82,16 @@ export async function loadVaults(
     end = start;
   }*/
 
-  cauldron.on(vaultsBuiltFilter, (vauldId) => vaultDiscovered(vauldId));
-  cauldron.on(vaultsReceivedFilter, (vaultId) => vaultDiscovered(vaultId));
-  cauldron.on(seriesAddedFilter, (seriesId) => seriesDiscovered(seriesId));
+  cauldron.on(vaultsBuiltFilter, vaultDiscovered);
+  cauldron.on(vaultsReceivedFilter, vaultDiscovered);
+  cauldron.on(seriesAddedFilter, seriesDiscovered);
+
+  // Return the destructor
+  return () => {
+    cauldron.removeListener(vaultsBuiltFilter, vaultDiscovered);
+    cauldron.removeListener(vaultsReceivedFilter, vaultDiscovered);
+    cauldron.removeListener(seriesAddedFilter, seriesDiscovered);
+  };
 }
 
 export function emptyVaults(): VaultsAndBalances {

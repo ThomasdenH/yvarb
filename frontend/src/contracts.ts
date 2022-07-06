@@ -1,4 +1,5 @@
 import { Signer } from "ethers";
+import { MutableRefObject } from "react";
 import { Cauldron, Cauldron__factory } from "./contracts/Cauldron.sol";
 import {
   FYToken,
@@ -67,17 +68,17 @@ const contractFactories: ContractFactories = {
 /** Get a (typed) contract instance. */
 export const getContract = <T extends keyof DefinitelyContracts>(
   address: T,
-  contracts: Contracts,
+  contracts: MutableRefObject<Contracts>,
   signer: Signer
 ): DefinitelyContracts[T] => {
-  if (contracts[address] === undefined)
-    contracts[address] = contractFactories[address].connect(address, signer);
-  return contracts[address] as DefinitelyContracts[T];
+  if (contracts.current[address] === undefined)
+    contracts.current[address] = contractFactories[address].connect(address, signer);
+  return contracts.current[address] as DefinitelyContracts[T];
 };
 
 export const getFyToken = async(
   seriesId: string,
-  contracts: Contracts,
+  contracts: MutableRefObject<Contracts>,
   signer: Signer
 ): Promise<FYToken> => {
   const pool = await getPool(seriesId, contracts, signer);
@@ -87,7 +88,7 @@ export const getFyToken = async(
 
 export const getPool = async (
   seriesId: string,
-  contracts: Contracts,
+  contracts: MutableRefObject<Contracts>,
   signer: Signer
 ): Promise<IPool> => {
   const ladle = getContract(YIELD_LADLE, contracts, signer);

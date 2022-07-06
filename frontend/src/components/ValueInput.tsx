@@ -1,5 +1,5 @@
 import { BigNumber, utils } from "ethers";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./ValueInput.scss";
 
 /** A class used to let the user input a decimally interpreted BigNumber value.
@@ -13,48 +13,53 @@ interface Props {
   decimals: number;
 }
 
-export const ValueInput = (props: Props) => {
-  /** Format a BigNumber value as a decimal. */
-  const format = (value: BigNumber, decimals: number) =>
-    utils.formatUnits(value, decimals);
+/** Format a BigNumber value as a decimal. */
+const format = (value: BigNumber, decimals: number) =>
+  utils.formatUnits(value, decimals);
 
-  /** Try to parse a value as a BigNumber, return undefined when parsing fails. */
-  const parseValue = (val: string): BigNumber | undefined => {
-    try {
-      return utils.parseUnits(val, props.decimals);
-    } catch (e) {
-      return undefined;
-    }
-  };
-
-  const defaultValue = format(props.defaultValue, props.decimals);
-
-  /** The value is the "real" value, the pretty value is only set if the number could be parsed. */
-  const [value, setValue] = useState<string>(defaultValue);
-  const [prettyValue, setPrettyValue] = useState<string | undefined>(
-    defaultValue
-  );
-  const [focus, setFocus] = useState(false);
-
-  const onChange = (value: string) => {
-    if (focus) {
-      const parsedValue = parseValue(value);
-      if (parsedValue !== undefined) props.onValueChange(parsedValue);
-      setValue(value);
-      setPrettyValue(
-        parsedValue === undefined
-          ? undefined
-          : format(parsedValue, props.decimals)
-      );
-    }
-  };
-
-  let max;
+/** Try to parse a value as a BigNumber, return undefined when parsing fails. */
+const parseValue = (val: string, decimals: number): BigNumber | undefined => {
   try {
-    max = props.max.div(BigNumber.from(10).pow(props.decimals)).toNumber()
+    return utils.parseUnits(val, decimals);
   } catch (e) {
-    max = undefined;
+    return undefined;
   }
+};
+
+// TODO: Use max
+export const ValueInput = ({
+  defaultValue,
+  decimals,
+  max,
+  onValueChange,
+}: Props) => {
+  const defaultValueFormatted = format(defaultValue, decimals);
+
+  /**
+   * This is the "real" text content.
+   */
+  const [value, setValue] = useState<string>(defaultValueFormatted);
+  /**
+   * This is the parsed value, potentially undefined if the content could not
+   * be parsed.
+   */
+  const parsedValue = useMemo(
+    () => parseValue(value, decimals),
+    [value, decimals]
+  );
+  // Update the listener when the value changes.
+  useEffect(() => {
+    if (parsedValue !== undefined) onValueChange(parsedValue);
+  }, [parsedValue, onValueChange]);
+
+  /**
+   * This is the formatted value. It is defined when the parsed value is
+   * defined.
+   */
+  const prettyValue: string | undefined =
+    parsedValue === undefined ? undefined : format(parsedValue, decimals);
+
+  const [focus, setFocus] = useState(false);
 
   const displayValue =
     !focus && prettyValue !== undefined ? prettyValue : value;
@@ -65,9 +70,8 @@ export const ValueInput = (props: Props) => {
       name="invest_amount"
       type="text"
       min="0"
-      max={max}
       value={displayValue}
-      onChange={(el) => onChange(el.target.value)}
+      onChange={(el) => setValue(el.target.value)}
       onFocus={() => setFocus(true)}
       onBlur={() => setFocus(false)}
     />

@@ -1,4 +1,4 @@
-import { BigNumber, ContractTransaction } from "ethers";
+import { BigNumber } from "ethers";
 
 export function formatNumber(
   num: BigNumber,

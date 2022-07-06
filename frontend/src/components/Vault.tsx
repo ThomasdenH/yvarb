@@ -1,5 +1,6 @@
 import { BigNumber, ethers, Signer } from "ethers";
 import React, { useEffect, useState } from "react";
+import { MutableRefObject } from "react";
 import { Strategy } from "../App";
 import {
   Contracts,
@@ -12,7 +13,6 @@ import {
 import { Balance, Vault as VaultI } from "../objects/Vault";
 import Slippage, {
   removeSlippage,
-  SLIPPAGE_OPTIONS,
   useSlippage,
 } from "./Slippage";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
@@ -23,10 +23,9 @@ interface Properties {
   balance: Balance;
   vault: VaultI;
   label: string;
-  contracts: Readonly<Contracts>;
+  contracts: MutableRefObject<Contracts>;
   strategy: Strategy;
   account: Signer;
-  pollData(): Promise<void>;
 }
 
 export const Vault = ({
