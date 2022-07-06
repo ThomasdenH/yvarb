@@ -1,11 +1,14 @@
-import { BigNumber, ethers, Signer } from "ethers";
+import { BigNumber, Signer } from "ethers";
 import React, { useEffect, useState } from "react";
 import { MutableRefObject } from "react";
 import { Strategy } from "../App";
 import {
+  CAULDRON,
   Contracts,
   getContract,
   getPool,
+  WETH,
+  WETH_JOIN,
   WETH_ST_ETH_STABLESWAP,
   WST_ETH,
   YIELD_ST_ETH_LEVER,
@@ -56,16 +59,16 @@ export const Vault = ({
       const blockNumber = (await account.provider?.getBlockNumber()) as number;
       const blockTime = (await account.provider?.getBlock(blockNumber))
         ?.timestamp as number;
+      const wStEth = getContract(WST_ETH, contracts, account);
+      const stableSwap = getContract(
+        WETH_ST_ETH_STABLESWAP,
+        contracts,
+        account
+      );
       if (BigNumber.from(blockTime).lt(maturity)) {
         // Repay!
         // Basically rerun the entire process and see how much we end up with.
-        const wStEth = getContract(WST_ETH, contracts, account);
         const stEthUnwrapped = await wStEth.getStETHByWstETH(balance.ink);
-        const stableSwap = getContract(
-          WETH_ST_ETH_STABLESWAP,
-          contracts,
-          account
-        );
         const wethReceived = await stableSwap.get_dy(1, 0, stEthUnwrapped);
         const fee = await fyToken.flashFee(fyToken.address, balance.art);
         const borrowAmountPlusFee = fee.add(balance.art);
@@ -74,7 +77,18 @@ export const Vault = ({
         const wethRemaining = wethReceived.sub(wethToTran);
         return wethRemaining;
       } else {
-        throw new Error("Unimplemented");
+        // Past maturity, we close.
+        const cauldron = getContract(CAULDRON, contracts, account);
+        // `debtToBase` is not view, so we need to compute it ourselves
+        const rateAtMaturity = await cauldron.ratesAtMaturity(vault.seriesId);
+
+        const base = BigNumber.from(0);
+
+        const stEthUnwrapped = await wStEth.getStETHByWstETH(balance.ink);
+        const weth = await stableSwap.get_dy(1, 0, stEthUnwrapped);
+        const wethJoin = getContract(WETH_JOIN, contracts, account);
+        const fee = await wethJoin.flashFee(WETH, base);
+        return weth.sub(base).sub(fee);
       }
     };
     setFinalWeth(undefined);

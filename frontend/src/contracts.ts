@@ -16,6 +16,8 @@ import {
   IStableSwap__factory,
   WstEth,
   WstEth__factory,
+  FlashJoin,
+  FlashJoin__factory,
 } from "./contracts/YieldStEthLever.sol";
 
 export const CAULDRON = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
@@ -26,6 +28,7 @@ export const WETH_ST_ETH_STABLESWAP = "0x828b154032950C8ff7CF8085D841723Db269605
 export const WST_ETH = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0";
 export const FY_WETH = "0x53358d088d835399F1E97D2a01d79fC925c7D999";
 export const FY_WETH_WETH_POOL = "";
+export const WETH_JOIN = "0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0";
 
 type DefinitelyContracts = {
   [CAULDRON]: Cauldron;
@@ -36,6 +39,7 @@ type DefinitelyContracts = {
   [WETH_ST_ETH_STABLESWAP]: IStableSwap;
   [WST_ETH]: WstEth;
   [FY_WETH_WETH_POOL]: IPool;
+  [WETH_JOIN]: FlashJoin;
 };
 
 export type Contracts = {
@@ -62,7 +66,8 @@ const contractFactories: ContractFactories = {
   [YIELD_LADLE]: YieldLadle__factory,
   [WETH_ST_ETH_STABLESWAP]: IStableSwap__factory,
   [WST_ETH]: WstEth__factory,
-  [FY_WETH_WETH_POOL]: IPool__factory
+  [FY_WETH_WETH_POOL]: IPool__factory,
+  [WETH_JOIN]: FlashJoin__factory
 };
 
 /** Get a (typed) contract instance. */
