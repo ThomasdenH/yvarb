@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import "./App.css";
 import { ConnectWallet } from "./components/ConnectWallet";
 import { Invest } from "./components/Invest";
@@ -89,22 +89,39 @@ export const App: React.FunctionComponent = () => {
   const [pulse, setPulse] = useState(0);
   useEffect(() => {
     const pollId = setInterval(() => setPulse((c) => c + 1), POLLING_INTERVAL);
-    return clearInterval(pollId);
-  })
+    return () => clearInterval(pollId);
+  });
+  console.log(pulse);
 
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyName>(
     StrategyName.WStEth
   );
 
+  /**
+   * These are the ids to monitor. They are obtained through events but might
+   * not belong to the user anymore, or maybe not exist.
+   */
   const [vaultsToMonitor, setVaultsToMonitor] = useState<string[]>([]);
-
-  const [vaults, setVaults] = useState<VaultsAndBalances>(emptyVaults());
+  // Listen to vault and series updates. This only loads the ids.
+  useEffect(() => {
+    if (signerAddress !== undefined && selectedAccount !== undefined)
+      return loadVaultsAndStartListening(
+        contracts,
+        signerAddress,
+        selectedAccount,
+        (vaultId) => {
+          console.log(vaultId);
+          setVaultsToMonitor([...vaultsToMonitor, vaultId]);
+        },
+        (a) => {
+          console.log(a);
+        }
+      );
+  });
 
   const [networkError, setNetworkError] = useState<string>();
 
   const contracts: MutableRefObject<Contracts> = useRef({});
-
-  const [balances, setBalances] = useState<AddressBalances>({});
 
   // When connecting the wallet, the provider will be set. This update in turn
   // will causes an update to the selected account.
@@ -114,56 +131,45 @@ export const App: React.FunctionComponent = () => {
   useEthereumListener("chainChanged", setChainId);
 
   const [signerAddress, setSignerAddress] = useState<string>();
-  const [selectedAccount, setSelectedAccount] = useState<Signer>();
   useEffect(() => {
     if (provider === undefined) {
       setSignerAddress(undefined);
-    } else {
-      // To connect to the user's wallet, we have to run this method.
-      // It returns a promise that will resolve to the user's address.
-      void provider
-        .send("eth_requestAccounts", [])
-        // Use the first address
-        .then(([selectedAddress]: string[]) => {
-          setSignerAddress(selectedAddress);
-          setSelectedAccount(provider.getSigner(selectedAddress));
-        });
+      return;
     }
+    // To connect to the user's wallet, we have to run this method.
+    // It returns a promise that will resolve to the user's address.
+    void provider
+      .send("eth_requestAccounts", [])
+      // Use the first address
+      .then(([selectedAddress]: string[]) => {
+        setSignerAddress(selectedAddress);
+      });
   }, [provider, chainId]);
 
   // We reinitialize it whenever the user changes their account.
-  // TODO: Handle case without provider (No window.ethereum)
-
   useEthereumListener("accountsChanged", ([account]: string[]) => {
     // `accountsChanged` event can be triggered with an undefined newAddress.
     // This happens when the user removes the Dapp from the "Connected
     // list of sites allowed access to your addresses" (Metamask > Settings > Connections)
     // To avoid errors, we reset the dapp state
     if (provider === undefined || account === undefined) {
-      setSelectedAccount(undefined);
+      setSignerAddress(undefined);
     } else {
-      setSelectedAccount(provider.getSigner(account));
+      setSignerAddress(account);
     }
   });
+  const selectedAccount = useMemo(
+    () =>
+      provider === undefined || signerAddress === undefined
+        ? undefined
+        : provider.getSigner(signerAddress),
+    [signerAddress, provider]
+  );
 
-  // Listen to vault and series updates. This only loads the ids.
+  const [balances, setBalances] = useState<AddressBalances>({});
   useEffect(() => {
-    if (signerAddress !== undefined && selectedAccount !== undefined)
-      return loadVaultsAndStartListening(
-        contracts,
-        signerAddress,
-        selectedAccount,
-        (vaultId) => setVaultsToMonitor([...vaultsToMonitor, vaultId]),
-        (a) => {
-          console.log(a);
-        }
-      );
-  });
-
-  // Load balances
-  useEffect(() => {
-    if (selectedAccount === undefined)
-      return;
+    if (selectedAccount === undefined) return;
+    let useResult = true;
     void (async () => {
       const strategy = strategies[selectedStrategy];
       const balances: AddressBalances = {};
@@ -176,45 +182,46 @@ export const App: React.FunctionComponent = () => {
           contracts,
           selectedAccount
         );
-      setBalances(balances);
+      if (useResult) setBalances(balances);
     })();
+    return () => {
+      useResult = false;
+    };
   }, [pulse, selectedAccount, selectedStrategy]);
 
   // Load vaults
+  const [vaults, setVaults] = useState<VaultsAndBalances>({ vaults: {}, balances: {}});
   useEffect(() => {
-    if (selectedAccount === undefined)
-      return;
+    if (selectedAccount === undefined) return;
+    let useResult = true;
     void (async () => {
       const cauldron = getContract(CAULDRON, contracts, selectedAccount);
-      const address = await selectedAccount.getAddress();
-      const vaults: Vaults = {};
-      const vaultbalances: VaultBalances = {};
-      (
-        await Promise.all(
-          vaultsToMonitor.map((vaultId) =>
-            cauldron
-              .vaults(vaultId)
-              .then((vault): [string, Vault] => [vaultId, vault])
-              .then(([vaultId, vault]) =>
-                cauldron
-                  .balances(vaultId)
-                  .then((balance): [string, Vault, Balance] => [
-                    vaultId,
-                    vault,
-                    balance,
-                  ])
-              )
-          )
+      const newVaults = await Promise.all(
+        vaultsToMonitor.map((vaultId) =>
+          cauldron
+            .vaults(vaultId)
+            .then((vault) =>
+              cauldron
+                .balances(vaultId)
+                .then((balance): [string, Vault, Balance] => [
+                  vaultId,
+                  vault,
+                  balance,
+                ])
+            )
         )
-      )
-        .filter(([, vault]) => vault.owner === address)
-        .forEach(([vaultId, vault, balance]) => {
-          vaults[vaultId] = vault;
-          vaultbalances[vaultId] = balance;
-        });
-      setVaults({ vaults, balances: vaultbalances });
+      );
+      const newVaultsObj: VaultsAndBalances = { vaults: {}, balances: {} };
+      for (const [vaultId, vault, balance] of newVaults) {
+        newVaultsObj.vaults[vaultId] = vault;
+        newVaultsObj.balances[vaultId] = balance;
+      }
+      if (useResult) setVaults(newVaultsObj);
     })();
-  }, [selectedAccount, vaultsToMonitor]);
+    return () => {
+      useResult = false;
+    };
+  }, [selectedAccount, signerAddress, vaultsToMonitor]);
 
   // Ethereum wallets inject the window.ethereum object. If it hasn't been
   // injected, we instruct the user to install MetaMask.
@@ -241,7 +248,7 @@ export const App: React.FunctionComponent = () => {
     );
   }
 
-  const vaultIds = Object.keys(vaults.vaults);
+  const vaultIds = Object.keys(vaults.balances);
   const elements = [
     <Invest
       label="Invest"
@@ -259,7 +266,7 @@ export const App: React.FunctionComponent = () => {
         balance={vaults.balances[vaultId]}
         vault={vaults.vaults[vaultId]}
         contracts={contracts}
-        // TODO: Use vault strategy
+        // TODO: Use vault strategy instead of currently selected strategy
         strategy={strategies[selectedStrategy]}
         account={selectedAccount}
       />

@@ -11,7 +11,8 @@ import {
   YIELD_ST_ETH_LEVER,
 } from "../contracts";
 import { Balance, Vault as VaultI } from "../objects/Vault";
-import Slippage, {
+import {
+  Slippage,
   removeSlippage,
   useSlippage,
 } from "./Slippage";
@@ -41,6 +42,10 @@ export const Vault = ({
   /** How much weth we'll obtain, at a minimum. Includes slippage. */
   const [finalWeth, setFinalWeth] = useState<BigNumber | undefined>();
   useEffect(() => {
+    if (balance.ink.eq(0)) {
+      setFinalWeth(BigNumber.from(0));
+      return;
+    }
     /**
      * Compute how much WEth the user has at the end of the operation.
      */

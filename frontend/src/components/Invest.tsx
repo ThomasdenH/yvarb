@@ -2,7 +2,7 @@ import { BigNumber, Signer, utils } from "ethers";
 import React, { MutableRefObject, useMemo, useState } from "react";
 import { Strategy } from "../App";
 import "./Invest.scss";
-import Slippage, { removeSlippage, useSlippage } from "./Slippage";
+import { Slippage, removeSlippage, useSlippage } from "./Slippage";
 import { ValueInput } from "./ValueInput";
 import ValueDisplay, { ValueType } from "./ValueDisplay";
 import { Balances, FY_WETH } from "../balances";
@@ -149,7 +149,10 @@ export const Invest = ({
     BigNumber | undefined
   >();
   useEffect(() => {
-    if (balanceInput.eq(0)) return;
+    if (balanceInput.eq(0)) {
+      setStEthCollateral(BigNumber.from(0));
+      return;
+    }
     let shouldUseResult = true;
     void computeStEthCollateral(
       balanceInput,
@@ -183,6 +186,7 @@ export const Invest = ({
   const [approvalState, setApprovalState] = useState<ApprovalState>(
     ApprovalState.Loading
   );
+  const [approvalStateInvalidator, setApprovalStateInvalidator] = useState(0);
   useEffect(() => {
     if (stEthCollateral === undefined) return; // Not loaded. The effect will automatically rerun once defined.
 
@@ -226,7 +230,15 @@ export const Invest = ({
     return () => {
       shouldUseResult = false;
     };
-  }, [account, strategy, toBorrow, totalToInvest, stEthCollateral, contracts]);
+  }, [
+    account,
+    strategy,
+    toBorrow,
+    totalToInvest,
+    stEthCollateral,
+    contracts,
+    approvalStateInvalidator,
+  ]);
 
   const approve = async () => {
     setApprovalState(ApprovalState.Approving);
@@ -239,6 +251,7 @@ export const Invest = ({
       gasPrice,
     });
     await tx.wait();
+    setApprovalStateInvalidator((v) => v + 1);
   };
 
   const transact = async () => {
@@ -270,6 +283,7 @@ export const Invest = ({
       console.log(invextTx);
       await invextTx.wait();
     }
+    setApprovalStateInvalidator((v) => v + 1);
   };
 
   let component;
@@ -281,6 +295,28 @@ export const Invest = ({
           className="button"
           type="button"
           value="Loading..."
+          disabled={true}
+        />
+      );
+      break;
+    case ApprovalState.Approving:
+      component = (
+        <input
+          key="loading"
+          className="button"
+          type="button"
+          value="Approving..."
+          disabled={true}
+        />
+      );
+      break;
+    case ApprovalState.Transacting:
+      component = (
+        <input
+          key="loading"
+          className="button"
+          type="button"
+          value="Investing..."
           disabled={true}
         />
       );
