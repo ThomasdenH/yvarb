@@ -30,7 +30,7 @@ import {
   loadBalance,
   WETH,
 } from "./balances";
-import { Signer, providers, BytesLike } from "ethers";
+import { providers, BytesLike } from "ethers";
 import { useEffect } from "react";
 import { useRef } from "react";
 import { MutableRefObject } from "react";
@@ -91,7 +91,6 @@ export const App: React.FunctionComponent = () => {
     const pollId = setInterval(() => setPulse((c) => c + 1), POLLING_INTERVAL);
     return () => clearInterval(pollId);
   });
-  console.log(pulse);
 
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyName>(
     StrategyName.WStEth

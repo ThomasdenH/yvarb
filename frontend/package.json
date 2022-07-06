@@ -53,5 +53,11 @@
     "prettier": "2.6.1",
     "typechain": "^8.1.0",
     "typescript": "^4.6.3"
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}",
+      "!src/contracts/**/*"
+    ]
   }
 }
