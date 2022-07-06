@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import "./Tabs.scss";
 
-interface TabsType {
+export interface TabsType {
   label: string;
   component: JSX.Element;
 }

@@ -4,7 +4,7 @@ import { Strategy } from "../App";
 import "./Invest.scss";
 import { Slippage, removeSlippage, useSlippage } from "./Slippage";
 import { ValueInput } from "./ValueInput";
-import ValueDisplay, { ValueType } from "./ValueDisplay";
+import { ValueDisplay, ValueType } from "./ValueDisplay";
 import { Balances, FY_WETH } from "../balances";
 import {
   CAULDRON,
@@ -25,7 +25,6 @@ interface Properties {
   /** Relevant token balances. */
   strategy: Strategy;
   account: Signer;
-  label: string;
   contracts: MutableRefObject<Contracts>;
   yearnApi?: number;
   balances: Balances;

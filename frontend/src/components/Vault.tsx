@@ -11,19 +11,14 @@ import {
   YIELD_ST_ETH_LEVER,
 } from "../contracts";
 import { Balance, Vault as VaultI } from "../objects/Vault";
-import {
-  Slippage,
-  removeSlippage,
-  useSlippage,
-} from "./Slippage";
-import ValueDisplay, { ValueType } from "./ValueDisplay";
+import { Slippage, removeSlippage, useSlippage } from "./Slippage";
+import { ValueDisplay, ValueType } from "./ValueDisplay";
 import "./Vault.scss";
 
 interface Properties {
   vaultId: string;
   balance: Balance;
   vault: VaultI;
-  label: string;
   contracts: MutableRefObject<Contracts>;
   strategy: Strategy;
   account: Signer;
@@ -37,6 +32,7 @@ export const Vault = ({
   vault,
   vaultId,
 }: Properties) => {
+  /** The slippage will be subtracted from the expected final weth balance. */
   const [slippage, setSlippage] = useSlippage();
 
   /** How much weth we'll obtain, at a minimum. Includes slippage. */
@@ -46,6 +42,7 @@ export const Vault = ({
       setFinalWeth(BigNumber.from(0));
       return;
     }
+    let useResult = true;
     /**
      * Compute how much WEth the user has at the end of the operation.
      */
@@ -83,33 +80,54 @@ export const Vault = ({
     setFinalWeth(undefined);
     void computeResultWeth()
       .then((val) => removeSlippage(val, slippage))
-      .then((val) => setFinalWeth(val));
+      .then((val) => {
+        if (useResult) setFinalWeth(val);
+      });
+    return () => {
+      useResult = false;
+    };
   }, [account, balance, contracts, strategy, vault.seriesId, slippage]);
 
   /** The current value of the debt. */
   const [currentDebt, setCurrentDebt] = useState<BigNumber | undefined>();
   useEffect(() => {
+    let useResult = true;
     const computeCurrentDebt = async (): Promise<BigNumber> => {
       const pool = await getPool(vault.seriesId, contracts, account);
       const art = await pool.sellFYTokenPreview(balance.art);
       return art;
     };
     setCurrentDebt(undefined);
-    void computeCurrentDebt().then((debt) => setCurrentDebt(debt));
+    void computeCurrentDebt().then((debt) => {
+      if (useResult) setCurrentDebt(debt);
+    });
+    return () => {
+      useResult = false;
+    };
   }, [balance.art, account, contracts, vault]);
 
-  const [unwindEnabled, setUnwindEnabled] = useState(false);
-  useEffect(() => {
-    setUnwindEnabled(finalWeth !== undefined);
-  }, [finalWeth]);
+  /** Disable unwinding when loading or when empty. */
+  const unwindEnabled = finalWeth !== undefined && !balance.ink.eq(0);
 
   const unwind = async () => {
-    if (finalWeth === undefined)
-      return; // Not yet ready for unwinding
+    if (finalWeth === undefined) return; // Not yet ready for unwinding
     if (strategy.lever === YIELD_ST_ETH_LEVER) {
       const lever = getContract(strategy.lever, contracts, account);
-      const gasLimit = await lever.estimateGas.unwind(balance.ink, balance.art, finalWeth, vaultId, vault.seriesId);
-      const tx = await lever.unwind(balance.ink, balance.art, finalWeth, vaultId, vault.seriesId, { gasLimit });
+      const gasLimit = await lever.estimateGas.unwind(
+        balance.ink,
+        balance.art,
+        finalWeth,
+        vaultId,
+        vault.seriesId
+      );
+      const tx = await lever.unwind(
+        balance.ink,
+        balance.art,
+        finalWeth,
+        vaultId,
+        vault.seriesId,
+        { gasLimit }
+      );
       await tx.wait();
     }
   };
@@ -161,99 +179,3 @@ export const Vault = ({
     </div>
   );
 };
-/*xport default class Vault extends React.Component<Properties, State> {
- 
-
-  render(): React.ReactNode {
-    
-  }
-  componentDidMount() {
-    void this.updateToBorrow();
-  }
-
-  private onSlippageChange(slippage: number) {
-    this.setState({ slippage, toBorrow: undefined });
-    void this.updateToBorrow();
-  }
-
-  private async updateToBorrow() {
-    this.setState({ toBorrow: await this.computeToBorrow() });
-  }
-   private async computeToBorrow(): Promise<BigNumber> {
-    const balance = await this.props.contracts.cauldronContract.balances(
-      this.props.vaultId
-    );
-    if (balance.art.eq(0)) return BigNumber.from(0);
-    try {
-      console.log(
-        `Expected FY:\t${utils.formatUnits(
-          await this.props.contracts.poolContracts[
-            this.props.vault.seriesId
-          ].buyFYTokenPreview(balance.art),
-          6
-        )} USDC`
-      );
-      return addSlippage(
-        await this.props.contracts.poolContracts[
-          this.props.vault.seriesId
-        ].buyFYTokenPreview(balance.art),
-        this.state.slippage
-      );
-    } catch (e) {
-      // Past maturity
-      console.log("Past maturity?");
-      console.log(e);
-      return BigNumber.from(0);
-    }
-  }
-  private async unwind() {
-    const [poolAddress, balances] = await Promise.all([
-      this.props.contracts.ladleContract.pools(this.props.vault.seriesId),
-      this.props.contracts.cauldronContract.balances(this.props.vaultId),
-    ]);
-    // Sanity check
-    if (
-      this.props.balance.art.eq(balances.art) &&
-      this.props.balance.ink.eq(balances.ink)
-    ) {
-      while (this.state.toBorrow === undefined) {
-        await this.updateToBorrow();
-      }
-      const maxFy = this.state.toBorrow;
-      console.log(`Base required:\t${utils.formatUnits(maxFy, 6)} USDC`);
-      console.log(
-        this.props.vaultId,
-        maxFy,
-        poolAddress,
-        balances.ink,
-        balances.art,
-        this.props.vault.seriesId
-      );
-      const gasLimit = (
-        await this.props.contracts.yieldLeverContract.estimateGas.unwind(
-          this.props.vaultId,
-          maxFy,
-          poolAddress,
-          balances.ink,
-          balances.art,
-          this.props.vault.seriesId
-        )
-      )
-        .mul(12)
-        .div(10)
-        .toNumber();
-      const tx = await this.props.contracts.yieldLeverContract.unwind(
-        this.props.vaultId,
-        maxFy,
-        poolAddress,
-        balances.ink,
-        balances.art,
-        this.props.vault.seriesId,
-        { gasLimit }
-      );
-      await tx.wait();
-
-      await tx.wait();
-      await Promise.all([this.props.pollData(), this.updateToBorrow()]);
-    }
-  }*/

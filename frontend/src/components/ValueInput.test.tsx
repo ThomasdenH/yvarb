@@ -26,11 +26,11 @@ describe('ValueInput', () => {
 
         fireEvent.change(element, { target: { value: '0.35000' }});
         // This value has been parsed: trailing zeros have been removed
-        expect(element.value).toEqual('0.35');
+        expect((element as HTMLInputElement).value).toEqual('0.35');
 
         // Focus: display real value
         element.focus();
-        expect(element.value).toEqual('0.35000');
+        expect((element as HTMLInputElement).value).toEqual('0.35000');
     });
 
     it('should display real value if not parsable', () => {
@@ -46,6 +46,6 @@ describe('ValueInput', () => {
         const notParsableValue = 'Not Parsable';
         fireEvent.change(element, { target: { value: notParsableValue }});
         // This value has been parsed: trailing zeros have been removed
-        expect(element.value).toEqual(notParsableValue);
+        expect((element as HTMLInputElement).value).toEqual(notParsableValue);
     });
 });

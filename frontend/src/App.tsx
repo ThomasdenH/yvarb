@@ -12,7 +12,7 @@ import {
   Balances as VaultBalances,
 } from "./objects/Vault";
 import { Vault as VaultComponent } from "./components/Vault";
-import { Tabs } from "./components/Tabs";
+import { Tabs, TabsType } from "./components/Tabs";
 import { ValueType } from "./components/ValueDisplay";
 import {
   CAULDRON,
@@ -190,7 +190,10 @@ export const App: React.FunctionComponent = () => {
   }, [pulse, selectedAccount, selectedStrategy]);
 
   // Load vaults
-  const [vaults, setVaults] = useState<VaultsAndBalances>({ vaults: {}, balances: {}});
+  const [vaults, setVaults] = useState<VaultsAndBalances>({
+    vaults: {},
+    balances: {},
+  });
   useEffect(() => {
     if (selectedAccount === undefined) return;
     let useResult = true;
@@ -249,29 +252,35 @@ export const App: React.FunctionComponent = () => {
   }
 
   const vaultIds = Object.keys(vaults.balances);
-  const elements = [
-    <Invest
-      label="Invest"
-      key="invest"
-      contracts={contracts}
-      account={selectedAccount}
-      strategy={strategies[selectedStrategy]}
-      balances={balances}
-    />,
-    ...vaultIds.map((vaultId) => (
-      <VaultComponent
-        key={vaultId}
-        label={"Vault: " + vaultId.substring(0, 8) + "..."}
-        vaultId={vaultId}
-        balance={vaults.balances[vaultId]}
-        vault={vaults.vaults[vaultId]}
-        contracts={contracts}
-        // TODO: Use vault strategy instead of currently selected strategy
-        strategy={strategies[selectedStrategy]}
-        account={selectedAccount}
-      />
-    )),
+  const elements: TabsType[] = [
+    {
+      component: (
+        <Invest
+          key="invest"
+          contracts={contracts}
+          account={selectedAccount}
+          strategy={strategies[selectedStrategy]}
+          balances={balances}
+        />
+      ),
+      label: "Invest",
+    },
+    ...vaultIds.map((vaultId) => ({
+      component: (
+        <VaultComponent
+          key={vaultId}
+          vaultId={vaultId}
+          balance={vaults.balances[vaultId]}
+          vault={vaults.vaults[vaultId]}
+          contracts={contracts}
+          // TODO: Use vault strategy instead of currently selected strategy
+          strategy={strategies[selectedStrategy]}
+          account={selectedAccount}
+        />
+      ),
+      label: `Vault: ${vaultId.substring(0, 8)}...`,
+    })),
   ];
 
-  return <Tabs>{elements}</Tabs>;
+  return <Tabs tabs={elements} />;
 };

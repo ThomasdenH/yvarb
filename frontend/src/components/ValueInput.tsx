@@ -1,4 +1,5 @@
 import { BigNumber, utils } from "ethers";
+import { formatUnits } from "ethers/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import "./ValueInput.scss";
 
@@ -26,11 +27,10 @@ const parseValue = (val: string, decimals: number): BigNumber | undefined => {
   }
 };
 
-// TODO: Use max
 export const ValueInput = ({
   defaultValue,
   decimals,
-  maxBigNumber,
+  max,
   onValueChange,
 }: Props) => {
   const defaultValueFormatted = format(defaultValue, decimals);
@@ -61,6 +61,8 @@ export const ValueInput = ({
 
   const [focus, setFocus] = useState(false);
 
+  const maxString = formatUnits(max, decimals);
+
   const displayValue =
     !focus && prettyValue !== undefined ? prettyValue : value;
   const valid = prettyValue !== undefined;
@@ -70,6 +72,7 @@ export const ValueInput = ({
       name="invest_amount"
       type="text"
       min="0"
+      max={maxString}
       value={displayValue}
       onChange={(el) => setValue(el.target.value)}
       onFocus={() => setFocus(true)}
