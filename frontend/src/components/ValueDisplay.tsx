@@ -16,7 +16,7 @@ export enum ValueType {
   WStEth
 }
 
-type Value =
+export type Value =
   | {
       valueType: ValueType.Usdc;
       value: BigNumber;
@@ -53,7 +53,7 @@ type Value =
       className?: string;
     };
 
-export default function ValueDisplay(value: Value): JSX.Element {
+export const ValueDisplay = (value: Value): JSX.Element => {
   let val;
   if (value.valueType === ValueType.Usdc) {
     val = formatNumber(value.value, 6, 2) + " USDC";

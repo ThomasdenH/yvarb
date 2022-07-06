@@ -30,7 +30,7 @@ const parseValue = (val: string, decimals: number): BigNumber | undefined => {
 export const ValueInput = ({
   defaultValue,
   decimals,
-  max,
+  maxBigNumber,
   onValueChange,
 }: Props) => {
   const defaultValueFormatted = format(defaultValue, decimals);
