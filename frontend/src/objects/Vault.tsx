@@ -1,8 +1,14 @@
-import { BigNumber, ethers, Signer } from "ethers";
+import { BigNumber, Signer, providers } from "ethers";
 import { MutableRefObject } from "react";
 import { CAULDRON, Contracts, getContract } from "../contracts";
-import { SeriesAddedEvent, VaultBuiltEvent } from "../contracts/Cauldron.sol/Cauldron";
+import {
+  SeriesAddedEvent,
+  SeriesAddedEventObject,
+  VaultBuiltEvent,
+  VaultGivenEvent,
+} from "../contracts/Cauldron.sol/Cauldron";
 import { TypedListener } from "../contracts/Cauldron.sol/common";
+import { VaultBuiltEventObject, VaultGivenEventObject } from "../contracts/YieldStEthLever.sol/Cauldron";
 
 export interface SeriesDefinition {
   poolAddress: string;
@@ -37,6 +43,8 @@ export interface VaultsAndBalances {
 const CAULDRON_CREATED_BLOCK_NUMBER = 0;
 const BLOCK_STEPS = 20_000_000;
 
+const SKIP_LOADING_FROM_CHAIN = true;
+
 /**
  * Look for vaults that have been created on or transferred to the address.
  */
@@ -44,55 +52,69 @@ export function loadVaultsAndStartListening(
   contracts: MutableRefObject<Contracts>,
   address: string,
   signer: Signer,
-  vaultDiscovered: TypedListener<VaultBuiltEvent>,
-  seriesDiscovered: TypedListener<SeriesAddedEvent>
+  provider: providers.Provider,
+  vaultDiscovered: (event: VaultBuiltEventObject | VaultGivenEventObject) => void
 ): () => void {
   const cauldron = getContract(CAULDRON, contracts, signer);
-  const vaultsBuiltFilter = cauldron.filters.VaultBuilt(
-    null,
-    address,
-    null
-  );
-  const vaultsReceivedFilter = cauldron.filters.VaultGiven(
-    null,
-    address
-  );
-  const seriesAddedFilter = cauldron.filters.SeriesAdded(null, null, null);
+  const vaultsBuiltFilter = cauldron.filters.VaultBuilt(null, address, null);
+  const vaultsReceivedFilter = cauldron.filters.VaultGiven(null, address);
 
-  /*const currentBlock: number = await provider.getBlockNumber();
-  let end = currentBlock;
-  while (end > CAULDRON_CREATED_BLOCK_NUMBER) {
-    const start = Math.max(end - BLOCK_STEPS, CAULDRON_CREATED_BLOCK_NUMBER);
-    const [vaultsBuilt, vaultsReceived] = await Promise.all([
-      cauldron.queryFilter(vaultsBuiltFilter, start, end),
-      cauldron.queryFilter(vaultsReceivedFilter, start, end),
-    ]);
-    const series = await cauldron.queryFilter(
-      seriesAddedFilter,
-      start,
-      end
-    );
-    for (const vault of vaultsBuilt)
-      vaultDiscovered(vault.args[0]);
-    for (const vault of vaultsReceived)
-      vaultDiscovered(vault.args[0]);
-      for (const serie of series)
-      seriesDiscovered(serie.args[0]);
-    console.log(start);
-    end = start;
-  }*/
+  const listener1: TypedListener<VaultBuiltEvent> = (a, b, c, d, e) => vaultDiscovered(e.args);
+  const listener2: TypedListener<VaultGivenEvent> = (a, b, c) => vaultDiscovered(c.args);
+  cauldron.on(vaultsBuiltFilter, listener1);
+  cauldron.on(vaultsReceivedFilter, listener2);
 
-  cauldron.on(vaultsBuiltFilter, vaultDiscovered);
-  cauldron.on(vaultsReceivedFilter, vaultDiscovered);
-  cauldron.on(seriesAddedFilter, seriesDiscovered);
+  let keepLoading = true;
+  void (async () => {
+    const currentBlock: number = await provider.getBlockNumber();
+    let end = currentBlock;
+    while (end > CAULDRON_CREATED_BLOCK_NUMBER && keepLoading && !SKIP_LOADING_FROM_CHAIN) {
+      const start = Math.max(end - BLOCK_STEPS, CAULDRON_CREATED_BLOCK_NUMBER);
+      const [vaultsBuilt, vaultsReceived] = await Promise.all([
+        cauldron.queryFilter(vaultsBuiltFilter, start, end),
+        cauldron.queryFilter(vaultsReceivedFilter, start, end),
+      ]);
+      for (const vault of vaultsBuilt)
+        vaultDiscovered(vault.args);
+      for (const vault of vaultsReceived)
+        vaultDiscovered(vault.args);
+      end = start;
+    }
+  })();
 
   // Return the destructor
   return () => {
-    cauldron.removeListener(vaultsBuiltFilter, vaultDiscovered);
-    cauldron.removeListener(vaultsReceivedFilter, vaultDiscovered);
-    cauldron.removeListener(seriesAddedFilter, seriesDiscovered);
+    keepLoading = false;
+    cauldron.removeListener(vaultsBuiltFilter, listener1);
+    cauldron.removeListener(vaultsReceivedFilter, listener2);
   };
 }
+
+/**
+ * Load series and start listening for new series.
+ */
+export const loadSeriesAndStartListening = (
+  contracts: MutableRefObject<Contracts>,
+  signer: Signer,
+  seriesDiscovered: (event: SeriesAddedEventObject) => void
+) => {
+  if (SKIP_LOADING_FROM_CHAIN) {
+    seriesDiscovered({
+      baseId: "0x303000000000",
+      fyToken: "0x53358d088d835399F1E97D2a01d79fC925c7D999",
+      seriesId: "0x303030370000"
+    });
+  } else {
+    // TODO: Load series historically
+  }
+  const cauldron = getContract(CAULDRON, contracts, signer);
+  const seriesAddedFilter = cauldron.filters.SeriesAdded(null, null, null);
+  const listener: TypedListener<SeriesAddedEvent> = (a, b, c, d) => seriesDiscovered(d.args);
+  cauldron.on(seriesAddedFilter, listener);
+  return () => {
+    cauldron.removeListener(seriesAddedFilter, listener);
+  };
+};
 
 export function emptyVaults(): VaultsAndBalances {
   return {

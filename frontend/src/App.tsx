@@ -10,6 +10,7 @@ import {
   Vaults,
   VaultsAndBalances,
   Balances as VaultBalances,
+  loadSeriesAndStartListening,
 } from "./objects/Vault";
 import { Vault as VaultComponent } from "./components/Vault";
 import { Tabs, TabsType } from "./components/Tabs";
@@ -34,6 +35,11 @@ import { providers, BytesLike } from "ethers";
 import { useEffect } from "react";
 import { useRef } from "react";
 import { MutableRefObject } from "react";
+import {
+  SeriesAddedEventObject,
+  VaultBuiltEventObject,
+  VaultGivenEventObject,
+} from "./contracts/Cauldron.sol/Cauldron";
 
 const POLLING_INTERVAL = 5_000;
 
@@ -103,20 +109,39 @@ export const App: React.FunctionComponent = () => {
   const [vaultsToMonitor, setVaultsToMonitor] = useState<string[]>([]);
   // Listen to vault and series updates. This only loads the ids.
   useEffect(() => {
-    if (signerAddress !== undefined && selectedAccount !== undefined)
+    if (
+      signerAddress !== undefined &&
+      selectedAccount !== undefined &&
+      provider !== undefined
+    )
       return loadVaultsAndStartListening(
         contracts,
         signerAddress,
         selectedAccount,
-        (vaultId) => {
-          console.log(vaultId);
-          setVaultsToMonitor([...vaultsToMonitor, vaultId]);
-        },
-        (a) => {
-          console.log(a);
+        provider,
+        (event: VaultBuiltEventObject | VaultGivenEventObject) => {
+          console.log(event.vaultId);
+          setVaultsToMonitor([...vaultsToMonitor, event.vaultId]);
         }
       );
   });
+
+  /** Load the series. */
+  const [series, setSeries] = useState<SeriesAddedEventObject[]>([]);
+  useEffect(() => {
+    if (selectedAccount !== undefined)
+      return loadSeriesAndStartListening(
+        contracts,
+        selectedAccount,
+        (newSeries: SeriesAddedEventObject) => {
+          console.log(newSeries);
+          setSeries([...series, newSeries]);
+        }
+      );
+  });
+
+  // TODO: This will probably reset the selected series once more series get loaded
+  const [selectedSeries, setSelectedSeries] = useState(series.length === 0 ? undefined : series[0].seriesId);
 
   const [networkError, setNetworkError] = useState<string>();
 
