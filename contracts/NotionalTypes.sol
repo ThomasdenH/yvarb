@@ -74,25 +74,55 @@ function encodeLendTrade(
         bytes32(
             uint256(
                 (uint8(TradeActionType.Lend) << 248) |
-                (marketIndex << 240) |
-                (fCashAmount << 152) |
-                (minLendRate << 120)
+                    (marketIndex << 240) |
+                    (fCashAmount << 152) |
+                    (minLendRate << 120)
             )
         );
 }
 
-function encodeBorrowTrade(
-    uint8 marketIndex,
-    uint88 fCashAmount,
-    uint32 maxBorrowRate // Set this to zero to allow any borrow rate
-) pure returns (bytes32) {
-    return
-        bytes32(
-            uint256(
-                (uint8(TradeActionType.Borrow) << 248) |
-                (marketIndex << 240) |
-                (fCashAmount << 152) |
-                (maxBorrowRate << 120)
-            )
+interface Notional {
+    function getfCashLendFromDeposit(
+        uint16 currencyId,
+        uint256 depositAmountExternal,
+        uint256 maturity,
+        uint32 minLendRate,
+        uint256 blockTime,
+        bool useUnderlying
+    )
+        external
+        view
+        returns (
+            uint88 fCashAmount,
+            uint8 marketIndex,
+            bytes32 encodedTrade
+        );
+
+    function batchBalanceAndTradeAction(
+        address account,
+        BalanceActionWithTrades[] calldata actions
+    ) external payable;
+
+    function balanceOf(address account, uint256 id)
+        external
+        view
+        returns (uint256);
+
+    function setApprovalForAll(address operator, bool approved) external;
+
+    function getPrincipalFromfCashBorrow(
+        uint16 currencyId,
+        uint256 fCashBorrow,
+        uint256 maturity,
+        uint32 maxBorrowRate,
+        uint256 blockTime
+    )
+        external
+        view
+        returns (
+            uint256 borrowAmountUnderlying,
+            uint256 borrowAmountAsset,
+            uint8 marketIndex,
+            bytes32 encodedTrade
         );
 }
