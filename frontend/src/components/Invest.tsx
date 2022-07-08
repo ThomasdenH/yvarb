@@ -18,8 +18,7 @@ import {
 import { useEffect } from "react";
 import { IOracle__factory } from "../contracts/IOracle.sol";
 import { zeroPad } from "ethers/lib/utils";
-
-const SERIES_ID = "0x303030370000";
+import { SeriesAddedEventObject } from "../contracts/Cauldron.sol/Cauldron";
 
 interface Properties {
   /** Relevant token balances. */
@@ -27,6 +26,8 @@ interface Properties {
   account: Signer;
   contracts: MutableRefObject<Contracts>;
   balances: Balances;
+  /** The series that are valid for the selected strategy. */
+  series: SeriesAddedEventObject[];
 }
 
 enum ApprovalState {
@@ -57,14 +58,15 @@ const computeStEthCollateral = async (
   baseAmount: BigNumber,
   toBorrow: BigNumber,
   contracts: MutableRefObject<Contracts>,
-  account: Signer
+  account: Signer,
+  seriesId: string
 ): Promise<BigNumber> => {
   // - netInvestAmount = baseAmount + borrowAmount - fee
   const fyWeth = getContract(FY_WETH, contracts, account);
   const fee = await fyWeth.flashFee(fyWeth.address, toBorrow);
   const netInvestAmount = baseAmount.add(toBorrow).sub(fee);
   // - sellFyWeth: FyWEth -> WEth
-  const pool = await getPool(SERIES_ID, contracts, account);
+  const pool = await getPool(seriesId, contracts, account);
   const obtainedWEth = await pool.sellFYTokenPreview(netInvestAmount);
   // - stableSwap exchange: WEth -> StEth
   const stableswap = getContract(WETH_ST_ETH_STABLESWAP, contracts, account);
@@ -125,10 +127,18 @@ export const Invest = ({
   contracts,
   strategy,
   account,
+  series,
 }: Readonly<Properties>) => {
   const [slippage, setSlippage] = useSlippage();
   const [leverage, setLeverage] = useState(DEFAULT_LEVERAGE);
   const [balanceInput, setBalanceInput] = useState(BigNumber.from(0));
+
+  /** The currently selected series id. */
+  const [seriesId, setSeriesId] = useState<string>();
+  useEffect(
+    () => setSeriesId(series.length === 0 ? undefined : series[0].seriesId),
+    [series]
+  );
 
   // Use `useMemo` here because every BigNumber will be different while having
   // the same value. That means that effects will be triggered continuously.
@@ -146,6 +156,10 @@ export const Invest = ({
     BigNumber | undefined
   >();
   useEffect(() => {
+    if (seriesId === undefined) {
+      setStEthCollateral(undefined);
+      return;
+    }
     if (balanceInput.eq(0)) {
       setStEthCollateral(BigNumber.from(0));
       return;
@@ -155,14 +169,15 @@ export const Invest = ({
       balanceInput,
       toBorrow,
       contracts,
-      account
+      account,
+      seriesId
     ).then((v) => {
       if (shouldUseResult) setStEthCollateral(v);
     });
     return () => {
       shouldUseResult = false;
     };
-  }, [account, balanceInput, contracts, toBorrow]);
+  }, [account, balanceInput, contracts, toBorrow, seriesId]);
 
   /**
    * The minimum collateral that must be obtained when invested. The result of
@@ -252,7 +267,7 @@ export const Invest = ({
   };
 
   const transact = async () => {
-    if (stEthMinCollateral === undefined) return; // Not yet loaded!
+    if (stEthMinCollateral === undefined || seriesId === undefined) return; // Not yet loaded!
     setApprovalState(ApprovalState.Transacting);
     if (strategy.lever === YIELD_ST_ETH_LEVER) {
       const lever = getContract(strategy.lever, contracts, account);
@@ -260,21 +275,21 @@ export const Invest = ({
         balanceInput.toString(),
         toBorrow.toString(),
         stEthMinCollateral.toString(),
-        SERIES_ID
+        seriesId
       );
       const gasLimit = (
         await lever.estimateGas.invest(
           balanceInput,
           toBorrow,
           stEthMinCollateral,
-          SERIES_ID
+          seriesId
         )
       ).mul(2);
       const invextTx = await lever.invest(
         balanceInput,
         toBorrow,
         stEthMinCollateral,
-        SERIES_ID,
+        seriesId,
         { gasLimit, gasPrice }
       );
       console.log(invextTx);
@@ -386,10 +401,21 @@ export const Invest = ({
 
   const investTokenBalance = balances[strategy.investToken[0]];
   if (investTokenBalance === undefined) return Loading();
-
+  console.log(series);
   return (
     <div className="invest">
       {balancesAndDebtElements}
+      <select
+        name="series"
+        value={seriesId}
+        onChange={(e) => setSeriesId(e.target.value)}
+      >
+        {series.map((series) => (
+          <option key={series.seriesId} value={series.seriesId}>
+            {series.seriesId}
+          </option>
+        ))}
+      </select>
       <label htmlFor="invest_amount">Amount to invest:</label>
       <ValueInput
         max={investTokenBalance}
@@ -398,7 +424,7 @@ export const Invest = ({
         decimals={18}
       />
       <label htmlFor="leverage">
-        Leverage: ({utils.formatUnits(leverage, 2)}×)
+        Leverage: ({utils.formatUnits(leverage, 2)})
       </label>
       <input
         className="leverage"

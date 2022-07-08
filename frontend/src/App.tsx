@@ -1,15 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useReducer, useState } from "react";
 import "./App.css";
 import { ConnectWallet } from "./components/ConnectWallet";
 import { Invest } from "./components/Invest";
 import {
   Balance,
-  emptyVaults,
   loadVaultsAndStartListening,
   Vault,
-  Vaults,
   VaultsAndBalances,
-  Balances as VaultBalances,
   loadSeriesAndStartListening,
 } from "./objects/Vault";
 import { Vault as VaultComponent } from "./components/Vault";
@@ -40,6 +37,7 @@ import {
   VaultBuiltEventObject,
   VaultGivenEventObject,
 } from "./contracts/Cauldron.sol/Cauldron";
+import { useAddableList } from "./hooks";
 
 const POLLING_INTERVAL = 5_000;
 
@@ -102,47 +100,6 @@ export const App: React.FunctionComponent = () => {
     StrategyName.WStEth
   );
 
-  /**
-   * These are the ids to monitor. They are obtained through events but might
-   * not belong to the user anymore, or maybe not exist.
-   */
-  const [vaultsToMonitor, setVaultsToMonitor] = useState<string[]>([]);
-  // Listen to vault and series updates. This only loads the ids.
-  useEffect(() => {
-    if (
-      signerAddress !== undefined &&
-      selectedAccount !== undefined &&
-      provider !== undefined
-    )
-      return loadVaultsAndStartListening(
-        contracts,
-        signerAddress,
-        selectedAccount,
-        provider,
-        (event: VaultBuiltEventObject | VaultGivenEventObject) => {
-          console.log(event.vaultId);
-          setVaultsToMonitor([...vaultsToMonitor, event.vaultId]);
-        }
-      );
-  });
-
-  /** Load the series. */
-  const [series, setSeries] = useState<SeriesAddedEventObject[]>([]);
-  useEffect(() => {
-    if (selectedAccount !== undefined)
-      return loadSeriesAndStartListening(
-        contracts,
-        selectedAccount,
-        (newSeries: SeriesAddedEventObject) => {
-          console.log(newSeries);
-          setSeries([...series, newSeries]);
-        }
-      );
-  });
-
-  // TODO: This will probably reset the selected series once more series get loaded
-  const [selectedSeries, setSelectedSeries] = useState(series.length === 0 ? undefined : series[0].seriesId);
-
   const [networkError, setNetworkError] = useState<string>();
 
   const contracts: MutableRefObject<Contracts> = useRef({});
@@ -189,6 +146,45 @@ export const App: React.FunctionComponent = () => {
         : provider.getSigner(signerAddress),
     [signerAddress, provider]
   );
+
+  /** Load the series. */
+  const [series, addSeries] = useAddableList<SeriesAddedEventObject>(
+    (a, b) => a.seriesId === b.seriesId
+  );
+  useEffect(() => {
+    if (selectedAccount !== undefined)
+      return loadSeriesAndStartListening(
+        contracts,
+        selectedAccount,
+        (newSeries: SeriesAddedEventObject) => {
+          addSeries(newSeries);
+        }
+      );
+  }, [addSeries, selectedAccount]);
+
+  /**
+   * These are the ids to monitor. They are obtained through events but might
+   * not belong to the user anymore, or maybe not exist.
+   */
+  const [vaultsToMonitor, addVaultToMonitor] = useAddableList<string>();
+  // Listen to vault and series updates. This only loads the ids.
+  useEffect(() => {
+    if (
+      signerAddress !== undefined &&
+      selectedAccount !== undefined &&
+      provider !== undefined
+    )
+      return loadVaultsAndStartListening(
+        contracts,
+        signerAddress,
+        selectedAccount,
+        provider,
+        (event: VaultBuiltEventObject | VaultGivenEventObject) => {
+          console.log(event.vaultId);
+          addVaultToMonitor(event.vaultId);
+        }
+      );
+  }, [provider, selectedAccount, signerAddress, addVaultToMonitor]);
 
   const [balances, setBalances] = useState<AddressBalances>({});
   useEffect(() => {
@@ -276,15 +272,20 @@ export const App: React.FunctionComponent = () => {
   }
 
   const vaultIds = Object.keys(vaults.balances);
+  const strategy = strategies[selectedStrategy];
+  console.log(series, strategy.baseId);
+  const seriesForThisStrategy = series.filter(
+    (s) => s.baseId === strategy.baseId
+  );
   const elements: TabsType[] = [
     {
       component: (
         <Invest
-          key="invest"
           contracts={contracts}
           account={selectedAccount}
           strategy={strategies[selectedStrategy]}
           balances={balances}
+          series={seriesForThisStrategy}
         />
       ),
       label: "Invest",
@@ -292,7 +293,6 @@ export const App: React.FunctionComponent = () => {
     ...vaultIds.map((vaultId) => ({
       component: (
         <VaultComponent
-          key={vaultId}
           vaultId={vaultId}
           balance={vaults.balances[vaultId]}
           vault={vaults.vaults[vaultId]}

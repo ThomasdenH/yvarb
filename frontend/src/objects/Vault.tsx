@@ -115,10 +115,3 @@ export const loadSeriesAndStartListening = (
     cauldron.removeListener(seriesAddedFilter, listener);
   };
 };
-
-export function emptyVaults(): VaultsAndBalances {
-  return {
-    vaults: Object.create(null) as Vaults,
-    balances: Object.create(null) as Balances,
-  };
-}
