@@ -18,7 +18,6 @@ import {
   Contracts,
   FyTokenAddress,
   FY_WETH,
-  FY_WETH_WETH_POOL,
   getContract,
   WETH,
   YIELD_ST_ETH_LEVER,
@@ -41,6 +40,12 @@ import { useAddableList } from "./hooks";
 
 const POLLING_INTERVAL = 5_000;
 
+/**
+ * A strategy represents one particular lever to use, although it can contain
+ * multiple series with different maturities.
+ */
+// TODO: Find the best format to be applicable for any strategy while avoiding
+//  code duplication.
 export interface Strategy {
   tokenAddresses: [IERC20Address, ValueType][];
   debtTokens: [FyTokenAddress, ValueType][];
@@ -48,7 +53,6 @@ export interface Strategy {
   lever: ContractAddress;
   ilkId: BytesLike;
   baseId: BytesLike;
-  pool: ContractAddress;
 }
 
 enum StrategyName {
@@ -63,8 +67,7 @@ const strategies: { [strat in StrategyName]: Strategy } = {
     investToken: [FY_WETH, ValueType.FyWeth],
     lever: YIELD_ST_ETH_LEVER,
     ilkId: "0x303400000000",
-    baseId: "0x303000000000",
-    pool: FY_WETH_WETH_POOL,
+    baseId: "0x303000000000"
   },
 };
 
@@ -96,9 +99,10 @@ export const App: React.FunctionComponent = () => {
     return () => clearInterval(pollId);
   });
 
-  const [selectedStrategy, setSelectedStrategy] = useState<StrategyName>(
-    StrategyName.WStEth
-  );
+  /**
+   * The currently selected strategy. Static, for the time being.
+   */
+  const selectedStrategy = StrategyName.WStEth;
 
   const [networkError, setNetworkError] = useState<string>();
 
@@ -111,10 +115,13 @@ export const App: React.FunctionComponent = () => {
   const [chainId, setChainId] = useState<string | undefined>();
   useEthereumListener("chainChanged", setChainId);
 
-  const [signerAddress, setSignerAddress] = useState<string>();
+  /**
+   * The currently connected address.
+   */
+  const [address, setAddress] = useState<string>();
   useEffect(() => {
     if (provider === undefined) {
-      setSignerAddress(undefined);
+      setAddress(undefined);
       return;
     }
     // To connect to the user's wallet, we have to run this method.
@@ -123,7 +130,7 @@ export const App: React.FunctionComponent = () => {
       .send("eth_requestAccounts", [])
       // Use the first address
       .then(([selectedAddress]: string[]) => {
-        setSignerAddress(selectedAddress);
+        setAddress(selectedAddress);
       });
   }, [provider, chainId]);
 
@@ -134,17 +141,17 @@ export const App: React.FunctionComponent = () => {
     // list of sites allowed access to your addresses" (Metamask > Settings > Connections)
     // To avoid errors, we reset the dapp state
     if (provider === undefined || account === undefined) {
-      setSignerAddress(undefined);
+      setAddress(undefined);
     } else {
-      setSignerAddress(account);
+      setAddress(account);
     }
   });
-  const selectedAccount = useMemo(
+  const signer = useMemo(
     () =>
-      provider === undefined || signerAddress === undefined
+      provider === undefined || address === undefined
         ? undefined
-        : provider.getSigner(signerAddress),
-    [signerAddress, provider]
+        : provider.getSigner(address),
+    [address, provider]
   );
 
   /** Load the series. */
@@ -152,15 +159,15 @@ export const App: React.FunctionComponent = () => {
     (a, b) => a.seriesId === b.seriesId
   );
   useEffect(() => {
-    if (selectedAccount !== undefined)
+    if (signer !== undefined)
       return loadSeriesAndStartListening(
         contracts,
-        selectedAccount,
+        signer,
         (newSeries: SeriesAddedEventObject) => {
           addSeries(newSeries);
         }
       );
-  }, [addSeries, selectedAccount]);
+  }, [addSeries, signer]);
 
   /**
    * These are the ids to monitor. They are obtained through events but might
@@ -170,24 +177,28 @@ export const App: React.FunctionComponent = () => {
   // Listen to vault and series updates. This only loads the ids.
   useEffect(() => {
     if (
-      signerAddress !== undefined &&
-      selectedAccount !== undefined &&
+      address !== undefined &&
+      signer !== undefined &&
       provider !== undefined
     )
       return loadVaultsAndStartListening(
         contracts,
-        signerAddress,
-        selectedAccount,
+        address,
+        signer,
         provider,
         (event: VaultBuiltEventObject | VaultGivenEventObject) => {
           addVaultToMonitor(event.vaultId);
         }
       );
-  }, [provider, selectedAccount, signerAddress, addVaultToMonitor]);
+  }, [provider, signer, address, addVaultToMonitor]);
 
+  /**
+   * Balances for the different tokens in the app. Could easily be loaded
+   * dependent on the strategy if necessary for performance.
+   */
   const [balances, setBalances] = useState<AddressBalances>({});
   useEffect(() => {
-    if (selectedAccount === undefined) return;
+    if (signer === undefined) return;
     let useResult = true;
     void (async () => {
       const strategy = strategies[selectedStrategy];
@@ -199,14 +210,14 @@ export const App: React.FunctionComponent = () => {
         balances[address] = await loadBalance(
           address,
           contracts,
-          selectedAccount
+          signer
         );
       if (useResult) setBalances(balances);
     })();
     return () => {
       useResult = false;
     };
-  }, [pulse, selectedAccount, selectedStrategy]);
+  }, [pulse, signer, selectedStrategy]);
 
   // Load vaults
   const [vaults, setVaults] = useState<VaultsAndBalances>({
@@ -214,10 +225,10 @@ export const App: React.FunctionComponent = () => {
     balances: {},
   });
   useEffect(() => {
-    if (selectedAccount === undefined) return;
+    if (signer === undefined) return;
     let useResult = true;
     void (async () => {
-      const cauldron = getContract(CAULDRON, contracts, selectedAccount);
+      const cauldron = getContract(CAULDRON, contracts, signer);
       const newVaults = await Promise.all(
         vaultsToMonitor.map((vaultId) =>
           cauldron
@@ -243,7 +254,7 @@ export const App: React.FunctionComponent = () => {
     return () => {
       useResult = false;
     };
-  }, [selectedAccount, signerAddress, vaultsToMonitor]);
+  }, [signer, address, vaultsToMonitor]);
 
   // Ethereum wallets inject the window.ethereum object. If it hasn't been
   // injected, we instruct the user to install MetaMask.
@@ -258,7 +269,7 @@ export const App: React.FunctionComponent = () => {
   //
   // Note that we pass it a callback that is going to be called when the user
   // clicks a button. This callback just calls the _connectWallet method.
-  if (selectedAccount === undefined) {
+  if (signer === undefined) {
     return (
       <ConnectWallet
         connectWallet={() =>
@@ -280,7 +291,7 @@ export const App: React.FunctionComponent = () => {
       component: (
         <Invest
           contracts={contracts}
-          account={selectedAccount}
+          account={signer}
           strategy={strategies[selectedStrategy]}
           balances={balances}
           series={seriesForThisStrategy}
@@ -297,7 +308,7 @@ export const App: React.FunctionComponent = () => {
           contracts={contracts}
           // TODO: Use vault strategy instead of currently selected strategy
           strategy={strategies[selectedStrategy]}
-          account={selectedAccount}
+          account={signer}
         />
       ),
       label: `Vault: ${vaultId.substring(0, 8)}...`,
