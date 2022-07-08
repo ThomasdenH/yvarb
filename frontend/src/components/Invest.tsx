@@ -115,11 +115,6 @@ const vaultLevel = async (
       ink
     )
   ).value;
-  console.log(
-    inkValue.toString(),
-    art.toString(),
-    art.mul(ratio).div(BigNumber.from(10).pow(18)).toString()
-  );
   return inkValue.sub(art.mul(ratio).div(BigNumber.from(10).pow(18)));
 };
 
@@ -258,6 +253,9 @@ export const Invest = ({
             seriesId
           );
         } catch (e) {
+          // Checking isn't perfect, so try to parse the failure reason
+          if ((e as { error: { data: { message: string}}}).error.data.message.endsWith('Undercollateralized'))
+            return ApprovalState.Undercollateralized;
           return ApprovalState.UnknownError;
         }
       }
