@@ -1,4 +1,4 @@
-import React, { useMemo, useReducer, useState } from "react";
+import React, { useMemo, useState } from "react";
 import "./App.css";
 import { ConnectWallet } from "./components/ConnectWallet";
 import { Invest } from "./components/Invest";
@@ -17,16 +17,16 @@ import {
   ContractAddress,
   Contracts,
   FyTokenAddress,
+  FY_WETH,
   FY_WETH_WETH_POOL,
   getContract,
+  WETH,
   YIELD_ST_ETH_LEVER,
 } from "./contracts";
 import {
   Balances as AddressBalances,
-  FY_WETH,
   IERC20Address,
   loadBalance,
-  WETH,
 } from "./balances";
 import { providers, BytesLike } from "ethers";
 import { useEffect } from "react";
@@ -180,7 +180,6 @@ export const App: React.FunctionComponent = () => {
         selectedAccount,
         provider,
         (event: VaultBuiltEventObject | VaultGivenEventObject) => {
-          console.log(event.vaultId);
           addVaultToMonitor(event.vaultId);
         }
       );
@@ -273,7 +272,6 @@ export const App: React.FunctionComponent = () => {
 
   const vaultIds = Object.keys(vaults.balances);
   const strategy = strategies[selectedStrategy];
-  console.log(series, strategy.baseId);
   const seriesForThisStrategy = series.filter(
     (s) => s.baseId === strategy.baseId
   );

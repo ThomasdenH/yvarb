@@ -56,7 +56,7 @@ type ContractFactories = Readonly<{
 }>;
 
 export type ContractAddress = keyof DefinitelyContracts;
-export type FyTokenAddress = "0x53358d088d835399F1E97D2a01d79fC925c7D999"; 
+export type FyTokenAddress = typeof FY_WETH; 
 
 const contractFactories: ContractFactories = {
   [CAULDRON]: Cauldron__factory,

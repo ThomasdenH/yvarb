@@ -5,10 +5,11 @@ import "./Invest.scss";
 import { Slippage, removeSlippage, useSlippage } from "./Slippage";
 import { ValueInput } from "./ValueInput";
 import { ValueDisplay, ValueType } from "./ValueDisplay";
-import { Balances, FY_WETH } from "../balances";
+import { Balances } from "../balances";
 import {
   CAULDRON,
   Contracts,
+  FY_WETH,
   getContract,
   getPool,
   WETH_ST_ETH_STABLESWAP,
@@ -35,6 +36,8 @@ enum ApprovalState {
   ApprovalRequired,
   Transactable,
   DebtTooLow,
+  NotEnoughFunds,
+  UnknownError,
   Undercollateralized,
   Approving,
   Transacting,
@@ -200,7 +203,13 @@ export const Invest = ({
   );
   const [approvalStateInvalidator, setApprovalStateInvalidator] = useState(0);
   useEffect(() => {
-    if (stEthCollateral === undefined) return; // Not loaded. The effect will automatically rerun once defined.
+    const balance = balances[FY_WETH];
+    if (
+      stEthCollateral === undefined ||
+      seriesId === undefined ||
+      balance === undefined
+    )
+      return; // Not loaded. The effect will automatically rerun once defined.
 
     // If this effect was superceded, this will be false and the state won't be
     // updated by this instance.
@@ -227,6 +236,9 @@ export const Invest = ({
       );
       if (level.lt(0)) return ApprovalState.Undercollateralized;
 
+      // Check balance
+      if (balanceInput.lt(balance)) return ApprovalState.NotEnoughFunds;
+
       // Now check for approval
       const token = getContract(strategy.investToken[0], contracts, account);
       const approval = await token.allowance(
@@ -234,6 +246,21 @@ export const Invest = ({
         strategy.lever
       );
       if (approval.lt(totalToInvest)) return ApprovalState.ApprovalRequired;
+
+      // Finally, use callStatic to assert that the transaction will work
+      if (strategy.lever === YIELD_ST_ETH_LEVER) {
+        const lever = getContract(strategy.lever, contracts, account);
+        try {
+          await lever.callStatic.invest(
+            balanceInput,
+            toBorrow,
+            BigNumber.from(0),
+            seriesId
+          );
+        } catch (e) {
+          return ApprovalState.UnknownError;
+        }
+      }
       return ApprovalState.Transactable;
     };
     void checkApprovalState().then((ap) => {
@@ -250,6 +277,9 @@ export const Invest = ({
     stEthCollateral,
     contracts,
     approvalStateInvalidator,
+    balanceInput,
+    seriesId,
+    balances,
   ]);
 
   const approve = async () => {
@@ -292,7 +322,6 @@ export const Invest = ({
         seriesId,
         { gasLimit, gasPrice }
       );
-      console.log(invextTx);
       await invextTx.wait();
     }
     setApprovalStateInvalidator((v) => v + 1);
@@ -366,6 +395,28 @@ export const Invest = ({
         />
       );
       break;
+    case ApprovalState.UnknownError:
+      component = (
+        <input
+          key="debttoolow"
+          className="button"
+          type="button"
+          value="Unknown error!"
+          disabled={true}
+        />
+      );
+      break;
+    case ApprovalState.NotEnoughFunds:
+      component = (
+        <input
+          key="debttoolow"
+          className="button"
+          type="button"
+          value="Not enough funds!"
+          disabled={true}
+        />
+      );
+      break;
     case ApprovalState.Undercollateralized:
       component = (
         <input
@@ -401,7 +452,6 @@ export const Invest = ({
 
   const investTokenBalance = balances[strategy.investToken[0]];
   if (investTokenBalance === undefined) return Loading();
-  console.log(series);
   return (
     <div className="invest">
       {balancesAndDebtElements}

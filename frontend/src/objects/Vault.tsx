@@ -1,6 +1,6 @@
 import { BigNumber, Signer, providers } from "ethers";
 import { MutableRefObject } from "react";
-import { CAULDRON, Contracts, getContract } from "../contracts";
+import { CAULDRON, Contracts, FY_WETH, getContract } from "../contracts";
 import {
   SeriesAddedEvent,
   SeriesAddedEventObject,
@@ -101,7 +101,7 @@ export const loadSeriesAndStartListening = (
   if (SKIP_LOADING_FROM_CHAIN) {
     seriesDiscovered({
       baseId: "0x303000000000",
-      fyToken: "0x53358d088d835399F1E97D2a01d79fC925c7D999",
+      fyToken: FY_WETH,
       seriesId: "0x303030370000"
     });
   } else {
