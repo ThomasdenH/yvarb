@@ -16,8 +16,6 @@ import {
   CAULDRON,
   ContractAddress,
   Contracts,
-  FyTokenAddress,
-  FY_WETH,
   getContract,
   WETH,
   YIELD_ST_ETH_LEVER,
@@ -26,6 +24,7 @@ import {
   Balances as AddressBalances,
   IERC20Address,
   loadBalance,
+  loadFyTokenBalance,
 } from "./balances";
 import { providers, BytesLike } from "ethers";
 import { useEffect } from "react";
@@ -40,6 +39,12 @@ import { useAddableList } from "./hooks";
 
 const POLLING_INTERVAL = 5_000;
 
+/** The type of token that is invested for this strategy. */
+export enum InvestTokenType {
+  /** Use the debt token corresponding to the series. */
+  FyToken
+}
+
 /**
  * A strategy represents one particular lever to use, although it can contain
  * multiple series with different maturities.
@@ -48,8 +53,7 @@ const POLLING_INTERVAL = 5_000;
 //  code duplication.
 export interface Strategy {
   tokenAddresses: [IERC20Address, ValueType][];
-  debtTokens: [FyTokenAddress, ValueType][];
-  investToken: [IERC20Address, ValueType];
+  investToken: InvestTokenType;
   lever: ContractAddress;
   ilkId: BytesLike;
   baseId: BytesLike;
@@ -62,9 +66,7 @@ enum StrategyName {
 const strategies: { [strat in StrategyName]: Strategy } = {
   [StrategyName.WStEth]: {
     tokenAddresses: [[WETH, ValueType.Weth]],
-    // TODO: Every series has their own FYWEth...
-    debtTokens: [[FY_WETH, ValueType.FyWeth]],
-    investToken: [FY_WETH, ValueType.FyWeth],
+    investToken: InvestTokenType.FyToken,
     lever: YIELD_ST_ETH_LEVER,
     ilkId: "0x303400000000",
     baseId: "0x303000000000"
@@ -204,20 +206,22 @@ export const App: React.FunctionComponent = () => {
       const strategy = strategies[selectedStrategy];
       const balances: AddressBalances = {};
       for (const [address] of [
-        ...strategy.tokenAddresses,
-        ...strategy.debtTokens,
+        ...strategy.tokenAddresses
       ])
         balances[address] = await loadBalance(
           address,
           contracts,
           signer
         );
+      for (const {seriesId} of series) {
+        balances[seriesId] = await loadFyTokenBalance(seriesId, contracts, signer);
+      }
       if (useResult) setBalances(balances);
     })();
     return () => {
       useResult = false;
     };
-  }, [pulse, signer, selectedStrategy]);
+  }, [pulse, signer, selectedStrategy, series]);
 
   // Load vaults
   const [vaults, setVaults] = useState<VaultsAndBalances>({

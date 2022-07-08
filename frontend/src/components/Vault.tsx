@@ -6,6 +6,7 @@ import {
   CAULDRON,
   Contracts,
   getContract,
+  getFyToken,
   getPool,
   WETH,
   WETH_JOIN,
@@ -50,11 +51,7 @@ export const Vault = ({
      * Compute how much WEth the user has at the end of the operation.
      */
     const computeResultWeth = async () => {
-      const fyToken = getContract(
-        strategy.debtTokens[0][0],
-        contracts,
-        account
-      );
+      const fyToken = await getFyToken(vault.seriesId, contracts, account);
       const maturity = await fyToken.maturity();
       const blockNumber = (await account.provider?.getBlockNumber()) as number;
       const blockTime = (await account.provider?.getBlock(blockNumber))

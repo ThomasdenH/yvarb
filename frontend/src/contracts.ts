@@ -78,13 +78,21 @@ export const getContract = <T extends keyof DefinitelyContracts>(
   return contracts.current[address] as DefinitelyContracts[T];
 };
 
+export const getFyTokenAddress = async(
+  seriesId: string,
+  contracts: MutableRefObject<Contracts>,
+  signer: Signer
+): Promise<string> => {
+  const pool = await getPool(seriesId, contracts, signer);
+  return await pool.fyToken();
+}
+
 export const getFyToken = async(
   seriesId: string,
   contracts: MutableRefObject<Contracts>,
   signer: Signer
 ): Promise<FYToken> => {
-  const pool = await getPool(seriesId, contracts, signer);
-  const fyTokenAddress = await pool.fyToken();
+  const fyTokenAddress = await getFyTokenAddress(seriesId, contracts, signer);
   return FYToken__factory.connect(fyTokenAddress, signer);
 }
 

@@ -1,16 +1,17 @@
 import { BigNumber, Signer, utils } from "ethers";
 import React, { MutableRefObject, useMemo, useState } from "react";
-import { Strategy } from "../App";
+import { InvestTokenType, Strategy } from "../App";
 import "./Invest.scss";
 import { Slippage, removeSlippage, useSlippage } from "./Slippage";
 import { ValueInput } from "./ValueInput";
 import { ValueDisplay, ValueType } from "./ValueDisplay";
-import { Balances } from "../balances";
+import { Balances, IERC20Address } from "../balances";
 import {
   CAULDRON,
   Contracts,
   FY_WETH,
   getContract,
+  getFyToken,
   getPool,
   WETH_ST_ETH_STABLESWAP,
   WST_ETH,
@@ -20,6 +21,7 @@ import { useEffect } from "react";
 import { IOracle__factory } from "../contracts/IOracle.sol";
 import { zeroPad } from "ethers/lib/utils";
 import { SeriesAddedEventObject } from "../contracts/Cauldron.sol/Cauldron";
+import { FYToken } from "../contracts/YieldStEthLever.sol";
 
 interface Properties {
   /** Relevant token balances. */
@@ -120,6 +122,18 @@ const vaultLevel = async (
 
 export const DEFAULT_LEVERAGE = BigNumber.from(300);
 
+const resolveInvestToken = (
+  tokenType: InvestTokenType,
+  seriesId: string,
+  contracts: MutableRefObject<Contracts>,
+  signer: Signer
+) => {
+  switch (tokenType) {
+    case InvestTokenType.FyToken:
+      return getFyToken(seriesId, contracts, signer);
+  }
+};
+
 export const Invest = ({
   balances,
   contracts,
@@ -188,6 +202,18 @@ export const Invest = ({
     [stEthCollateral, slippage]
   );
 
+  const [investToken, setInvestToken] = useState<FYToken>();
+  useEffect(() => {
+    if (seriesId === undefined) setInvestToken(undefined);
+    else
+      void resolveInvestToken(
+        strategy.investToken,
+        seriesId,
+        contracts,
+        account
+      ).then((token) => setInvestToken(token));
+  }, [strategy, seriesId, contracts, account]);
+
   /**
    * The approval state represents whether it is currently possible to
    * transact, whether approval is required or whether there is a reason not to
@@ -212,6 +238,8 @@ export const Invest = ({
     setApprovalState(ApprovalState.Loading);
 
     const checkApprovalState = async (): Promise<ApprovalState> => {
+      if (investToken === undefined) return ApprovalState.Loading;
+
       // First check if the debt is too low
       if (totalToInvest.eq(0)) return ApprovalState.DebtTooLow;
 
@@ -235,8 +263,7 @@ export const Invest = ({
       if (balanceInput.lt(balance)) return ApprovalState.NotEnoughFunds;
 
       // Now check for approval
-      const token = getContract(strategy.investToken[0], contracts, account);
-      const approval = await token.allowance(
+      const approval = await investToken.allowance(
         account.getAddress(),
         strategy.lever
       );
@@ -254,7 +281,11 @@ export const Invest = ({
           );
         } catch (e) {
           // Checking isn't perfect, so try to parse the failure reason
-          if ((e as { error: { data: { message: string}}}).error.data.message.endsWith('Undercollateralized'))
+          if (
+            (
+              e as { error: { data: { message: string } } }
+            ).error.data.message.endsWith("Undercollateralized")
+          )
             return ApprovalState.Undercollateralized;
           return ApprovalState.UnknownError;
         }
@@ -278,15 +309,16 @@ export const Invest = ({
     balanceInput,
     seriesId,
     balances,
+    investToken,
   ]);
 
   const approve = async () => {
+    if (investToken === undefined) return; // Loading
     setApprovalState(ApprovalState.Approving);
-    const token = getContract(strategy.investToken[0], contracts, account);
     const gasLimit = (
-      await token.estimateGas.approve(strategy.lever, totalToInvest)
+      await investToken.estimateGas.approve(strategy.lever, totalToInvest)
     ).mul(2);
-    const tx = await token.approve(strategy.lever, totalToInvest, {
+    const tx = await investToken.approve(strategy.lever, totalToInvest, {
       gasLimit,
       gasPrice,
     });
@@ -430,9 +462,10 @@ export const Invest = ({
 
   // Collect all relevant balances of this strategy.
   const balancesAndDebtElements = [];
-  for (const [address, valueType] of strategy.tokenAddresses.concat(
-    strategy.debtTokens
-  )) {
+  for (const [address, valueType] of (
+    strategy.tokenAddresses as [string, ValueType][]
+    // TODO: Specify value type
+  ).concat(series.map((s) => [s.seriesId, ValueType.Weth]))) {
     const balance = balances[address];
     if (balance === undefined) {
       return Loading();
@@ -448,7 +481,9 @@ export const Invest = ({
     );
   }
 
-  const investTokenBalance = balances[strategy.investToken[0]];
+  let investTokenBalance: BigNumber | undefined;
+  if (seriesId !== undefined)
+    investTokenBalance = balances[seriesId];
   if (investTokenBalance === undefined) return Loading();
   return (
     <div className="invest">
@@ -489,7 +524,8 @@ export const Invest = ({
       <Slippage value={slippage} onChange={(val: number) => setSlippage(val)} />
       <ValueDisplay
         label="To borrow:"
-        valueType={strategy.investToken[1] as ValueType.FyUsdc}
+        // TODO:
+        valueType={ValueType.FyWeth}
         value={toBorrow}
       />
       {component}
