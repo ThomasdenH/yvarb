@@ -11,7 +11,7 @@ import {
 } from "./objects/Vault";
 import { Vault as VaultComponent } from "./components/Vault";
 import { Tabs, TabsType } from "./components/Tabs";
-import { ValueType } from "./components/ValueDisplay";
+import { Token } from "./components/ValueDisplay";
 import {
   CAULDRON,
   ContractAddress,
@@ -60,7 +60,7 @@ export interface Strategy {
   /** This is the token that is invested for this strategy. */
   investToken: InvestTokenType;
   /** The token that is obtained after unwinding. */
-  outToken: [IERC20Address, ValueType];
+  outToken: [IERC20Address, Token | AssetId];
   lever: ContractAddress;
   ilkId: BytesLike;
   baseId: BytesLike;
@@ -70,13 +70,33 @@ enum StrategyName {
   WStEth,
 }
 
+export enum AssetId {
+  WEth = "0x303000000000",
+  WStEth = "0x303400000000",
+  Usdc = "0x303200000000"
+}
+
+/**
+ * Get the concrete invest token type from a series. I.e. get `FyWEth` instead
+ * of `FyToken`.
+ */
+export const getInvestToken = ({investToken, baseId}: Strategy): Token | AssetId => {
+  if (investToken === InvestTokenType.FyToken) {
+    switch (baseId) {
+      case AssetId.WEth:
+        return Token.FyWeth;        
+    }
+  }
+  throw new Error('Unimplemented');
+}
+
 const strategies: { [strat in StrategyName]: Strategy } = {
   [StrategyName.WStEth]: {
     investToken: InvestTokenType.FyToken,
-    outToken: [WETH, ValueType.Weth],
+    outToken: [WETH, AssetId.WEth],
     lever: YIELD_ST_ETH_LEVER,
-    ilkId: "0x303400000000",
-    baseId: "0x303000000000",
+    ilkId: AssetId.WStEth,
+    baseId: AssetId.WEth,
   },
 };
 

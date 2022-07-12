@@ -1,10 +1,10 @@
 import { BigNumber, Signer, utils } from "ethers";
 import React, { MutableRefObject, useMemo, useState } from "react";
-import { InvestTokenType, Strategy } from "../App";
+import { AssetId, getInvestToken, InvestTokenType, Strategy } from "../App";
 import "./Invest.scss";
 import { Slippage, removeSlippage, useSlippage } from "./Slippage";
 import { ValueInput } from "./ValueInput";
-import { ValueDisplay, ValueType } from "./ValueDisplay";
+import { Token, ValueDisplay, ValueType } from "./ValueDisplay";
 import { Balances, SeriesId } from "../balances";
 import {
   CAULDRON,
@@ -223,8 +223,7 @@ export const Invest = ({
   );
   const [approvalStateInvalidator, setApprovalStateInvalidator] = useState(0);
   useEffect(() => {
-    if (seriesId === undefined)
-      return;
+    if (seriesId === undefined) return;
     const balance = balances[seriesId];
     if (
       stEthCollateral === undefined ||
@@ -463,9 +462,9 @@ export const Invest = ({
 
   // Collect all relevant balances of this strategy.
   const balancesAndDebtElements = [];
-  for (const [address, valueType] of ([strategy.outToken as [string, ValueType]])
-    // TODO: Specify value type
-  .concat(series.map((s) => [s.seriesId, ValueType.FyWeth]))) {
+  for (const [address, tokenType] of [
+    strategy.outToken as [string, AssetId | Token],
+  ].concat(series.map((s) => [s.seriesId, getInvestToken(strategy)]))) {
     const balance = balances[address];
     if (balance === undefined) {
       return Loading();
@@ -474,16 +473,15 @@ export const Invest = ({
       <ValueDisplay
         key={address}
         label="Balance:"
-        // TODO: Fix typing
-        valueType={valueType as ValueType.Weth}
+        valueType={ValueType.Balance}
+        token={tokenType}
         value={balance}
       />
     );
   }
 
   let investTokenBalance: BigNumber | undefined;
-  if (seriesId !== undefined)
-    investTokenBalance = balances[seriesId];
+  if (seriesId !== undefined) investTokenBalance = balances[seriesId];
   if (investTokenBalance === undefined) return Loading();
   return (
     <div className="invest">
@@ -524,8 +522,8 @@ export const Invest = ({
       <Slippage value={slippage} onChange={(val: number) => setSlippage(val)} />
       <ValueDisplay
         label="To borrow:"
-        // TODO:
-        valueType={ValueType.FyWeth}
+        token={getInvestToken(strategy)}
+        valueType={ValueType.Balance}
         value={toBorrow}
       />
       {component}

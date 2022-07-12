@@ -1,7 +1,7 @@
 import { BigNumber, Signer } from "ethers";
 import React, { useEffect, useState } from "react";
 import { MutableRefObject } from "react";
-import { Strategy } from "../App";
+import { AssetId, Strategy } from "../App";
 import {
   CAULDRON,
   Contracts,
@@ -152,19 +152,22 @@ export const Vault = ({
       />
       <ValueDisplay
         label="Collateral:"
-        valueType={ValueType.WStEth}
+        valueType={ValueType.Balance}
+        token={AssetId.WStEth}
         value={balance.ink}
       />
       {currentDebt === undefined ? null : (
         <ValueDisplay
           label="Current debt"
-          valueType={ValueType.Weth}
+          valueType={ValueType.Balance}
+          token={AssetId.WEth}
           value={currentDebt}
         />
       )}
       <ValueDisplay
         label="Debt at maturity:"
-        valueType={ValueType.Weth}
+        valueType={ValueType.Balance}
+        token={AssetId.WEth}
         value={balance.art}
       />
       <Slippage
@@ -176,7 +179,8 @@ export const Vault = ({
       {finalWeth !== undefined ? (
         <ValueDisplay
           label="Final WETH:"
-          valueType={ValueType.Weth}
+          valueType={ValueType.Balance}
+          token={AssetId.WEth}
           value={finalWeth}
         />
       ) : null}

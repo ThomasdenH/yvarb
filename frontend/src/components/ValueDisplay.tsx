@@ -1,4 +1,5 @@
 import { BigNumber } from "ethers";
+import { AssetId } from "../App";
 import { formatNumber } from "../utils";
 import "./ValueDisplay.scss";
 
@@ -8,23 +9,27 @@ export interface Balance {
 }
 
 export enum ValueType {
-  Usdc,
-  FyUsdc,
   Literal,
-  Weth,
-  FyWeth,
-  WStEth
+  Balance
+}
+
+
+export enum Token {
+  FyUsdc,
+  FyWeth
 }
 
 export type Value =
   | {
-      valueType: ValueType.Usdc;
+      valueType: ValueType.Balance;
+      token: AssetId.Usdc;
       value: BigNumber;
       label: string;
       className?: string;
     }
   | {
-      valueType: ValueType.FyUsdc;
+      valueType: ValueType.Balance;
+      token: Token.FyUsdc;
       value: BigNumber;
       label: string;
       className?: string;
@@ -36,18 +41,21 @@ export type Value =
       className?: string;
     }
   | {
-      valueType: ValueType.Weth;
+      valueType: ValueType.Balance;
+      token: AssetId.WEth;
       value: BigNumber;
       label: string;
       className?: string;
     }
   | {
-      valueType: ValueType.FyWeth;
+      valueType: ValueType.Balance;
+      token: Token.FyWeth;
       value: BigNumber;
       label: string;
       className?: string;
     } | {
-      valueType: ValueType.WStEth;
+      valueType: ValueType.Balance;
+      token: AssetId.WStEth;
       value: BigNumber;
       label: string;
       className?: string;
@@ -55,17 +63,17 @@ export type Value =
 
 export const ValueDisplay = (value: Value): JSX.Element => {
   let val;
-  if (value.valueType === ValueType.Usdc) {
-    val = formatNumber(value.value, 6, 2) + " USDC";
-  } else if (value.valueType === ValueType.FyUsdc) {
-    val = formatNumber(value.value, 6, 2) + " FYUSDC";
-  } else if (value.valueType === ValueType.Literal) {
+  if (value.valueType === ValueType.Literal) {
     val = value.value;
-  } else if (value.valueType === ValueType.Weth) {
+  } else if (value.token === AssetId.Usdc) {
+    val = formatNumber(value.value, 6, 2) + " USDC";
+  } else if (value.token === Token.FyUsdc) {
+    val = formatNumber(value.value, 6, 2) + " FYUSDC";
+  } else if (value.token === AssetId.WEth) {
     val = formatNumber(value.value, 18, 6) + " WETH";
-  } else if (value.valueType === ValueType.FyWeth) {
+  } else if (value.token === Token.FyWeth) {
     val = formatNumber(value.value, 18, 6) + " FYWETH";
-  } else if (value.valueType === ValueType.WStEth) {
+  } else if (value.token === AssetId.WStEth) {
     val = formatNumber(value.value, 18, 6) + " WSTETH";
   }
   return (
