@@ -7,7 +7,6 @@ export enum AssetId {
   Usdc = "0x303200000000",
 }
 
-
 export enum Token {
     FyUsdc,
     FyWeth

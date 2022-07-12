@@ -1,4 +1,4 @@
-import { BigNumber, Signer, providers } from "ethers";
+import { BigNumber, Signer, providers, utils } from "ethers";
 import { MutableRefObject } from "react";
 import { SeriesId } from "../balances";
 import {
@@ -8,15 +8,22 @@ import {
   getFyTokenAddress,
 } from "../contracts";
 import {
+  Cauldron,
   SeriesAddedEvent,
   VaultBuiltEvent,
+  VaultBuiltEventFilter,
   VaultGivenEvent,
 } from "../contracts/Cauldron.sol/Cauldron";
-import { TypedListener } from "../contracts/Cauldron.sol/common";
+import {
+  TypedEvent,
+  TypedEventFilter,
+  TypedListener,
+} from "../contracts/Cauldron.sol/common";
 import {
   VaultBuiltEventObject,
   VaultGivenEventObject,
 } from "../contracts/YieldStEthLever.sol/Cauldron";
+import { AssetId } from "./Strategy";
 
 export interface SeriesDefinition {
   poolAddress: string;
@@ -51,7 +58,27 @@ export interface VaultsAndBalances {
 const CAULDRON_CREATED_BLOCK_NUMBER = 0;
 const BLOCK_STEPS = 20_000_000;
 
-const SKIP_LOADING_FROM_CHAIN = true;
+const loadHistorical = <Args, T extends TypedEvent<unknown[], Args>>(
+  keepLoading: () => boolean,
+  provider: providers.Provider,
+  callback: (args: Args) => void,
+  cauldron: Cauldron,
+  filters: TypedEventFilter<T>[]
+) => {
+  void (async () => {
+    const currentBlock: number = await provider.getBlockNumber();
+    let end = currentBlock;
+    while (end > CAULDRON_CREATED_BLOCK_NUMBER && keepLoading()) {
+      const start = Math.max(end - BLOCK_STEPS, CAULDRON_CREATED_BLOCK_NUMBER);
+      const results = await Promise.all(
+        filters.map((filter) => cauldron.queryFilter(filter, start, end))
+      );
+      for (const eventList of results)
+        for (const event of eventList) callback(event.args);
+      end = start;
+    }
+  })();
+};
 
 /**
  * Look for vaults that have been created on or transferred to the address.
@@ -63,7 +90,8 @@ export function loadVaultsAndStartListening(
   provider: providers.Provider,
   vaultDiscovered: (
     event: VaultBuiltEventObject | VaultGivenEventObject
-  ) => void
+  ) => void,
+  skipLoadingFromChain = false
 ): () => void {
   const cauldron = getContract(CAULDRON, contracts, signer);
   const vaultsBuiltFilter = cauldron.filters.VaultBuilt(null, address, null);
@@ -77,24 +105,11 @@ export function loadVaultsAndStartListening(
   cauldron.on(vaultsReceivedFilter, listener2);
 
   let keepLoading = true;
-  void (async () => {
-    const currentBlock: number = await provider.getBlockNumber();
-    let end = currentBlock;
-    while (
-      end > CAULDRON_CREATED_BLOCK_NUMBER &&
-      keepLoading &&
-      !SKIP_LOADING_FROM_CHAIN
-    ) {
-      const start = Math.max(end - BLOCK_STEPS, CAULDRON_CREATED_BLOCK_NUMBER);
-      const [vaultsBuilt, vaultsReceived] = await Promise.all([
-        cauldron.queryFilter(vaultsBuiltFilter, start, end),
-        cauldron.queryFilter(vaultsReceivedFilter, start, end),
-      ]);
-      for (const vault of vaultsBuilt) vaultDiscovered(vault.args);
-      for (const vault of vaultsReceived) vaultDiscovered(vault.args);
-      end = start;
-    }
-  })();
+  if (!skipLoadingFromChain)
+    loadHistorical(() => keepLoading, provider, vaultDiscovered, cauldron, [
+      vaultsBuiltFilter,
+      vaultsReceivedFilter,
+    ]);
 
   // Return the destructor
   return () => {
@@ -116,26 +131,42 @@ export interface SeriesObject {
 export const loadSeriesAndStartListening = (
   contracts: MutableRefObject<Contracts>,
   signer: Signer,
-  seriesDiscovered: (event: SeriesObject) => void
+  provider: providers.Provider,
+  seriesDiscovered: (event: SeriesObject) => void,
+  baseId: AssetId,
+  skipLoadingFromChain = false
 ) => {
-  if (SKIP_LOADING_FROM_CHAIN) {
+  let keepLoading = true;
+  const cauldron = getContract(CAULDRON, contracts, signer);
+  const seriesAddedFilter = cauldron.filters.SeriesAdded(
+    null,
+    // Manually pad to 32 bytes
+    baseId + "0000000000000000000000000000000000000000000000000000",
+    null
+  );
+  if (skipLoadingFromChain) {
     const seriesId = "0x303030370000" as SeriesId;
     void getFyTokenAddress(seriesId, contracts, signer).then((fyToken) =>
       seriesDiscovered({
-        baseId: "0x303000000000",
+        baseId: AssetId.WEth,
         fyToken,
         seriesId,
       })
     );
   } else {
-    // TODO: Load series historically
+    loadHistorical(() => keepLoading, provider, seriesDiscovered, cauldron, [
+      seriesAddedFilter,
+    ]);
   }
-  const cauldron = getContract(CAULDRON, contracts, signer);
-  const seriesAddedFilter = cauldron.filters.SeriesAdded(null, null, null);
   const listener: TypedListener<SeriesAddedEvent> = (_a, _b, _c, d) =>
-    seriesDiscovered({ seriesId: d.args.seriesId as SeriesId, baseId: d.args.baseId, fyToken: d.args.fyToken});
+    seriesDiscovered({
+      seriesId: d.args.seriesId as SeriesId,
+      baseId: d.args.baseId,
+      fyToken: d.args.fyToken,
+    });
   cauldron.on(seriesAddedFilter, listener);
   return () => {
+    keepLoading = false;
     cauldron.removeListener(seriesAddedFilter, listener);
   };
 };

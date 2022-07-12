@@ -221,7 +221,7 @@ export const App: React.FunctionComponent = () => {
     return (
       <ConnectWallet
         connectWallet={() =>
-          setProvider(new providers.Web3Provider(window.ethereum))
+          setProvider(new providers.Web3Provider(window.ethereum))          
         }
         networkError={networkError}
         dismiss={() => setNetworkError(undefined)}
