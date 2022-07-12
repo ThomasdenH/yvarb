@@ -1,10 +1,9 @@
 import { BigNumber, Signer, utils } from "ethers";
 import React, { MutableRefObject, useMemo, useState } from "react";
-import { AssetId, getInvestToken, InvestTokenType, Strategy } from "../App";
 import "./Invest.scss";
 import { Slippage, removeSlippage, useSlippage } from "./Slippage";
 import { ValueInput } from "./ValueInput";
-import { Token, ValueDisplay, ValueType } from "./ValueDisplay";
+import { ValueDisplay, ValueType } from "./ValueDisplay";
 import { Balances, SeriesId } from "../balances";
 import {
   CAULDRON,
@@ -21,6 +20,7 @@ import { IOracle__factory } from "../contracts/IOracle.sol";
 import { zeroPad } from "ethers/lib/utils";
 import { FYToken } from "../contracts/YieldStEthLever.sol";
 import { SeriesObject } from "../objects/Vault";
+import { AssetId, getInvestToken, InvestTokenType, Strategy, Token } from "../objects/Strategy";
 
 interface Properties {
   /** Relevant token balances. */

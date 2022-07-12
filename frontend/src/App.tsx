@@ -11,23 +11,18 @@ import {
 } from "./objects/Vault";
 import { Vault as VaultComponent } from "./components/Vault";
 import { Tabs, TabsType } from "./components/Tabs";
-import { Token } from "./components/ValueDisplay";
 import {
   CAULDRON,
-  ContractAddress,
   Contracts,
   getContract,
-  WETH,
-  YIELD_ST_ETH_LEVER,
 } from "./contracts";
 import {
   Balances as AddressBalances,
-  IERC20Address,
   loadBalance,
   loadFyTokenBalance,
   SeriesId,
 } from "./balances";
-import { providers, BytesLike } from "ethers";
+import { providers } from "ethers";
 import { useEffect } from "react";
 import { useRef } from "react";
 import { MutableRefObject } from "react";
@@ -36,95 +31,19 @@ import {
   VaultBuiltEventObject,
   VaultGivenEventObject,
 } from "./contracts/Cauldron.sol/Cauldron";
-import { useAddableList } from "./hooks";
+import { useAddableList, useEthereumListener, useInvalidator } from "./hooks";
+import { STRATEGIES, StrategyName } from "./objects/Strategy";
 
 const POLLING_INTERVAL = 5_000;
-
-/**
- * The type of token that is invested for this strategy.
- * -  If the type is `FyToken`, the address is derived from the selected
- *    `seriesId`.
- */
-export enum InvestTokenType {
-  /** Use the debt token corresponding to the series. */
-  FyToken,
-}
-
-/**
- * A strategy represents one particular lever to use, although it can contain
- * multiple series with different maturities.
- */
-// TODO: Find the best format to be applicable for any strategy while avoiding
-//  code duplication.
-export interface Strategy {
-  /** This is the token that is invested for this strategy. */
-  investToken: InvestTokenType;
-  /** The token that is obtained after unwinding. */
-  outToken: [IERC20Address, Token | AssetId];
-  lever: ContractAddress;
-  ilkId: BytesLike;
-  baseId: BytesLike;
-}
-
-enum StrategyName {
-  WStEth,
-}
-
-export enum AssetId {
-  WEth = "0x303000000000",
-  WStEth = "0x303400000000",
-  Usdc = "0x303200000000"
-}
-
-/**
- * Get the concrete invest token type from a series. I.e. get `FyWEth` instead
- * of `FyToken`.
- */
-export const getInvestToken = ({investToken, baseId}: Strategy): Token | AssetId => {
-  if (investToken === InvestTokenType.FyToken) {
-    switch (baseId) {
-      case AssetId.WEth:
-        return Token.FyWeth;        
-    }
-  }
-  throw new Error('Unimplemented');
-}
-
-const strategies: { [strat in StrategyName]: Strategy } = {
-  [StrategyName.WStEth]: {
-    investToken: InvestTokenType.FyToken,
-    outToken: [WETH, AssetId.WEth],
-    lever: YIELD_ST_ETH_LEVER,
-    ilkId: AssetId.WStEth,
-    baseId: AssetId.WEth,
-  },
-};
-
-/**
- * Subscribe and unsubscribe to an event.
- * @param event Event, must be global constant as it does not listen to
- *  updates.
- * @param fn fn,  must be global constant as it does not listen to updates.
- */
-const useEthereumListener = (event: string, fn: providers.Listener) => {
-  useEffect(() => {
-    window.ethereum.on(event, fn);
-    return () => {
-      window.ethereum.removeListener(event, fn);
-    };
-    // Event must be constant
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-};
 
 export const App: React.FunctionComponent = () => {
   /**
    * This pulse will update in an interval. Subscribe to it to update effects
    * periodically.
    */
-  const [pulse, setPulse] = useState(0);
+  const [pulse, setPulse] = useInvalidator();
   useEffect(() => {
-    const pollId = setInterval(() => setPulse((c) => c + 1), POLLING_INTERVAL);
+    const pollId = setInterval(() => setPulse(), POLLING_INTERVAL);
     return () => clearInterval(pollId);
   });
 
@@ -145,7 +64,8 @@ export const App: React.FunctionComponent = () => {
   useEthereumListener("chainChanged", setChainId);
 
   /**
-   * The currently connected address.
+   * The currently connected address. Will be set asynchronous instead of
+   * directly obtaining the provider as it requires awaiting an RPC request.
    */
   const [address, setAddress] = useState<string>();
   useEffect(() => {
@@ -168,13 +88,16 @@ export const App: React.FunctionComponent = () => {
     // `accountsChanged` event can be triggered with an undefined newAddress.
     // This happens when the user removes the Dapp from the "Connected
     // list of sites allowed access to your addresses" (Metamask > Settings > Connections)
-    // To avoid errors, we reset the dapp state
     if (provider === undefined || account === undefined) {
       setAddress(undefined);
     } else {
       setAddress(account);
     }
   });
+  /**
+   * The signer can be easily created from the address. We wrap it in a memo to
+   * avoid unnecessary updates.
+   */
   const signer = useMemo(
     () =>
       provider === undefined || address === undefined
@@ -183,7 +106,10 @@ export const App: React.FunctionComponent = () => {
     [address, provider]
   );
 
-  /** Load the series. */
+  /**
+   * Load the series. This will do two things: start loading historical events
+   * for series creation, and listen for new series that are created.
+   */
   const [series, addSeries] = useAddableList<
     SeriesAddedEventObject & { seriesId: SeriesId }
   >((a, b) => a.seriesId === b.seriesId);
@@ -222,7 +148,7 @@ export const App: React.FunctionComponent = () => {
     if (signer === undefined) return;
     let useResult = true;
     void (async () => {
-      const strategy = strategies[selectedStrategy];
+      const strategy = STRATEGIES[selectedStrategy];
       const balances: AddressBalances = {};
       for (const [address] of [strategy.outToken])
         balances[address] = await loadBalance(address, contracts, signer);
@@ -245,6 +171,7 @@ export const App: React.FunctionComponent = () => {
     vaults: {},
     balances: {},
   });
+  const [vaultInvalidator, invalidateVaults] = useInvalidator();
   useEffect(() => {
     if (signer === undefined) return;
     let useResult = true;
@@ -275,7 +202,7 @@ export const App: React.FunctionComponent = () => {
     return () => {
       useResult = false;
     };
-  }, [signer, address, vaultsToMonitor]);
+  }, [signer, address, vaultsToMonitor, pulse, vaultInvalidator]);
 
   // Ethereum wallets inject the window.ethereum object. If it hasn't been
   // injected, we instruct the user to install MetaMask.
@@ -303,7 +230,7 @@ export const App: React.FunctionComponent = () => {
   }
 
   const vaultIds = Object.keys(vaults.balances);
-  const strategy = strategies[selectedStrategy];
+  const strategy = STRATEGIES[selectedStrategy];
   const seriesForThisStrategy = series.filter(
     (s) => s.baseId === strategy.baseId
   );
@@ -313,7 +240,7 @@ export const App: React.FunctionComponent = () => {
         <Invest
           contracts={contracts}
           account={signer}
-          strategy={strategies[selectedStrategy]}
+          strategy={STRATEGIES[selectedStrategy]}
           balances={balances}
           series={seriesForThisStrategy}
         />
@@ -328,8 +255,9 @@ export const App: React.FunctionComponent = () => {
           vault={vaults.vaults[vaultId]}
           contracts={contracts}
           // TODO: Use vault strategy instead of currently selected strategy
-          strategy={strategies[selectedStrategy]}
+          strategy={STRATEGIES[selectedStrategy]}
           account={signer}
+          invalidateVaults={invalidateVaults}
         />
       ),
       label: `Vault: ${vaultId.substring(0, 8)}...`,

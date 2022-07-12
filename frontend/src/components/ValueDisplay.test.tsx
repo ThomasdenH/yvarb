@@ -2,7 +2,7 @@ import { ValueDisplay, ValueType } from "./ValueDisplay";
 import { render, screen } from "@testing-library/react";
 import '@testing-library/jest-dom';
 import { utils } from "ethers";
-import { AssetId } from "../App";
+import { AssetId } from "../objects/Strategy";
 
 describe('ValueDisplay', () => {
     it('should display values correctly', () => {

@@ -1,5 +1,5 @@
 import { BigNumber } from "ethers";
-import { AssetId } from "../App";
+import { AssetId, Token } from "../objects/Strategy";
 import { formatNumber } from "../utils";
 import "./ValueDisplay.scss";
 
@@ -11,12 +11,6 @@ export interface Balance {
 export enum ValueType {
   Literal,
   Balance
-}
-
-
-export enum Token {
-  FyUsdc,
-  FyWeth
 }
 
 export type Value =

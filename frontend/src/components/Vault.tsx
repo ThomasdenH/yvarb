@@ -1,7 +1,6 @@
 import { BigNumber, Signer } from "ethers";
 import React, { useEffect, useState } from "react";
 import { MutableRefObject } from "react";
-import { AssetId, Strategy } from "../App";
 import {
   CAULDRON,
   Contracts,
@@ -14,6 +13,7 @@ import {
   WST_ETH,
   YIELD_ST_ETH_LEVER,
 } from "../contracts";
+import { Strategy } from "../objects/Strategy";
 import { Balance, Vault as VaultI } from "../objects/Vault";
 import { Slippage, removeSlippage, useSlippage } from "./Slippage";
 import { ValueDisplay, ValueType } from "./ValueDisplay";
@@ -26,6 +26,7 @@ interface Properties {
   contracts: MutableRefObject<Contracts>;
   strategy: Strategy;
   account: Signer;
+  invalidateVaults: () => void;
 }
 
 export const Vault = ({
@@ -35,6 +36,7 @@ export const Vault = ({
   balance,
   vault,
   vaultId,
+  invalidateVaults,
 }: Properties) => {
   /** The slippage will be subtracted from the expected final weth balance. */
   const [slippage, setSlippage] = useSlippage();
@@ -77,10 +79,10 @@ export const Vault = ({
         // Past maturity, we close.
         const cauldron = getContract(CAULDRON, contracts, account);
         // `debtToBase` is not view, so we need to compute it ourselves
-        const rateAtMaturity = await cauldron.ratesAtMaturity(vault.seriesId);
-
-        const base = BigNumber.from(0);
-
+        const base = await cauldron.callStatic.debtToBase(
+          vault.seriesId,
+          balance.art
+        );
         const stEthUnwrapped = await wStEth.getStETHByWstETH(balance.ink);
         const weth = await stableSwap.get_dy(1, 0, stEthUnwrapped);
         const wethJoin = getContract(WETH_JOIN, contracts, account);
@@ -140,6 +142,7 @@ export const Vault = ({
         { gasLimit }
       );
       await tx.wait();
+      invalidateVaults();
     }
   };
 
@@ -153,21 +156,21 @@ export const Vault = ({
       <ValueDisplay
         label="Collateral:"
         valueType={ValueType.Balance}
-        token={AssetId.WStEth}
+        token={strategy.ilkId}
         value={balance.ink}
       />
       {currentDebt === undefined ? null : (
         <ValueDisplay
           label="Current debt"
           valueType={ValueType.Balance}
-          token={AssetId.WEth}
+          token={strategy.baseId}
           value={currentDebt}
         />
       )}
       <ValueDisplay
         label="Debt at maturity:"
         valueType={ValueType.Balance}
-        token={AssetId.WEth}
+        token={strategy.baseId}
         value={balance.art}
       />
       <Slippage
@@ -180,7 +183,7 @@ export const Vault = ({
         <ValueDisplay
           label="Final WETH:"
           valueType={ValueType.Balance}
-          token={AssetId.WEth}
+          token={strategy.outToken[1]}
           value={finalWeth}
         />
       ) : null}
