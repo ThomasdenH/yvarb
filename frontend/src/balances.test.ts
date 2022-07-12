@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 
-import { loadBalance } from "./balances";
+import { loadBalance, loadFyTokenBalance, SeriesId } from "./balances";
 import * as ganache from "ganache";
 import { ethers, Signer } from "ethers";
 import { ExternalProvider } from "@ethersproject/providers";
@@ -29,6 +29,12 @@ describe("balances", () => {
   });
 
   it("should load balances without errors", async () => {
-    await loadBalance(WETH, contracts, signer);
+    expect(await loadBalance(WETH, contracts, signer)).toBeDefined();
+  });
+
+  it("should load balances without errors", async () => {
+    expect(
+      await loadFyTokenBalance("0x303230370000" as SeriesId, contracts, signer)
+    ).toBeDefined();
   });
 });

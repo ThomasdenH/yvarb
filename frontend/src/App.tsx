@@ -29,6 +29,7 @@ import {
 } from "./contracts/Cauldron.sol/Cauldron";
 import { useAddableList, useEthereumListener, useInvalidator } from "./hooks";
 import { STRATEGIES, StrategyName } from "./objects/Strategy";
+import { Loading } from "./components/Loading";
 
 const POLLING_INTERVAL = 5_000;
 
@@ -120,7 +121,8 @@ export const App: React.FunctionComponent = () => {
             newSeries as SeriesAddedEventObject & { seriesId: SeriesId }
           );
         },
-        STRATEGIES[selectedStrategy].baseId
+        STRATEGIES[selectedStrategy].baseId,
+        true
       );
   }, [addSeries, signer, provider, selectedStrategy]);
 
@@ -139,7 +141,8 @@ export const App: React.FunctionComponent = () => {
         provider,
         (event: VaultBuiltEventObject | VaultGivenEventObject) => {
           addVaultToMonitor(event.vaultId);
-        }
+        },
+        true
       );
   }, [provider, signer, address, addVaultToMonitor]);
 
@@ -252,18 +255,22 @@ export const App: React.FunctionComponent = () => {
       label: "Invest",
     },
     ...vaultIds.map((vaultId) => ({
-      component: (
-        <VaultComponent
-          vaultId={vaultId}
-          balance={vaults.balances[vaultId]}
-          vault={vaults.vaults[vaultId]}
-          contracts={contracts}
-          // TODO: Use vault strategy instead of currently selected strategy
-          strategy={STRATEGIES[selectedStrategy]}
-          account={signer}
-          invalidateVaults={invalidateVaults}
-        />
-      ),
+      component:
+        provider === undefined ? (
+          <Loading/>
+        ) : (
+          <VaultComponent
+            vaultId={vaultId}
+            balance={vaults.balances[vaultId]}
+            vault={vaults.vaults[vaultId]}
+            contracts={contracts}
+            // TODO: Use vault strategy instead of currently selected strategy
+            strategy={STRATEGIES[selectedStrategy]}
+            account={signer}
+            invalidateVaults={invalidateVaults}
+            provider={provider}
+          />
+        ),
       label: `Vault: ${vaultId.substring(0, 8)}...`,
     })),
   ];

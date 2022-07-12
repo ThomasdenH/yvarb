@@ -22,9 +22,10 @@ describe('loadVaultsAndStartListening', () => {
         const contracts: MutableRefObject<Contracts> = { current: {}};
         const resolved = new Promise((resolve) => {
             // Expect to load at least one built vault
-            loadVaultsAndStartListening(contracts, vaultOwner, signer, provider, (ev) => {
+            const destructor = loadVaultsAndStartListening(contracts, vaultOwner, signer, provider, (ev) => {
                 expect(ev.vaultId).toBeDefined();
                 resolve(undefined);
+                destructor();
             });
         });
         await resolved;
@@ -47,11 +48,12 @@ describe('loadSeriesAndStartListening', () => {
         const contracts: MutableRefObject<Contracts> = { current: {}};
         const resolved = new Promise((resolve) => {
             // Expect to load at least one built vault
-            loadSeriesAndStartListening(contracts, signer, provider, (ev) => {
+            const destructor = loadSeriesAndStartListening(contracts, signer, provider, (ev) => {
                 expect(ev.seriesId).toBeDefined();
                 expect(ev.baseId).toBeDefined();
                 expect(ev.fyToken).toBeDefined();
                 resolve(undefined);
+                destructor();
             }, AssetId.WEth);
         });
         await resolved;

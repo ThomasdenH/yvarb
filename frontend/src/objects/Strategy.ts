@@ -7,6 +7,8 @@ export enum AssetId {
   Usdc = "0x303200000000",
 }
 
+// TODO: Idea: create this from AssetId. I.e., represent FyUsdc as
+// 'fy' + AssetId.Usdc
 export enum Token {
     FyUsdc,
     FyWeth

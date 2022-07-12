@@ -1,4 +1,4 @@
-import { BigNumber, Signer } from "ethers";
+import { BigNumber, providers, Signer } from "ethers";
 import React, { useEffect, useState } from "react";
 import { MutableRefObject } from "react";
 import {
@@ -15,17 +15,24 @@ import {
 } from "../contracts";
 import { Strategy } from "../objects/Strategy";
 import { Balance, Vault as VaultI } from "../objects/Vault";
-import { Slippage, removeSlippage, useSlippage } from "./Slippage";
+import {
+  Slippage,
+  removeSlippage as subtractSlippage,
+  useSlippage,
+} from "./Slippage";
 import { ValueDisplay, ValueType } from "./ValueDisplay";
 import "./Vault.scss";
 
 interface Properties {
+  /** The vaultId of the vault to show. */
   vaultId: string;
+  /** The result of calling `Cauldron.balances` for a vault. */
   balance: Balance;
   vault: VaultI;
   contracts: MutableRefObject<Contracts>;
   strategy: Strategy;
   account: Signer;
+  provider: providers.Provider;
   invalidateVaults: () => void;
 }
 
@@ -36,6 +43,7 @@ export const Vault = ({
   balance,
   vault,
   vaultId,
+  provider,
   invalidateVaults,
 }: Properties) => {
   /** The slippage will be subtracted from the expected final weth balance. */
@@ -48,6 +56,7 @@ export const Vault = ({
       setFinalWeth(BigNumber.from(0));
       return;
     }
+
     let useResult = true;
     /**
      * Compute how much WEth the user has at the end of the operation.
@@ -55,9 +64,8 @@ export const Vault = ({
     const computeResultWeth = async () => {
       const fyToken = await getFyToken(vault.seriesId, contracts, account);
       const maturity = await fyToken.maturity();
-      const blockNumber = (await account.provider?.getBlockNumber()) as number;
-      const blockTime = (await account.provider?.getBlock(blockNumber))
-        ?.timestamp as number;
+      const blockNumber = await provider.getBlockNumber();
+      const blockTime = (await provider.getBlock(blockNumber)).timestamp;
       const wStEth = getContract(WST_ETH, contracts, account);
       const stableSwap = getContract(
         WETH_ST_ETH_STABLESWAP,
@@ -92,14 +100,22 @@ export const Vault = ({
     };
     setFinalWeth(undefined);
     void computeResultWeth()
-      .then((val) => removeSlippage(val, slippage))
+      .then((val) => subtractSlippage(val, slippage))
       .then((val) => {
         if (useResult) setFinalWeth(val);
       });
     return () => {
       useResult = false;
     };
-  }, [account, balance, contracts, strategy, vault.seriesId, slippage]);
+  }, [
+    account,
+    provider,
+    balance,
+    contracts,
+    strategy,
+    vault.seriesId,
+    slippage,
+  ]);
 
   /** The current value of the debt. */
   const [currentDebt, setCurrentDebt] = useState<BigNumber | undefined>();
