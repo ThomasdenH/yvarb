@@ -1,4 +1,4 @@
-import { BigNumber, Signer, providers, utils } from "ethers";
+import { BigNumber, Signer, providers } from "ethers";
 import { MutableRefObject } from "react";
 import { SeriesId } from "../balances";
 import {
@@ -11,7 +11,6 @@ import {
   Cauldron,
   SeriesAddedEvent,
   VaultBuiltEvent,
-  VaultBuiltEventFilter,
   VaultGivenEvent,
 } from "../contracts/Cauldron.sol/Cauldron";
 import {
@@ -141,7 +140,7 @@ export const loadSeriesAndStartListening = (
   const seriesAddedFilter = cauldron.filters.SeriesAdded(
     null,
     // Manually pad to 32 bytes
-    baseId + "0000000000000000000000000000000000000000000000000000",
+    baseId + "00".repeat(26),
     null
   );
   if (skipLoadingFromChain) {

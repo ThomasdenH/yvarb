@@ -11,11 +11,7 @@ import {
 } from "./objects/Vault";
 import { Vault as VaultComponent } from "./components/Vault";
 import { Tabs, TabsType } from "./components/Tabs";
-import {
-  CAULDRON,
-  Contracts,
-  getContract,
-} from "./contracts";
+import { CAULDRON, Contracts, getContract } from "./contracts";
 import {
   Balances as AddressBalances,
   loadBalance,
@@ -114,11 +110,19 @@ export const App: React.FunctionComponent = () => {
     SeriesAddedEventObject & { seriesId: SeriesId }
   >((a, b) => a.seriesId === b.seriesId);
   useEffect(() => {
-    if (signer !== undefined)
-      return loadSeriesAndStartListening(contracts, signer, (newSeries) => {
-        addSeries(newSeries as SeriesAddedEventObject & { seriesId: SeriesId });
-      });
-  }, [addSeries, signer]);
+    if (signer !== undefined && provider !== undefined)
+      return loadSeriesAndStartListening(
+        contracts,
+        signer,
+        provider,
+        (newSeries) => {
+          addSeries(
+            newSeries as SeriesAddedEventObject & { seriesId: SeriesId }
+          );
+        },
+        STRATEGIES[selectedStrategy].baseId
+      );
+  }, [addSeries, signer, provider, selectedStrategy]);
 
   /**
    * These are the ids to monitor. They are obtained through events but might
@@ -221,7 +225,7 @@ export const App: React.FunctionComponent = () => {
     return (
       <ConnectWallet
         connectWallet={() =>
-          setProvider(new providers.Web3Provider(window.ethereum))          
+          setProvider(new providers.Web3Provider(window.ethereum))
         }
         networkError={networkError}
         dismiss={() => setNetworkError(undefined)}
