@@ -26,13 +26,11 @@ export const YIELD_LADLE = "0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A";
 export const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 export const WETH_ST_ETH_STABLESWAP = "0x828b154032950C8ff7CF8085D841723Db2696056";
 export const WST_ETH = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0";
-export const FY_WETH = "0x53358d088d835399F1E97D2a01d79fC925c7D999";
 export const WETH_JOIN = "0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0";
 
 type DefinitelyContracts = {
   [CAULDRON]: Cauldron;
   [WETH]: IERC20;
-  [FY_WETH]: FYToken;
   [YIELD_ST_ETH_LEVER]: YieldStEthLever;
   [YIELD_LADLE]: YieldLadle;
   [WETH_ST_ETH_STABLESWAP]: IStableSwap;
@@ -54,12 +52,10 @@ type ContractFactories = Readonly<{
 }>;
 
 export type ContractAddress = keyof DefinitelyContracts;
-export type FyTokenAddress = typeof FY_WETH; 
 
 const contractFactories: ContractFactories = {
   [CAULDRON]: Cauldron__factory,
   [WETH]: IERC20__factory,
-  [FY_WETH]: FYToken__factory,
   [YIELD_ST_ETH_LEVER]: YieldStEthLever__factory,
   [YIELD_LADLE]: YieldLadle__factory,
   [WETH_ST_ETH_STABLESWAP]: IStableSwap__factory,

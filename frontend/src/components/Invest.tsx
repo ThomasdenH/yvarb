@@ -5,11 +5,10 @@ import "./Invest.scss";
 import { Slippage, removeSlippage, useSlippage } from "./Slippage";
 import { ValueInput } from "./ValueInput";
 import { ValueDisplay, ValueType } from "./ValueDisplay";
-import { Balances, IERC20Address } from "../balances";
+import { Balances } from "../balances";
 import {
   CAULDRON,
   Contracts,
-  FY_WETH,
   getContract,
   getFyToken,
   getPool,
@@ -67,7 +66,7 @@ const computeStEthCollateral = async (
   seriesId: string
 ): Promise<BigNumber> => {
   // - netInvestAmount = baseAmount + borrowAmount - fee
-  const fyWeth = getContract(FY_WETH, contracts, account);
+  const fyWeth = await getFyToken(seriesId, contracts, account);
   const fee = await fyWeth.flashFee(fyWeth.address, toBorrow);
   const netInvestAmount = baseAmount.add(toBorrow).sub(fee);
   // - sellFyWeth: FyWEth -> WEth
@@ -224,7 +223,9 @@ export const Invest = ({
   );
   const [approvalStateInvalidator, setApprovalStateInvalidator] = useState(0);
   useEffect(() => {
-    const balance = balances[FY_WETH];
+    if (seriesId === undefined)
+      return;
+    const balance = balances[seriesId];
     if (
       stEthCollateral === undefined ||
       seriesId === undefined ||

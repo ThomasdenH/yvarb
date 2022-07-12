@@ -4,9 +4,9 @@
 
 import { loadBalance } from "./balances";
 import * as ganache from "ganache";
-import { FY_WETH } from "./contracts";
 import { ethers, Signer } from "ethers";
 import { ExternalProvider } from "@ethersproject/providers";
+import { WETH } from "./contracts";
 
 describe("balances", () => {
   const contracts = { current: {} };
@@ -29,6 +29,6 @@ describe("balances", () => {
   });
 
   it("should load balances without errors", async () => {
-    await loadBalance(FY_WETH, contracts, signer);
+    await loadBalance(WETH, contracts, signer);
   });
 });

@@ -1,10 +1,9 @@
 import { BigNumber, Signer } from "ethers";
 import { MutableRefObject } from "react";
-import { Contracts, FY_WETH, getContract, getFyTokenAddress } from "./contracts";
+import { Contracts, getContract, getFyTokenAddress } from "./contracts";
+import { FYToken__factory } from "./contracts/YieldStEthLever.sol";
 
-export type IERC20Address =
-  | "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
-  | typeof FY_WETH;
+export type IERC20Address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
 /**
  * Balances! FyTokens are indexed with their seriesId, others by their address.
@@ -30,5 +29,6 @@ export const loadFyTokenBalance = async(
   signer: Signer
 ): Promise<BigNumber> => {
   const address = await getFyTokenAddress(seriesId, contracts, signer);
-  return await loadBalance(address as IERC20Address, contracts, signer);
+  const fyToken = FYToken__factory.connect(address, signer);
+  return await fyToken.balanceOf(await signer.getAddress());
 };
