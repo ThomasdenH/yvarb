@@ -5,7 +5,7 @@ import "./Invest.scss";
 import { Slippage, removeSlippage, useSlippage } from "./Slippage";
 import { ValueInput } from "./ValueInput";
 import { ValueDisplay, ValueType } from "./ValueDisplay";
-import { Balances } from "../balances";
+import { Balances, SeriesId } from "../balances";
 import {
   CAULDRON,
   Contracts,
@@ -19,8 +19,8 @@ import {
 import { useEffect } from "react";
 import { IOracle__factory } from "../contracts/IOracle.sol";
 import { zeroPad } from "ethers/lib/utils";
-import { SeriesAddedEventObject } from "../contracts/Cauldron.sol/Cauldron";
 import { FYToken } from "../contracts/YieldStEthLever.sol";
+import { SeriesObject } from "../objects/Vault";
 
 interface Properties {
   /** Relevant token balances. */
@@ -29,7 +29,7 @@ interface Properties {
   contracts: MutableRefObject<Contracts>;
   balances: Balances;
   /** The series that are valid for the selected strategy. */
-  series: SeriesAddedEventObject[];
+  series: SeriesObject[];
 }
 
 enum ApprovalState {
@@ -63,7 +63,7 @@ const computeStEthCollateral = async (
   toBorrow: BigNumber,
   contracts: MutableRefObject<Contracts>,
   account: Signer,
-  seriesId: string
+  seriesId: SeriesId
 ): Promise<BigNumber> => {
   // - netInvestAmount = baseAmount + borrowAmount - fee
   const fyWeth = await getFyToken(seriesId, contracts, account);
@@ -123,7 +123,7 @@ export const DEFAULT_LEVERAGE = BigNumber.from(300);
 
 const resolveInvestToken = (
   tokenType: InvestTokenType,
-  seriesId: string,
+  seriesId: SeriesId,
   contracts: MutableRefObject<Contracts>,
   signer: Signer
 ) => {
@@ -145,7 +145,7 @@ export const Invest = ({
   const [balanceInput, setBalanceInput] = useState(BigNumber.from(0));
 
   /** The currently selected series id. */
-  const [seriesId, setSeriesId] = useState<string>();
+  const [seriesId, setSeriesId] = useState<SeriesId>();
   useEffect(
     () => setSeriesId(series.length === 0 ? undefined : series[0].seriesId),
     [series]
@@ -463,10 +463,9 @@ export const Invest = ({
 
   // Collect all relevant balances of this strategy.
   const balancesAndDebtElements = [];
-  for (const [address, valueType] of (
-    strategy.tokenAddresses as [string, ValueType][]
+  for (const [address, valueType] of ([strategy.outToken as [string, ValueType]])
     // TODO: Specify value type
-  ).concat(series.map((s) => [s.seriesId, ValueType.Weth]))) {
+  .concat(series.map((s) => [s.seriesId, ValueType.FyWeth]))) {
     const balance = balances[address];
     if (balance === undefined) {
       return Loading();
@@ -492,7 +491,7 @@ export const Invest = ({
       <select
         name="series"
         value={seriesId}
-        onChange={(e) => setSeriesId(e.target.value)}
+        onChange={(e) => setSeriesId(e.target.value as SeriesId)}
       >
         {series.map((series) => (
           <option key={series.seriesId} value={series.seriesId}>

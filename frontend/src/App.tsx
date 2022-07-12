@@ -25,6 +25,7 @@ import {
   IERC20Address,
   loadBalance,
   loadFyTokenBalance,
+  SeriesId,
 } from "./balances";
 import { providers, BytesLike } from "ethers";
 import { useEffect } from "react";
@@ -39,10 +40,14 @@ import { useAddableList } from "./hooks";
 
 const POLLING_INTERVAL = 5_000;
 
-/** The type of token that is invested for this strategy. */
+/**
+ * The type of token that is invested for this strategy.
+ * -  If the type is `FyToken`, the address is derived from the selected
+ *    `seriesId`.
+ */
 export enum InvestTokenType {
   /** Use the debt token corresponding to the series. */
-  FyToken
+  FyToken,
 }
 
 /**
@@ -52,8 +57,10 @@ export enum InvestTokenType {
 // TODO: Find the best format to be applicable for any strategy while avoiding
 //  code duplication.
 export interface Strategy {
-  tokenAddresses: [IERC20Address, ValueType][];
+  /** This is the token that is invested for this strategy. */
   investToken: InvestTokenType;
+  /** The token that is obtained after unwinding. */
+  outToken: [IERC20Address, ValueType];
   lever: ContractAddress;
   ilkId: BytesLike;
   baseId: BytesLike;
@@ -65,11 +72,11 @@ enum StrategyName {
 
 const strategies: { [strat in StrategyName]: Strategy } = {
   [StrategyName.WStEth]: {
-    tokenAddresses: [[WETH, ValueType.Weth]],
     investToken: InvestTokenType.FyToken,
+    outToken: [WETH, ValueType.Weth],
     lever: YIELD_ST_ETH_LEVER,
     ilkId: "0x303400000000",
-    baseId: "0x303000000000"
+    baseId: "0x303000000000",
   },
 };
 
@@ -157,18 +164,14 @@ export const App: React.FunctionComponent = () => {
   );
 
   /** Load the series. */
-  const [series, addSeries] = useAddableList<SeriesAddedEventObject>(
-    (a, b) => a.seriesId === b.seriesId
-  );
+  const [series, addSeries] = useAddableList<
+    SeriesAddedEventObject & { seriesId: SeriesId }
+  >((a, b) => a.seriesId === b.seriesId);
   useEffect(() => {
     if (signer !== undefined)
-      return loadSeriesAndStartListening(
-        contracts,
-        signer,
-        (newSeries: SeriesAddedEventObject) => {
-          addSeries(newSeries);
-        }
-      );
+      return loadSeriesAndStartListening(contracts, signer, (newSeries) => {
+        addSeries(newSeries as SeriesAddedEventObject & { seriesId: SeriesId });
+      });
   }, [addSeries, signer]);
 
   /**
@@ -178,11 +181,7 @@ export const App: React.FunctionComponent = () => {
   const [vaultsToMonitor, addVaultToMonitor] = useAddableList<string>();
   // Listen to vault and series updates. This only loads the ids.
   useEffect(() => {
-    if (
-      address !== undefined &&
-      signer !== undefined &&
-      provider !== undefined
-    )
+    if (address !== undefined && signer !== undefined && provider !== undefined)
       return loadVaultsAndStartListening(
         contracts,
         address,
@@ -205,16 +204,14 @@ export const App: React.FunctionComponent = () => {
     void (async () => {
       const strategy = strategies[selectedStrategy];
       const balances: AddressBalances = {};
-      for (const [address] of [
-        ...strategy.tokenAddresses
-      ])
-        balances[address] = await loadBalance(
-          address,
+      for (const [address] of [strategy.outToken])
+        balances[address] = await loadBalance(address, contracts, signer);
+      for (const { seriesId } of series) {
+        balances[seriesId] = await loadFyTokenBalance(
+          seriesId,
           contracts,
           signer
         );
-      for (const {seriesId} of series) {
-        balances[seriesId] = await loadFyTokenBalance(seriesId, contracts, signer);
       }
       if (useResult) setBalances(balances);
     })();
@@ -242,7 +239,7 @@ export const App: React.FunctionComponent = () => {
                 .balances(vaultId)
                 .then((balance): [string, Vault, Balance] => [
                   vaultId,
-                  vault,
+                  { ...vault, seriesId: vault.seriesId as SeriesId },
                   balance,
                 ])
             )

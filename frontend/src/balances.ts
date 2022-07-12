@@ -5,6 +5,8 @@ import { FYToken__factory } from "./contracts/YieldStEthLever.sol";
 
 export type IERC20Address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
+export type SeriesId = string & { readonly __tag: unique symbol };
+
 /**
  * Balances! FyTokens are indexed with their seriesId, others by their address.
  */
@@ -24,7 +26,7 @@ export const loadBalance = async (
 };
 
 export const loadFyTokenBalance = async(
-  seriesId: string,
+  seriesId: SeriesId,
   contracts: MutableRefObject<Contracts>,
   signer: Signer
 ): Promise<BigNumber> => {

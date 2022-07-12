@@ -1,15 +1,14 @@
 import { BigNumber, Signer, providers } from "ethers";
 import { MutableRefObject } from "react";
+import { SeriesId } from "../balances";
 import {
   CAULDRON,
   Contracts,
   getContract,
-  getFyToken,
   getFyTokenAddress,
 } from "../contracts";
 import {
   SeriesAddedEvent,
-  SeriesAddedEventObject,
   VaultBuiltEvent,
   VaultGivenEvent,
 } from "../contracts/Cauldron.sol/Cauldron";
@@ -27,7 +26,7 @@ export interface SeriesDefinition {
 export interface Vault {
   ilkId: string;
   owner: string;
-  seriesId: string;
+  seriesId: SeriesId;
 }
 
 export interface Balance {
@@ -70,9 +69,9 @@ export function loadVaultsAndStartListening(
   const vaultsBuiltFilter = cauldron.filters.VaultBuilt(null, address, null);
   const vaultsReceivedFilter = cauldron.filters.VaultGiven(null, address);
 
-  const listener1: TypedListener<VaultBuiltEvent> = (a, b, c, d, e) =>
+  const listener1: TypedListener<VaultBuiltEvent> = (_a, _b, _c, _d, e) =>
     vaultDiscovered(e.args);
-  const listener2: TypedListener<VaultGivenEvent> = (a, b, c) =>
+  const listener2: TypedListener<VaultGivenEvent> = (_a, _b, c) =>
     vaultDiscovered(c.args);
   cauldron.on(vaultsBuiltFilter, listener1);
   cauldron.on(vaultsReceivedFilter, listener2);
@@ -105,16 +104,22 @@ export function loadVaultsAndStartListening(
   };
 }
 
+export interface SeriesObject {
+  seriesId: SeriesId;
+  baseId: string;
+  fyToken: string;
+}
+
 /**
  * Load series and start listening for new series.
  */
 export const loadSeriesAndStartListening = (
   contracts: MutableRefObject<Contracts>,
   signer: Signer,
-  seriesDiscovered: (event: SeriesAddedEventObject) => void
+  seriesDiscovered: (event: SeriesObject) => void
 ) => {
   if (SKIP_LOADING_FROM_CHAIN) {
-    const seriesId = "0x303030370000";
+    const seriesId = "0x303030370000" as SeriesId;
     void getFyTokenAddress(seriesId, contracts, signer).then((fyToken) =>
       seriesDiscovered({
         baseId: "0x303000000000",
@@ -127,8 +132,8 @@ export const loadSeriesAndStartListening = (
   }
   const cauldron = getContract(CAULDRON, contracts, signer);
   const seriesAddedFilter = cauldron.filters.SeriesAdded(null, null, null);
-  const listener: TypedListener<SeriesAddedEvent> = (a, b, c, d) =>
-    seriesDiscovered(d.args);
+  const listener: TypedListener<SeriesAddedEvent> = (_a, _b, _c, d) =>
+    seriesDiscovered({ seriesId: d.args.seriesId as SeriesId, baseId: d.args.baseId, fyToken: d.args.fyToken});
   cauldron.on(seriesAddedFilter, listener);
   return () => {
     cauldron.removeListener(seriesAddedFilter, listener);

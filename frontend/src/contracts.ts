@@ -1,5 +1,6 @@
 import { Signer } from "ethers";
 import { MutableRefObject } from "react";
+import { SeriesId } from "./balances";
 import { Cauldron, Cauldron__factory } from "./contracts/Cauldron.sol";
 import {
   FYToken,
@@ -75,7 +76,7 @@ export const getContract = <T extends keyof DefinitelyContracts>(
 };
 
 export const getFyTokenAddress = async(
-  seriesId: string,
+  seriesId: SeriesId,
   contracts: MutableRefObject<Contracts>,
   signer: Signer
 ): Promise<string> => {
@@ -84,7 +85,7 @@ export const getFyTokenAddress = async(
 }
 
 export const getFyToken = async(
-  seriesId: string,
+  seriesId: SeriesId,
   contracts: MutableRefObject<Contracts>,
   signer: Signer
 ): Promise<FYToken> => {
@@ -93,7 +94,7 @@ export const getFyToken = async(
 }
 
 export const getPool = async (
-  seriesId: string,
+  seriesId: SeriesId,
   contracts: MutableRefObject<Contracts>,
   signer: Signer
 ): Promise<IPool> => {
