@@ -326,12 +326,6 @@ export const Invest = ({
     setApprovalState(ApprovalState.Transacting);
     if (strategy.lever === YIELD_ST_ETH_LEVER) {
       const lever = getContract(strategy.lever, contracts, account);
-      console.log(
-        balanceInput.toString(),
-        toBorrow.toString(),
-        stEthMinCollateral.toString(),
-        seriesId
-      );
       const gasLimit = (
         await lever.estimateGas.invest(
           balanceInput,
@@ -461,7 +455,6 @@ export const Invest = ({
     strategy.outToken as [string, AssetId | Token],
   ].concat(series.map((s) => [s.seriesId, getInvestToken(strategy)]))) {
     const balance = balances[address];
-    console.log(balances, address);
     if (balance === undefined) {
       return <Loading/>;
     }

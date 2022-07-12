@@ -33,7 +33,11 @@ import { Loading } from "./components/Loading";
 
 const POLLING_INTERVAL = 5_000;
 
-export const App: React.FunctionComponent = () => {
+export const App = ({
+  ethereum,
+}: {
+  ethereum: providers.ExternalProvider | undefined;
+}) => {
   /**
    * This pulse will update in an interval. Subscribe to it to update effects
    * periodically.
@@ -74,6 +78,9 @@ export const App: React.FunctionComponent = () => {
     // It returns a promise that will resolve to the user's address.
     void provider
       .send("eth_requestAccounts", [])
+      // eth_requestAccounts is standard, but not supported by Ganache. There,
+      // just requesting the accounts will work fine:
+      .catch(() => provider.send('eth_accounts', []))
       // Use the first address
       .then(([selectedAddress]: string[]) => {
         setAddress(selectedAddress);
@@ -81,16 +88,20 @@ export const App: React.FunctionComponent = () => {
   }, [provider, chainId]);
 
   // We reinitialize it whenever the user changes their account.
-  useEthereumListener("accountsChanged", ([account]: string[]) => {
-    // `accountsChanged` event can be triggered with an undefined newAddress.
-    // This happens when the user removes the Dapp from the "Connected
-    // list of sites allowed access to your addresses" (Metamask > Settings > Connections)
-    if (provider === undefined || account === undefined) {
-      setAddress(undefined);
-    } else {
-      setAddress(account);
-    }
-  });
+  useEthereumListener(
+    "accountsChanged",
+    ([account]: string[]) => {
+      // `accountsChanged` event can be triggered with an undefined newAddress.
+      // This happens when the user removes the Dapp from the "Connected
+      // list of sites allowed access to your addresses" (Metamask > Settings > Connections)
+      if (provider === undefined || account === undefined) {
+        setAddress(undefined);
+      } else {
+        setAddress(account);
+      }
+    },
+    provider
+  );
   /**
    * The signer can be easily created from the address. We wrap it in a memo to
    * avoid unnecessary updates.
@@ -213,7 +224,7 @@ export const App: React.FunctionComponent = () => {
 
   // Ethereum wallets inject the window.ethereum object. If it hasn't been
   // injected, we instruct the user to install MetaMask.
-  if (window.ethereum === undefined) {
+  if (ethereum === undefined) {
     return <p>No wallet detected.</p>;
   }
 
@@ -227,9 +238,7 @@ export const App: React.FunctionComponent = () => {
   if (signer === undefined) {
     return (
       <ConnectWallet
-        connectWallet={() =>
-          setProvider(new providers.Web3Provider(window.ethereum))
-        }
+        connectWallet={() => setProvider(new providers.Web3Provider(ethereum))}
         networkError={networkError}
         dismiss={() => setNetworkError(undefined)}
       />
@@ -257,7 +266,7 @@ export const App: React.FunctionComponent = () => {
     ...vaultIds.map((vaultId) => ({
       component:
         provider === undefined ? (
-          <Loading/>
+          <Loading />
         ) : (
           <VaultComponent
             vaultId={vaultId}

@@ -4,6 +4,7 @@ import {
   Contract,
   ContractFactory,
   ethers,
+  providers,
   utils,
 } from "ethers";
 import { YieldStEthLever } from "../../frontend/src/contracts/YieldStEthLever.sol";
@@ -19,17 +20,15 @@ const seriesId = "0x303030370000";
 const OWN_ADDRESS: string = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 const DEPLOY_SENDER: string = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
-const provider = new ethers.providers.JsonRpcProvider();
-const deploySigner = provider.getSigner(DEPLOY_SENDER);
-
-(async () => {
+export const runSetup = async (provider: providers.JsonRpcProvider) => {
+  const deploySigner = provider.getSigner(DEPLOY_SENDER);
   const cauldron = "0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867";
   const giverFactory = new ContractFactory(
     giverContractJson.abi,
     giverContractJson.bytecode,
     deploySigner
   );
-  const giverContract = await giverFactory.deploy(cauldron, { gasPrice });
+  /*const giverContract = await giverFactory.deploy(cauldron, { gasPrice });
   await giverContract.deployTransaction.wait();
   console.log("- deployed Giver contract");
   console.log(`\t${giverContract.address}`);
@@ -140,5 +139,10 @@ const deploySigner = provider.getSigner(DEPLOY_SENDER);
     );
     await tx1;
     console.log("- obtained fyWeth");
-  }
-})();
+  }*/
+}
+
+{
+  const provider = new ethers.providers.JsonRpcProvider();
+  runSetup(provider);
+}

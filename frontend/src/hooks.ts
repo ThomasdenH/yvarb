@@ -33,12 +33,15 @@ export const useInvalidator = (): [Invalidator, () => void] => {
  *  updates.
  * @param fn The callback function, must be global constant as it does not
  *  listen to updates.
+ * @param windowEthereum The window.ethereum provider. Is not used here to keep
+ *  this function local.
  */
-export const useEthereumListener = (event: string, fn: providers.Listener) => {
+export const useEthereumListener = (event: string, fn: providers.Listener, windowEthereum?: providers.Web3Provider) => {
   useEffect(() => {
-    window.ethereum.on(event, fn);
+    if (windowEthereum === undefined) return;
+    windowEthereum.on(event, fn);
     return () => {
-      window.ethereum.removeListener(event, fn);
+      windowEthereum.removeListener(event, fn);
     };
     // Event must be constant
     // eslint-disable-next-line react-hooks/exhaustive-deps
