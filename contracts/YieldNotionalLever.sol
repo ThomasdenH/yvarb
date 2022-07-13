@@ -203,47 +203,35 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         bytes6 seriesId,
         bytes6 ilkId
     ) internal {
-        // uint128 netInvestAmount = uint128(baseAmount + borrowAmount - fee);
+        // Reuse variable to denote how much to invest
+        baseAmount += uint128(borrowAmount - fee);
         // Deposit into notional to get the fCash
-        BalanceActionWithTrades[]
-            memory actions = new BalanceActionWithTrades[](1);
-
         (uint88 fCashAmount, , bytes32 encodedTrade) = notional
             .getfCashLendFromDeposit(
                 ilkToCurrencyId[ilkId],
-                uint128(baseAmount + borrowAmount - fee),
+                baseAmount,
                 ilkToMaturity[ilkId], // September maturity
                 0,
                 block.timestamp,
                 true
             );
 
-        actions[0] = BalanceActionWithTrades({
-            actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
-            currencyId: ilkToCurrencyId[ilkId],
-            depositActionAmount: uint128(baseAmount + borrowAmount - fee),
-            withdrawAmountInternalPrecision: 0,
-            withdrawEntireCashBalance: false, // Return all residual cash to lender
-            redeemToUnderlying: false, // Convert cToken to token
-            trades: new bytes32[](1)
-        });
-        actions[0].trades[0] = encodedTrade;
-        notional.batchBalanceAndTradeAction(address(this), actions);
+        {
+            BalanceActionWithTrades[]
+                memory actions = new BalanceActionWithTrades[](1);
+            actions[0] = BalanceActionWithTrades({
+                actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
+                currencyId: ilkToCurrencyId[ilkId],
+                depositActionAmount: baseAmount,
+                withdrawAmountInternalPrecision: 0,
+                withdrawEntireCashBalance: false, // Return all residual cash to lender
+                redeemToUnderlying: false, // Convert cToken to token
+                trades: new bytes32[](1)
+            });
+            actions[0].trades[0] = encodedTrade;
+            notional.batchBalanceAndTradeAction(address(this), actions);
+        }
 
-        _pourAndSell(vaultId, fCashAmount, borrowAmount, seriesId);
-    }
-
-    /// @dev Additional function to get over stack too deep
-    /// @param vaultId VaultId
-    /// @param fCashAmount Amount of collateral
-    /// @param borrowAmount Amount being borrowed
-    /// @param seriesId SeriesId being
-    function _pourAndSell(
-        bytes12 vaultId,
-        uint256 fCashAmount,
-        uint256 borrowAmount,
-        bytes6 seriesId
-    ) internal {
         IPool pool = IPool(ladle.pools(seriesId));
         ladle.pour(
             vaultId,
