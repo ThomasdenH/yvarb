@@ -4,7 +4,7 @@ import "@testing-library/jest-dom";
 import * as ganache from "ganache";
 import { ExternalProvider } from "@ethersproject/providers";
 import { App } from "./App";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { runSetup } from "../../scripts/YieldStEthLever/ganache";
 import { providers } from "ethers";
 
@@ -48,7 +48,9 @@ describe("App", () => {
       const button = screen.getByText("Connect Wallet");
       expect(button).toBeInTheDocument();
 
-      button.click();
+      act(() => {
+        button.click();
+      });
 
       const els = await screen.findByText("Balance:");
     });

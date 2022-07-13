@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import '@testing-library/jest-dom';
 import { BigNumber } from "ethers";
 import { ValueInput } from "./ValueInput";
+import { act } from "react-dom/test-utils";
 
 describe("Tabs", () => {
   it("should start at the first tab", () => {
@@ -32,7 +33,9 @@ describe("Tabs", () => {
       }]} />
     );
     const tab2 = screen.getByText('Tab 2');
-    tab2.click();
+    act(() => {
+      tab2.click();
+    });
     expect(screen.getByText('Tab 1')).toBeInTheDocument();
     expect(tab2).toBeInTheDocument();
     expect(screen.queryByText('This is tab 1')).toBeNull();

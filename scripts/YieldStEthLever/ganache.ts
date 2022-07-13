@@ -28,7 +28,7 @@ export const runSetup = async (provider: providers.JsonRpcProvider) => {
     giverContractJson.bytecode,
     deploySigner
   );
-  /*const giverContract = await giverFactory.deploy(cauldron, { gasPrice });
+  const giverContract = await giverFactory.deploy(cauldron, { gasPrice });
   await giverContract.deployTransaction.wait();
   console.log("- deployed Giver contract");
   console.log(`\t${giverContract.address}`);
@@ -49,7 +49,7 @@ export const runSetup = async (provider: providers.JsonRpcProvider) => {
   console.log(`\t${yieldStEthLeverContract.address}`);
 
   const approveSeries = await (
-    yieldStEthLeverContract as YieldStEthLever
+    yieldStEthLeverContract as unknown as YieldStEthLever
   ).approveFyToken(seriesId);
   await approveSeries.wait();
   console.log(`- Approved series\n\t${seriesId}`);
@@ -139,7 +139,7 @@ export const runSetup = async (provider: providers.JsonRpcProvider) => {
     );
     await tx1;
     console.log("- obtained fyWeth");
-  }*/
+  }
 }
 
 {
