@@ -13,7 +13,7 @@ describe("App", () => {
     render(<App ethereum={undefined} />);
     expect(screen.getByText("No wallet detected.")).toBeInTheDocument();
   });
-
+/*
   describe("with an Ethereum injector", () => {
     let ganacheProvider: ganache.EthereumProvider;
     beforeEach(async () => {
@@ -54,5 +54,5 @@ describe("App", () => {
 
       const els = await screen.findByText("Balance:");
     });
-  });
+  });*/
 });
