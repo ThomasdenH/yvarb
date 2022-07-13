@@ -29,14 +29,13 @@ abstract contract ZeroState is Test {
     bytes6 seriesId = 0x303230370000;
     bytes6 ilkId = 0x313700000000;
 
-    FYToken immutable fyToken;
+    FYToken constant fyToken = FYToken(0x53C2a1bA37FF3cDaCcb3EA030DB3De39358e5593);
 
-    constructor() {
+    function setUp() public virtual {
         protocol = new Protocol();
         cauldron = ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
         daiJoin = FlashJoin(0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc); // dai
         usdcJoin = FlashJoin(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4); // usdc
-        fyToken = FYToken(0x53C2a1bA37FF3cDaCcb3EA030DB3De39358e5593);
         giver = new Giver(cauldron);
         // Orchestrate Giver
         AccessControl cauldronAccessControl = AccessControl(
@@ -93,13 +92,11 @@ abstract contract ZeroState is Test {
         FYToken(0xFCb9B8C5160Cf2999f9879D8230dCed469E72eeb).setFlashFeeFactor(
             1
         ); // FDAI2209
-    }
 
-    function setUp() public virtual {
         lever = new YieldNotionalLever(
             giver,
-            0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4, // USDC Join
-            0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc // DAI Join
+            address(usdcJoin), // USDC Join
+            address(daiJoin) // DAI Join
         );
         vm.label(address(lever), "LEVER");
 
@@ -153,7 +150,7 @@ contract UnwindTest is ZeroState {
 
     function setUp() public override {
         super.setUp();
-        emit log_uint(IERC20(USDC).balanceOf(address(this)));
+        // emit log_uint(IERC20(USDC).balanceOf(address(this)));
         vaultId = leverUp(2000e6, 5000e6);
         // DataTypes.Vault memory vault = cauldron.vaults(vaultId);
     }
@@ -165,10 +162,10 @@ contract UnwindTest is ZeroState {
 
     function testDoClose() public {
         DataTypes.Series memory series_ = cauldron.series(seriesId);
-        emit log_uint(IERC20(USDC).balanceOf(address(this)));
+        // emit log_uint(IERC20(USDC).balanceOf(address(this)));
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId);
-        emit log_uint(IERC20(USDC).balanceOf(address(this)));
+        // emit log_uint(IERC20(USDC).balanceOf(address(this)));
     }
 }
