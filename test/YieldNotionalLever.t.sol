@@ -155,7 +155,7 @@ contract UnwindTest is ZeroState {
         super.setUp();
         emit log_uint(IERC20(USDC).balanceOf(address(this)));
         vaultId = leverUp(2000e6, 5000e6);
-        DataTypes.Vault memory vault = cauldron.vaults(vaultId);
+        // DataTypes.Vault memory vault = cauldron.vaults(vaultId);
     }
 
     function testRepay() public {

@@ -48,11 +48,11 @@ contract YieldLeverBase is IERC3156FlashBorrower {
     }
 
     function onFlashLoan(
-        address initiator,
+        address, // initiator,
         address, // The token, not checked as we check the lender address.
-        uint256 borrowAmount,
-        uint256 fee,
-        bytes calldata data
+        uint256, // borrowAmount,
+        uint256, // fee,
+        bytes calldata // data
     ) external virtual returns (bytes32) {
         return FLASH_LOAN_RETURN;
     }

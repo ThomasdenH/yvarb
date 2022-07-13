@@ -122,8 +122,6 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         }
         if (!success) revert FlashLoanFailure();
         giver.give(vaultId, msg.sender);
-
-        DataTypes.Balances memory vault = cauldron.balances(vaultId);
     }
 
     /// @notice Called by a flash lender, which can be `usdcJoin` or
@@ -169,14 +167,12 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             bytes12 vaultId = bytes12(data[13:25]);
             uint128 ink = uint128(bytes16(data[25:41]));
             uint128 art = uint128(bytes16(data[41:57]));
-            address borrower = address(bytes20(data[57:77]));
             doRepay(
                 uint128(borrowAmount + fee),
                 vaultId,
                 ilkId,
                 ink,
                 art,
-                borrower,
                 seriesId
             );
         } else if (status == Operation.CLOSE) {
@@ -300,8 +296,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 ilkId, // [7:13]
                 vaultId, // [13:25]
                 bytes16(ink), // [25:41]
-                bytes16(art), // [41:57]
-                bytes20(msg.sender)
+                bytes16(art) // [41:57]
             );
             bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
                 this, // Loan Receiver
@@ -362,14 +357,12 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     /// @param ink The amount of collateral to retake.
     /// @param art The debt to repay.
     ///     slippage.
-    /// @param borrower The borrower, the previous owner of the vault.
     function doRepay(
         uint128 borrowAmountPlusFee, // Amount of FYToken received
         bytes12 vaultId,
         bytes6 ilkId,
         uint128 ink,
         uint128 art,
-        address borrower,
         bytes6 seriesId
     ) internal {
         // Repay the vault, get collateral back.
@@ -429,10 +422,10 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     function onERC1155Received(
         address,
         address,
-        uint256 _id,
+        uint256, // _id,
         uint256,
         bytes calldata
-    ) external override returns (bytes4) {
+    ) external override pure returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155Received.selector;
     }
 
@@ -440,10 +433,10 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     function onERC1155BatchReceived(
         address,
         address,
-        uint256[] calldata _ids,
+        uint256[] calldata, // _ids,
         uint256[] calldata,
         bytes calldata
-    ) external override returns (bytes4) {
+    ) external override pure returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155BatchReceived.selector;
     }
 }
