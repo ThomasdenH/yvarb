@@ -17,9 +17,13 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     Notional constant notional =
         Notional(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
 
-    mapping(bytes6 => bytes1) ilkToUnderlying;
-    mapping(bytes6 => uint40) ilkToMaturity;
-    mapping(bytes6 => uint16) ilkToCurrencyId;
+    struct ilk_info {
+        bytes1 underlying;
+        uint40 maturity;
+        uint16 currencyId;
+    }
+
+    mapping(bytes6 => ilk_info) ilkInfo;
 
     constructor(
         Giver giver_,
@@ -48,17 +52,17 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
     // TODO: Make it auth controlled when deploying
     function setIlkToUnderlying(bytes6 ilkId, bytes1 under) external {
-        ilkToUnderlying[ilkId] = under;
+        ilkInfo[ilkId].underlying = under;
     }
 
     // TODO: Make it auth controlled when deploying
     function setIlkToMaturity(bytes6 ilkId, uint40 maturity) external {
-        ilkToMaturity[ilkId] = maturity;
+        ilkInfo[ilkId].maturity = maturity;
     }
 
     // TODO: Make it auth controlled when deploying
     function setIlkToCurrencyId(bytes6 ilkId, uint16 currencyId) external {
-        ilkToCurrencyId[ilkId] = currencyId;
+        ilkInfo[ilkId].currencyId = currencyId;
     }
 
     // TODO: Make it auth controlled when deploying
@@ -107,7 +111,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         );
 
         bool success;
-        if (ilkToUnderlying[ilkId] == 0x01) {
+        if (ilkInfo[ilkId].underlying == 0x01) {
             // USDC
             IERC20(USDC).safeTransferFrom(
                 msg.sender,
@@ -205,23 +209,26 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     ) internal {
         // Reuse variable to denote how much to invest
         baseAmount += uint128(borrowAmount - fee);
-        // Deposit into notional to get the fCash
-        (uint88 fCashAmount, , bytes32 encodedTrade) = notional
-            .getfCashLendFromDeposit(
-                ilkToCurrencyId[ilkId],
-                baseAmount,
-                ilkToMaturity[ilkId], // September maturity
-                0,
-                block.timestamp,
-                true
-            );
-
+        uint88 fCashAmount;
+        bytes32 encodedTrade;
         {
+            ilk_info memory ilkIdInfo = ilkInfo[ilkId];
+            // Deposit into notional to get the fCash
+            (fCashAmount, , encodedTrade) = notional
+                .getfCashLendFromDeposit(
+                    ilkIdInfo.currencyId,
+                    baseAmount,
+                    ilkIdInfo.maturity, // September maturity
+                    0,
+                    block.timestamp,
+                    true
+                );
+
             BalanceActionWithTrades[]
                 memory actions = new BalanceActionWithTrades[](1);
             actions[0] = BalanceActionWithTrades({
                 actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
-                currencyId: ilkToCurrencyId[ilkId],
+                currencyId: ilkIdInfo.currencyId,
                 depositActionAmount: baseAmount,
                 withdrawAmountInternalPrecision: 0,
                 withdrawEntireCashBalance: false, // Return all residual cash to lender
@@ -310,7 +317,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 bytes16(art)
             );
             bool success;
-            if (ilkToUnderlying[ilkId] == 0x01) {
+            if (ilkInfo[ilkId].underlying == 0x01) {
                 // USDC
                 success = usdcJoin.flashLoan(
                     this, // Loan Receiver
@@ -355,36 +362,37 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     ) internal {
         // Repay the vault, get collateral back.
         ladle.pour(vaultId, address(this), -int128(ink), -int128(art));
+        ilk_info memory ilkIdInfo = ilkInfo[ilkId];
+        {
+            // Trade fCash to receive USDC/DAI
+            BalanceActionWithTrades[]
+                memory actions = new BalanceActionWithTrades[](1);
+            actions[0] = BalanceActionWithTrades({
+                actionType: DepositActionType.None,
+                currencyId: ilkIdInfo.currencyId,
+                depositActionAmount: 0,
+                withdrawAmountInternalPrecision: 0,
+                withdrawEntireCashBalance: true,
+                redeemToUnderlying: true,
+                trades: new bytes32[](1)
+            });
 
-        // Trade fCash to receive USDC/DAI
-        BalanceActionWithTrades[]
-            memory actions = new BalanceActionWithTrades[](1);
+            (, , , bytes32 encodedTrade) = notional.getPrincipalFromfCashBorrow(
+                ilkIdInfo.currencyId,
+                ink,
+                ilkIdInfo.maturity,
+                0,
+                block.timestamp
+            );
 
-        actions[0] = BalanceActionWithTrades({
-            actionType: DepositActionType.None,
-            currencyId: ilkToCurrencyId[ilkId],
-            depositActionAmount: 0,
-            withdrawAmountInternalPrecision: 0,
-            withdrawEntireCashBalance: true,
-            redeemToUnderlying: true,
-            trades: new bytes32[](1)
-        });
-
-        (, , , bytes32 encodedTrade) = notional.getPrincipalFromfCashBorrow(
-            ilkToCurrencyId[ilkId],
-            ink,
-            ilkToMaturity[ilkId],
-            0,
-            block.timestamp
-        );
-
-        actions[0].trades[0] = encodedTrade;
-        notional.batchBalanceAndTradeAction(address(this), actions);
+            actions[0].trades[0] = encodedTrade;
+            notional.batchBalanceAndTradeAction(address(this), actions);
+        }
 
         // buyFyToken
         IPool pool = IPool(ladle.pools(seriesId));
         uint128 tokenToTran = pool.buyFYTokenPreview(borrowAmountPlusFee);
-        if (ilkToUnderlying[ilkId] == 0x01) {
+        if (ilkIdInfo.underlying == 0x01) {
             IERC20(USDC).safeTransfer(address(pool), tokenToTran);
         } else {
             // DAI
@@ -413,7 +421,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint256, // _id,
         uint256,
         bytes calldata
-    ) external override pure returns (bytes4) {
+    ) external pure override returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155Received.selector;
     }
 
@@ -424,7 +432,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint256[] calldata, // _ids,
         uint256[] calldata,
         bytes calldata
-    ) external override pure returns (bytes4) {
+    ) external pure override returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155BatchReceived.selector;
     }
 }
