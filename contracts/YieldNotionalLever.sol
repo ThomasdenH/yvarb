@@ -121,7 +121,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             success = daiJoin.flashLoan(this, DAI, borrowAmount, data);
         }
         if (!success) revert FlashLoanFailure();
-        giver.give(vaultId, msg.sender);
+        ladle.give(vaultId, msg.sender);
     }
 
     /// @notice Called by a flash lender, which can be `usdcJoin` or

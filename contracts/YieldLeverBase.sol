@@ -16,14 +16,20 @@ import "@yield-protocol/vault-v2/FlashJoin.sol";
 error FlashLoanFailure();
 error SlippageFailure();
 
+interface Ladle is ILadle {
+    function give(bytes12 vaultId_, address receiver)
+        external payable
+        returns(DataTypes.Vault memory vault);
+}
+
 contract YieldLeverBase is IERC3156FlashBorrower {
     using TransferHelper for IERC20;
     using TransferHelper for IFYToken;
 
     /// @notice The Yield Ladle, the primary entry point for most high-level
     ///     operations.
-    ILadle public constant ladle =
-        ILadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
+    Ladle public constant ladle =
+        Ladle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
     /// @notice The Yield Cauldron, handles debt and collateral balances.
     ICauldron public constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
