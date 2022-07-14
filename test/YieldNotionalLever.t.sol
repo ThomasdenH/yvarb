@@ -100,7 +100,6 @@ abstract contract ZeroState is Test {
         lever.setIlkInfo(
             0x313700000000,
             YieldNotionalLever.ilk_info({
-                token: IERC20(USDC),
                 join: usdcJoin,
                 maturity: 1664064000,
                 currencyId: 3
@@ -111,7 +110,6 @@ abstract contract ZeroState is Test {
         lever.setIlkInfo(
             0x313600000000,
             YieldNotionalLever.ilk_info({
-                token: IERC20(DAI),
                 join: daiJoin,
                 maturity: 1664064000,
                 currencyId: 2

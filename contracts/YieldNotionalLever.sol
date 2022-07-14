@@ -13,7 +13,6 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         Notional(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
 
     struct ilk_info {
-        IERC20 token;
         FlashJoin join;
         uint40 maturity;
         uint16 currencyId;
@@ -36,8 +35,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
     // TODO: Make it auth controlled when deploying
     function setIlkInfo(bytes6 ilkId, ilk_info calldata underlying) external {
-        underlying.token.approve(address(underlying.join), type(uint256).max);
-        underlying.token.approve(address(notional), type(uint256).max);
+        IERC20 token = IERC20(underlying.join.asset());
+        token.approve(address(underlying.join), type(uint256).max);
+        token.approve(address(notional), type(uint256).max);
         ilkInfo[ilkId] = underlying;
     }
 
@@ -88,10 +88,11 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
         bool success;
         ilk_info memory info = ilkInfo[ilkId];
-        info.token.safeTransferFrom(msg.sender, address(this), baseAmount);
+        IERC20 token = IERC20(info.join.asset());
+        token.safeTransferFrom(msg.sender, address(this), baseAmount);
         success = info.join.flashLoan(
             this,
-            address(info.token),
+            address(token),
             borrowAmount,
             data
         );
@@ -296,15 +297,16 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             );
             bool success;
             ilk_info memory info = ilkInfo[ilkId];
+            IERC20 token = IERC20(info.join.asset());
             success = info.join.flashLoan(
                 this, // Loan Receiver
-                address(info.token), // Loan Token
+                address(token), // Loan Token
                 art, // Loan Amount: borrow exactly the debt to repay.
                 data
             );
             if (!success) revert FlashLoanFailure();
-            uint256 balance = info.token.balanceOf(address(this));
-            info.token.safeTransfer(msg.sender, balance);
+            uint256 balance = token.balanceOf(address(this));
+            token.safeTransfer(msg.sender, balance);
         }
         // Give the vault back to the sender, just in case there is anything left
         giver.give(vaultId, msg.sender);
@@ -356,7 +358,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         // buyFyToken
         IPool pool = IPool(ladle.pools(seriesId));
         uint128 tokenToTran = pool.buyFYTokenPreview(borrowAmountPlusFee);
-        ilkIdInfo.token.safeTransfer(address(pool), tokenToTran);
+        IERC20 token = IERC20(ilkIdInfo.join.asset());
+        token.safeTransfer(address(pool), tokenToTran);
         pool.buyFYToken(address(this), borrowAmountPlusFee, tokenToTran);
     }
 
