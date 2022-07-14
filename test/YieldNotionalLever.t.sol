@@ -13,6 +13,12 @@ import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
 import "@yield-protocol/yieldspace-interfaces/IPool.sol";
 
+struct ilk_info {
+    address join;
+    uint40 maturity;
+    uint16 currencyId;
+}
+
 abstract contract ZeroState is Test {
     address timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;
     address usdcWhale = 0x0D2703ac846c26d5B6Bbddf1FD6027204F409785;
@@ -138,13 +144,24 @@ abstract contract ZeroState is Test {
             ilkId // ilkId
         );
     }
+
+    /// Return the available balance in the join.
+    function availableBalance(bytes6 ilkIdToCheck) public view returns (uint256 available) {
+        (FlashJoin join, , ) = lever.ilkInfo(ilkIdToCheck);
+        IERC20 token = IERC20(join.asset());
+        available = token.balanceOf(address(join)) - join.storedBalance();
+    }
 }
 
 contract ZeroStateTest is ZeroState {
     function testVault() public {
+        uint256 availableAtStart = availableBalance(ilkId);
         bytes12 vaultId = leverUp(2000e6, 5000e6);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
+
+        // Test that we left the join as we encountered it
+        assertEq(availableBalance(ilkId), availableAtStart);
     }
 }
 
@@ -155,20 +172,28 @@ contract UnwindTest is ZeroState {
         super.setUp();
         emit log_uint(IERC20(USDC).balanceOf(address(this)));
         vaultId = leverUp(2000e6, 5000e6);
-        // DataTypes.Vault memory vault = cauldron.vaults(vaultId);
     }
 
     function testRepay() public {
+        uint256 availableAtStart = availableBalance(ilkId);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId);
+
+        // Test that we left the join as we encountered it
+        assertEq(availableBalance(ilkId), availableAtStart);
     }
 
     function testDoClose() public {
+        uint256 availableAtStart = availableBalance(ilkId);
+
         DataTypes.Series memory series_ = cauldron.series(seriesId);
         emit log_uint(IERC20(USDC).balanceOf(address(this)));
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId);
         emit log_uint(IERC20(USDC).balanceOf(address(this)));
+
+        // Test that we left the join as we encountered it
+        assertEq(availableBalance(ilkId), availableAtStart);
     }
 }

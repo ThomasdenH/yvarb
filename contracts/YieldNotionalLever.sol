@@ -18,7 +18,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint16 currencyId;
     }
 
-    mapping(bytes6 => ilk_info) ilkInfo;
+    mapping(bytes6 => ilk_info) public ilkInfo;
 
     constructor(Giver giver_) YieldLeverBase(giver_) {
         notional.setApprovalForAll(address(ladle), true);
@@ -98,6 +98,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         );
         if (!success) revert FlashLoanFailure();
         ladle.give(vaultId, msg.sender);
+        // The leftover assets originated in the join, so just deposit them back
+        uint256 balance = token.balanceOf(address(this));
+        token.safeTransfer(address(info.join), balance);
     }
 
     /// @notice Called by a flash lender, which can be `usdcJoin` or
