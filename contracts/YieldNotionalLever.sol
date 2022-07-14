@@ -3,7 +3,6 @@ pragma solidity ^0.8.14;
 
 import "./YieldLeverBase.sol";
 import "./NotionalTypes.sol";
-import "forge-std/console.sol";
 import "@yield-protocol/vault-v2/other/notional/ERC1155.sol";
 
 contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
@@ -123,6 +122,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             // DAI
             IERC20(DAI).safeTransferFrom(msg.sender, address(this), baseAmount);
             success = daiJoin.flashLoan(this, DAI, borrowAmount, data);
+            //assert(IERC20(DAI).balanceOf(address(this)) == 0);
         }
         if (!success) revert FlashLoanFailure();
         ladle.give(vaultId, msg.sender);
@@ -164,7 +164,6 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             bytes6 ilkId = bytes6(data[7:13]);
             bytes12 vaultId = bytes12(data[13:25]);
             uint128 baseAmount = uint128(uint128(bytes16(data[25:41])));
-
             leverUp(borrowAmount, fee, baseAmount, vaultId, seriesId, ilkId);
         } else if (status == Operation.REPAY) {
             bytes6 ilkId = bytes6(data[7:13]);
@@ -207,7 +206,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         bytes6 seriesId,
         bytes6 ilkId
     ) internal {
-        // Reuse variable to denote how much to invest
+        // Reuse variable to denote how much to invest. Done to prevent stack
+        // too deep error while being gas efficient.
         baseAmount += uint128(borrowAmount - fee);
         uint88 fCashAmount;
         bytes32 encodedTrade;
@@ -217,8 +217,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             (fCashAmount, , encodedTrade) = notional
                 .getfCashLendFromDeposit(
                     ilkIdInfo.currencyId,
-                    baseAmount,
-                    ilkIdInfo.maturity, // September maturity
+                    baseAmount, // total to invest
+                    ilkIdInfo.maturity,
                     0,
                     block.timestamp,
                     true
@@ -229,7 +229,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             actions[0] = BalanceActionWithTrades({
                 actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
                 currencyId: ilkIdInfo.currencyId,
-                depositActionAmount: baseAmount,
+                depositActionAmount: baseAmount, // total to invest
                 withdrawAmountInternalPrecision: 0,
                 withdrawEntireCashBalance: false, // Return all residual cash to lender
                 redeemToUnderlying: false, // Convert cToken to token
@@ -240,13 +240,14 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         }
 
         IPool pool = IPool(ladle.pools(seriesId));
+        uint128 maxFyOut = pool.buyBasePreview(uint128(borrowAmount));
         ladle.pour(
             vaultId,
             address(pool),
             int128(uint128(fCashAmount)),
-            int128(pool.buyBasePreview(uint128(borrowAmount) + 1)) // TODO: +1 here borrows the correct amount what to do?
+            int128(maxFyOut)
         );
-        pool.sellFYToken(address(this), 0);
+        pool.buyBase(address(this), uint128(borrowAmount), maxFyOut);
     }
 
     /// @notice Unwind a position.
@@ -327,7 +328,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 );
                 if (!success) revert FlashLoanFailure();
                 uint256 balance = IERC20(USDC).balanceOf(address(this));
-                if (balance > 0) IERC20(USDC).safeTransfer(msg.sender, balance);
+                IERC20(USDC).safeTransfer(msg.sender, balance);
             } else {
                 // DAI
                 success = daiJoin.flashLoan(
@@ -338,7 +339,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 );
                 if (!success) revert FlashLoanFailure();
                 uint256 balance = IERC20(DAI).balanceOf(address(this));
-                if (balance > 0) IERC20(DAI).safeTransfer(msg.sender, balance);
+                IERC20(DAI).safeTransfer(msg.sender, balance);
             }
         }
 
