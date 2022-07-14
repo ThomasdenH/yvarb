@@ -45,14 +45,8 @@ abstract contract ZeroState is Test {
         vm.prank(timeLock);
         cauldronAccessControl.grantRole(0x798a828b, address(giver));
 
-        vm.label(
-            address(0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc),
-            "dai Join"
-        );
-        vm.label(
-            address(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4),
-            "usdc Join"
-        );
+        vm.label(address(address(daiJoin)), "dai Join");
+        vm.label(address(address(usdcJoin)), "usdc Join");
         vm.label(
             address(0x1344A36A1B56144C3Bc62E7757377D288fDE0369),
             "Notional"
@@ -96,25 +90,33 @@ abstract contract ZeroState is Test {
     }
 
     function setUp() public virtual {
-        lever = new YieldNotionalLever(
-            giver,
-            0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4, // USDC Join
-            0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc // DAI Join
-        );
+        lever = new YieldNotionalLever(giver);
         vm.label(address(lever), "LEVER");
 
         IERC20(USDC).approve(address(lever), type(uint256).max);
         IERC20(DAI).approve(address(lever), type(uint256).max);
 
         // USDC
-        lever.setIlkToUnderlying(0x313700000000, 0x01);
-        lever.setIlkToCurrencyId(0x313700000000, 3);
-        lever.setIlkToMaturity(0x313700000000, 1664064000);
+        lever.setIlkInfo(
+            0x313700000000,
+            YieldNotionalLever.ilk_info({
+                token: IERC20(USDC),
+                join: usdcJoin,
+                maturity: 1664064000,
+                currencyId: 3
+            })
+        );
 
         // DAI
-        lever.setIlkToUnderlying(0x313600000000, 0x02);
-        lever.setIlkToCurrencyId(0x313600000000, 2);
-        lever.setIlkToMaturity(0x313600000000, 1664064000);
+        lever.setIlkInfo(
+            0x313600000000,
+            YieldNotionalLever.ilk_info({
+                token: IERC20(DAI),
+                join: daiJoin,
+                maturity: 1664064000,
+                currencyId: 2
+            })
+        );
 
         AccessControl giverAccessControl = AccessControl(address(giver));
         giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
