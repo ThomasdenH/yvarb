@@ -74,17 +74,17 @@ contract YieldStEthLever is YieldLeverBase {
     ///     exchange it to (W)StEth, which we use as collateral. The contract
     ///     tests that at least `minCollateral` is attained in order to prevent
     ///     sandwich attacks.
+    /// @param seriesId The series to create the vault for.
     /// @param baseAmount The amount of own liquidity to supply.
     /// @param borrowAmount The amount of additional liquidity to borrow.
     /// @param minCollateral The minimum amount of collateral to end up with in
     ///     the vault. If this requirement is not satisfied, the transaction
     ///     will revert.
-    /// @param seriesId The series to create the vault for.
     function invest(
+        bytes6 seriesId,
         uint128 baseAmount,
         uint128 borrowAmount,
-        uint128 minCollateral,
-        bytes6 seriesId
+        uint128 minCollateral
     ) external returns (bytes12 vaultId) {
         IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
         fyToken.safeTransferFrom(msg.sender, address(this), baseAmount);
@@ -99,7 +99,7 @@ contract YieldStEthLever is YieldLeverBase {
         // baseAmount       16 bytes    [19:35]
         // minCollateral    16 bytes    [35:51]
         bytes memory data = bytes.concat(
-            bytes1(uint8(uint256(Operation.LEVER_UP))),
+            bytes1(uint8(uint256(Operation.BORROW))),
             seriesId,
             vaultId,
             bytes16(baseAmount),
@@ -139,7 +139,7 @@ contract YieldStEthLever is YieldLeverBase {
     ) external override returns (bytes32) {
         Operation status = Operation(uint256(uint8(data[0])));
         bytes6 seriesId = bytes6(data[1:7]);
-
+        bytes12 vaultId = bytes12(data[7:19]);
         IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
         // Test that the lender is either the fyToken contract or the Weth
         // Join.
@@ -149,38 +149,27 @@ contract YieldStEthLever is YieldLeverBase {
         if (initiator != address(this)) revert FlashLoanFailure();
 
         // Decode the operation to execute and then call that function.
-        if (status == Operation.LEVER_UP) {
-            bytes12 vaultId = bytes12(data[7:19]);
+        if (status == Operation.BORROW) {
             uint128 baseAmount = uint128(uint128(bytes16(data[19:35])));
             uint256 minCollateral = uint128(bytes16(data[35:51]));
-            leverUp(
+            borrow(
+                vaultId,
+                seriesId,
+                baseAmount,
                 borrowAmount,
                 fee,
-                baseAmount,
-                minCollateral,
-                vaultId,
-                seriesId
+                minCollateral
             );
         } else if (status == Operation.REPAY) {
-            bytes12 vaultId = bytes12(data[7:19]);
-            uint128 ink = uint128(bytes16(data[19:35]));
-            uint128 art = uint128(bytes16(data[35:51]));
-            address borrower = address(bytes20(data[51:71]));
-            uint256 minWeth = uint256(bytes32(data[71:103]));
-            doRepay(
-                uint128(borrowAmount + fee),
-                vaultId,
-                ink,
-                art,
-                minWeth,
-                borrower,
-                seriesId
-            );
+            // uint128 ink = uint128(bytes16(data[19:35]));
+            // uint128 art = uint128(bytes16(data[35:51]));
+            // address borrower = address(bytes20(data[51:71]));
+            // uint256 minWeth = uint256(bytes32(data[71:103]));
+            repay(vaultId, seriesId, uint128(borrowAmount + fee), data);
         } else if (status == Operation.CLOSE) {
-            bytes12 vaultId = bytes12(data[7:19]);
             uint128 ink = uint128(bytes16(data[19:35]));
             uint128 art = uint128(bytes16(data[35:51]));
-            doClose(vaultId, ink, art);
+            close(vaultId, ink, art);
         }
         return FLASH_LOAN_RETURN;
     }
@@ -190,20 +179,20 @@ contract YieldStEthLever is YieldLeverBase {
     ///         - We have supplied and borrowed FYWeth.
     ///         - We convert it to StEth and put it in the vault.
     ///         - Against it, we borrow enough FYWeth to repay the flash loan.
-    /// @param borrowAmount The amount of FYWeth borrowed in the flash loan.
-    /// @param fee The fee that will be issued by the flash loan.
-    /// @param baseAmount The amount of own collateral to supply.
-    /// @param minCollateral The final amount of collateral to end up with, or
-    ///     the function will revert. Used to prevent slippage.
     /// @param vaultId The vault id to put collateral into and borrow from.
     /// @param seriesId The pool (and thereby series) to borrow from.
-    function leverUp(
+    /// @param baseAmount The amount of own collateral to supply.
+    /// @param borrowAmount The amount of FYWeth borrowed in the flash loan.
+    /// @param fee The fee that will be issued by the flash loan.
+    /// @param minCollateral The final amount of collateral to end up with, or
+    ///     the function will revert. Used to prevent slippage.
+    function borrow(
+        bytes12 vaultId,
+        bytes6 seriesId,
+        uint128 baseAmount,
         uint256 borrowAmount,
         uint256 fee,
-        uint128 baseAmount,
-        uint256 minCollateral,
-        bytes12 vaultId,
-        bytes6 seriesId
+        uint256 minCollateral
     ) internal {
         // The total amount to invest. Equal to the base plus the borrowed
         // minus the flash loan fee. The fee saved here together with the
@@ -255,7 +244,7 @@ contract YieldStEthLever is YieldLeverBase {
         // so the final balance should be exactly 0.
     }
 
-    /// @notice Unwind a position.
+    /// @notice Divest a position.
     ///
     ///     If pre maturity, borrow liquidity tokens to repay `art` debt and
     ///     take `ink` collateral. Repay the loan and return remaining
@@ -266,20 +255,20 @@ contract YieldStEthLever is YieldLeverBase {
     ///
     ///     This function will take the vault from you using `Giver`, so make
     ///     sure you have given it permission to do that.
+    /// @param vaultId The vault to use.
+    /// @param seriesId The seriesId corresponding to the vault.
     /// @param ink The amount of collateral to recover.
     /// @param art The debt to repay.
     /// @param minWeth Revert the transaction if we don't obtain at least this
     ///     much WEth at the end of the operation.
-    /// @param vaultId The vault to use.
-    /// @param seriesId The seriesId corresponding to the vault.
     /// @dev It is more gas efficient to let the user supply the `seriesId`,
     ///     but it should match the pool.
-    function unwind(
+    function divest(
+        bytes12 vaultId,
+        bytes6 seriesId,
         uint128 ink,
         uint128 art,
-        uint256 minWeth,
-        bytes12 vaultId,
-        bytes6 seriesId
+        uint256 minWeth
     ) external {
         // Test that the caller is the owner of the vault.
         // This is important as we will take the vault from the user.
@@ -355,23 +344,22 @@ contract YieldStEthLever is YieldLeverBase {
     ///         - Sell obtained `ink` StEth for WEth.
     ///         - Repay loan by buying liquidity tokens
     ///         - Send remaining WEth to user
+    /// @param vaultId The vault to repay.
+    /// @param seriesId The seriesId corresponding to the vault.
     /// @param borrowAmountPlusFee The amount of fyWeth that we have borrowed,
     ///     plus the fee. This should be our final balance.
-    /// @param vaultId The vault to repay.
-    /// @param ink The amount of collateral to retake.
-    /// @param art The debt to repay.
-    /// @param minWeth The minimum amount of WEth to end up with. Used against
-    ///     slippage.
-    /// @param borrower The borrower, the previous owner of the vault.
-    function doRepay(
-        uint128 borrowAmountPlusFee, // Amount of FYToken received
+    /// @param data Data containing the rest of the information
+    function repay(
         bytes12 vaultId,
-        uint128 ink,
-        uint128 art,
-        uint256 minWeth,
-        address borrower,
-        bytes6 seriesId
+        bytes6 seriesId,
+        uint128 borrowAmountPlusFee, // Amount of FYToken received
+        bytes calldata data
     ) internal {
+        uint128 ink = uint128(bytes16(data[19:35]));
+        uint128 art = uint128(bytes16(data[35:51]));
+        address borrower = address(bytes20(data[51:71]));
+        uint256 minWeth = uint256(bytes32(data[71:103]));
+
         // Repay the vault, get collateral back.
         ladle.pour(vaultId, address(this), -int128(ink), -int128(art));
 
@@ -418,7 +406,7 @@ contract YieldStEthLever is YieldLeverBase {
     /// @param ink The collateral to take from the vault.
     /// @param art The debt to repay. This is denominated in fyTokens, even
     ///     though the payment is done in terms of WEth.
-    function doClose(
+    function close(
         bytes12 vaultId,
         uint128 ink,
         uint128 art
