@@ -15,7 +15,7 @@ import "@yield-protocol/yieldspace-interfaces/IPool.sol";
 
 abstract contract ZeroState is Test {
     address timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;
-    address usdcWhale = 0x0D2703ac846c26d5B6Bbddf1FD6027204F409785;
+    address usdcWhale = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
     address daiWhale = 0xaD0135AF20fa82E106607257143d0060A7eB5cBf;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
@@ -99,7 +99,7 @@ abstract contract ZeroState is Test {
         // USDC
         lever.setIlkInfo(
             0x313700000000,
-            YieldNotionalLever.ilk_info({
+            YieldNotionalLever.IlkInfo({
                 join: usdcJoin,
                 maturity: 1664064000,
                 currencyId: 3
@@ -109,7 +109,7 @@ abstract contract ZeroState is Test {
         // DAI
         lever.setIlkInfo(
             0x313600000000,
-            YieldNotionalLever.ilk_info({
+            YieldNotionalLever.IlkInfo({
                 join: daiJoin,
                 maturity: 1664064000,
                 currencyId: 2
@@ -132,15 +132,15 @@ abstract contract ZeroState is Test {
         // uint256 eulerAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
 
         vaultId = lever.invest(
-            baseAmount,
-            borrowAmount,
+            ilkId, // ilkId
             seriesId,
-            ilkId // ilkId
+            baseAmount,
+            borrowAmount
         );
     }
 }
 
-contract ZeroStateTest is ZeroState {
+contract VaultTest is ZeroState {
     function testVault() public {
         bytes12 vaultId = leverUp(2000e6, 5000e6);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
@@ -148,7 +148,7 @@ contract ZeroStateTest is ZeroState {
     }
 }
 
-contract UnwindTest is ZeroState {
+contract DivestTest is ZeroState {
     bytes12 vaultId;
 
     function setUp() public override {
@@ -160,7 +160,9 @@ contract UnwindTest is ZeroState {
 
     function testRepay() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId);
+        emit log_uint(IERC20(USDC).balanceOf(address(this)));
+        lever.divest(ilkId, seriesId, vaultId, balances.ink, balances.art);
+        emit log_uint(IERC20(USDC).balanceOf(address(this)));
     }
 
     function testDoClose() public {
@@ -168,7 +170,7 @@ contract UnwindTest is ZeroState {
         emit log_uint(IERC20(USDC).balanceOf(address(this)));
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId);
+        lever.divest(ilkId, seriesId, vaultId, balances.ink, balances.art);
         emit log_uint(IERC20(USDC).balanceOf(address(this)));
     }
 }

@@ -18,8 +18,9 @@ error SlippageFailure();
 
 interface Ladle is ILadle {
     function give(bytes12 vaultId_, address receiver)
-        external payable
-        returns(DataTypes.Vault memory vault);
+        external
+        payable
+        returns (DataTypes.Vault memory vault);
 }
 
 contract YieldLeverBase is IERC3156FlashBorrower {
@@ -34,9 +35,13 @@ contract YieldLeverBase is IERC3156FlashBorrower {
     ICauldron public constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
 
+    event LeveredUp();
+    event Repaid();
+    event Closed();
+
     /// @notice The operation to execute in the flash loan.
     enum Operation {
-        LEVER_UP,
+        BORROW,
         REPAY,
         CLOSE
     }
