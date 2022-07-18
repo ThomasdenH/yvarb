@@ -72,17 +72,21 @@ contract YieldEulerLever is YieldLeverBase {
         );
     }
 
+    /// @notice Invest by creating a levered vault.
+    /// @param ilkId The id of the ilk being invested.
+    /// @param seriesId The series to create the vault for.
+    /// @param baseAmount The amount of own liquidity to supply.
+    /// @param borrowAmount The amount of additional liquidity to borrow.
+    /// @param minCollateral The minimum amount of collateral to end up with in
+    ///     the vault. If this requirement is not satisfied, the transaction
+    ///     will revert.
     function invest(
+        bytes6 ilkId, // We are having a custom one here since we will have different eulerTokens
+        bytes6 seriesId,
         uint128 baseAmount,
         uint128 borrowAmount,
-        uint128 minCollateral,
-        bytes6 seriesId,
-        bytes6 ilkId // We are having a custom one here since we will have different eulerTokens
+        uint128 minCollateral
     ) external returns (bytes12 vaultId) {
-        console.log(
-            "Start amount",
-            IERC20(ilkToAsset[ilkId]).balanceOf(address(this)) / 1e18
-        );
         address eulerToken = markets.underlyingToEToken(ilkToAsset[ilkId]);
         // Transfer the tokens from user based on the ilk
         IERC20(eulerToken).safeTransferFrom(
@@ -102,7 +106,7 @@ contract YieldEulerLever is YieldLeverBase {
         // baseAmount       16 bytes    [25:41]
         // minCollateral    16 bytes    [41:57]
         bytes memory data = bytes.concat(
-            bytes1(uint8(uint256(Operation.LEVER_UP))),
+            bytes1(uint8(uint256(Operation.BORROW))),
             seriesId,
             ilkId,
             vaultId,
@@ -143,42 +147,39 @@ contract YieldEulerLever is YieldLeverBase {
         Operation status = Operation(uint256(uint8(data[0])));
         bytes6 seriesId = bytes6(data[1:7]);
         bytes6 ilkId = bytes6(data[7:13]);
-
+        bytes12 vaultId = bytes12(data[13:25]);
         // We trust the lender, so now we can check that we were the initiator.
         if (initiator != address(this)) revert FlashLoanFailure();
 
         // Decode the operation to execute and then call that function.
-        if (status == Operation.LEVER_UP) {
-            bytes12 vaultId = bytes12(data[13:25]);
+        if (status == Operation.BORROW) {
             uint128 baseAmount = uint128(uint128(bytes16(data[25:41])));
             uint256 minCollateral = uint128(bytes16(data[41:57]));
-            leverUp(
+            borrow(
+                ilkId,
+                seriesId,
+                vaultId,
                 borrowAmount,
                 fee,
                 baseAmount,
-                minCollateral,
-                vaultId,
-                seriesId,
-                ilkId
+                minCollateral
             );
         } else if (status == Operation.REPAY) {
-            bytes12 vaultId = bytes12(data[13:25]);
             uint128 ink = uint128(bytes16(data[25:41]));
             uint128 art = uint128(bytes16(data[41:57]));
-            doRepay(
-                uint128(borrowAmount + fee),
-                vaultId,
+            repay(
                 ilkId,
+                seriesId,
+                vaultId,
+                uint128(borrowAmount + fee),
                 ink,
-                art,
-                seriesId
+                art
             );
         } else if (status == Operation.CLOSE) {
-            bytes12 vaultId = bytes12(data[13:25]);
             uint128 ink = uint128(bytes16(data[25:41]));
             uint128 art = uint128(bytes16(data[41:57]));
 
-            doClose(vaultId, ink, art, ilkId);
+            close(ilkId, vaultId, ink, art);
         }
 
         return FLASH_LOAN_RETURN;
@@ -189,21 +190,22 @@ contract YieldEulerLever is YieldLeverBase {
     ///         - We have supplied and borrowed FYWeth.
     ///         - We convert it to StEth and put it in the vault.
     ///         - Against it, we borrow enough FYWeth to repay the flash loan.
+    /// @param ilkId The id of the ilk being borrowed.
+    /// @param seriesId The pool (and thereby series) to borrow from.
+    /// @param vaultId The vault id to put collateral into and borrow from.
     /// @param borrowAmount The amount of FYWeth borrowed in the flash loan.
     /// @param fee The fee that will be issued by the flash loan.
     /// @param baseAmount The amount of own collateral to supply.
     /// @param minCollateral The final amount of collateral to end up with, or
     ///     the function will revert. Used to prevent slippage.
-    /// @param vaultId The vault id to put collateral into and borrow from.
-    /// @param seriesId The pool (and thereby series) to borrow from.
-    function leverUp(
+    function borrow(
+        bytes6 ilkId,
+        bytes6 seriesId,
+        bytes12 vaultId,
         uint256 borrowAmount,
         uint256 fee,
         uint128 baseAmount,
-        uint256 minCollateral,
-        bytes12 vaultId,
-        bytes6 seriesId,
-        bytes6 ilkId
+        uint256 minCollateral
     ) internal {
         baseAmount += uint128(borrowAmount - fee);
         // Deposit to get Euler token in return which would be used to payback flashloan
@@ -243,7 +245,7 @@ contract YieldEulerLever is YieldLeverBase {
         pool.sellFYToken(address(this), 0);
     }
 
-    /// @notice Unwind a position.
+    /// @notice divest a position.
     ///
     ///     If pre maturity, borrow liquidity tokens to repay `art` debt and
     ///     take `ink` collateral.
@@ -252,18 +254,19 @@ contract YieldEulerLever is YieldLeverBase {
     ///
     ///     This function will take the vault from you using `Giver`, so make
     ///     sure you have given it permission to do that.
+    /// @param ilkId The id of the ilk being divested.
+    /// @param seriesId The seriesId corresponding to the vault.
+    /// @param vaultId The vault to use.
     /// @param ink The amount of collateral to recover.
     /// @param art The debt to repay.
-    /// @param vaultId The vault to use.
-    /// @param seriesId The seriesId corresponding to the vault.
     /// @dev It is more gas efficient to let the user supply the `seriesId`,
     ///     but it should match the pool.
-    function unwind(
-        uint128 ink,
-        uint128 art,
-        bytes12 vaultId,
+    function divest(
+        bytes6 ilkId,
         bytes6 seriesId,
-        bytes6 ilkId
+        bytes12 vaultId,
+        uint128 ink,
+        uint128 art
     ) external {
         // Test that the caller is the owner of the vault.
         // This is important as we will take the vault from the user.
@@ -330,19 +333,21 @@ contract YieldEulerLever is YieldLeverBase {
         giver.give(vaultId, msg.sender);
     }
 
+    /// @param ilkId The id of the ilk being invested.
+    /// @param seriesId The seriesId corresponding to the vault.
+    /// @param vaultId The vault to repay.
     /// @param borrowAmountPlusFee The amount of fyDai/fyUsdc that we have borrowed,
     ///     plus the fee. This should be our final balance.
-    /// @param vaultId The vault to repay.
     /// @param ink The amount of collateral to retake.
     /// @param art The debt to repay.
     ///     slippage.
-    function doRepay(
-        uint128 borrowAmountPlusFee, // Amount of FYToken received
-        bytes12 vaultId,
+    function repay(
         bytes6 ilkId,
+        bytes6 seriesId,
+        bytes12 vaultId,
+        uint128 borrowAmountPlusFee, // Amount of FYToken received
         uint128 ink,
-        uint128 art,
-        bytes6 seriesId
+        uint128 art
     ) internal {
         // Repay the vault, get collateral back.
         ladle.pour(vaultId, address(this), -int128(ink), -int128(art));
@@ -363,15 +368,16 @@ contract YieldEulerLever is YieldLeverBase {
     }
 
     /// @notice Close a vault after maturity.
+    /// @param ilkId The id of the ilk.
     /// @param vaultId The ID of the vault to close.
     /// @param ink The collateral to take from the vault.
     /// @param art The debt to repay. This is denominated in fyTokens, even
     ///     though the payment is done in terms of WEth.
-    function doClose(
+    function close(
+        bytes6 ilkId,
         bytes12 vaultId,
         uint128 ink,
-        uint128 art,
-        bytes6 ilkId
+        uint128 art
     ) internal {
         ladle.close(vaultId, address(this), -int128(ink), -int128(art));
 

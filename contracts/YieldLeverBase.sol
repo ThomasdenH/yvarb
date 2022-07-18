@@ -34,7 +34,7 @@ contract YieldLeverBase is IERC3156FlashBorrower {
     
     /// @notice The operation to execute in the flash loan.
     enum Operation {
-        LEVER_UP,
+        BORROW,
         REPAY,
         CLOSE
     }

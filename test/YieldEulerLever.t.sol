@@ -109,11 +109,11 @@ abstract contract ZeroState is Test {
         // uint256 eulerAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
         IERC20(eDai).approve(address(lever), 100000e18);
         vaultId = lever.invest(
+            ilkId, // ilkId edai
+            seriesId,
             baseAmount,
             borrowAmount,
-            0, //minCollateral,
-            seriesId,
-            ilkId // ilkId edai
+            0 //minCollateral,
         );
     }
 }
@@ -140,13 +140,13 @@ contract UnwindTest is ZeroState {
 
     function testRepay() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId);
+        lever.divest(ilkId, seriesId, vaultId, balances.ink, balances.art);
     }
 
     function testDoClose() public {
         DataTypes.Series memory series_ = cauldron.series(seriesId);
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId);
+        lever.divest(ilkId, seriesId, vaultId, balances.ink, balances.art);
     }
 }
