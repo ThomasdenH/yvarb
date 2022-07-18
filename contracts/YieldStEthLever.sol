@@ -153,8 +153,8 @@ contract YieldStEthLever is YieldLeverBase {
             uint128 baseAmount = uint128(uint128(bytes16(data[19:35])));
             uint256 minCollateral = uint128(bytes16(data[35:51]));
             borrow(
-                vaultId,
                 seriesId,
+                vaultId,
                 baseAmount,
                 borrowAmount,
                 fee,
@@ -179,16 +179,16 @@ contract YieldStEthLever is YieldLeverBase {
     ///         - We have supplied and borrowed FYWeth.
     ///         - We convert it to StEth and put it in the vault.
     ///         - Against it, we borrow enough FYWeth to repay the flash loan.
-    /// @param vaultId The vault id to put collateral into and borrow from.
     /// @param seriesId The pool (and thereby series) to borrow from.
+    /// @param vaultId The vault id to put collateral into and borrow from.
     /// @param baseAmount The amount of own collateral to supply.
     /// @param borrowAmount The amount of FYWeth borrowed in the flash loan.
     /// @param fee The fee that will be issued by the flash loan.
     /// @param minCollateral The final amount of collateral to end up with, or
     ///     the function will revert. Used to prevent slippage.
     function borrow(
-        bytes12 vaultId,
         bytes6 seriesId,
+        bytes12 vaultId,
         uint128 baseAmount,
         uint256 borrowAmount,
         uint256 fee,
