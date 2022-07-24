@@ -148,13 +148,17 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             bytes12 vaultId = bytes12(data[13:25]);
             uint128 ink = uint128(bytes16(data[25:41]));
             uint128 art = uint128(bytes16(data[41:57]));
+            uint256 minOut = uint256(bytes32(data[57:89]));
+            address borrower = address(bytes20(data[89:129]));
             doRepay(
                 uint128(borrowAmount + fee),
                 vaultId,
                 ilkId,
                 ink,
                 art,
-                seriesId
+                seriesId,
+                minOut,
+                borrower
             );
         } else if (status == Operation.CLOSE) {
             bytes12 vaultId = bytes12(data[7:19]);
@@ -243,6 +247,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     /// @param art The debt to repay.
     /// @param vaultId The vault to use.
     /// @param seriesId The seriesId corresponding to the vault.
+    /// @param minOut The minimum amount of token to get out of the contract.
     /// @dev It is more gas efficient to let the user supply the `seriesId`,
     ///     but it should match the pool.
     function unwind(
@@ -250,7 +255,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint128 art,
         bytes12 vaultId,
         bytes6 seriesId,
-        bytes6 ilkId
+        bytes6 ilkId,
+        uint256 minOut
     ) external {
         // Test that the caller is the owner of the vault.
         // This is important as we will take the vault from the user.
@@ -272,7 +278,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 ilkId, // [7:13]
                 vaultId, // [13:25]
                 bytes16(ink), // [25:41]
-                bytes16(art) // [41:57]
+                bytes16(art), // [41:57]
+                bytes32(minOut), // [57:89]
+                bytes20(msg.sender) // [89:129]
             );
             bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
                 this, // Loan Receiver
@@ -327,7 +335,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         bytes6 ilkId,
         uint128 ink,
         uint128 art,
-        bytes6 seriesId
+        bytes6 seriesId,
+        uint256 minOut,
+        address borrower
     ) internal {
         // Repay the vault, get collateral back.
         ladle.pour(vaultId, address(this), -int128(ink), -int128(art));
@@ -364,6 +374,10 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         IERC20 token = IERC20(ilkIdInfo.join.asset());
         token.safeTransfer(address(pool), tokenToTran);
         pool.buyFYToken(address(this), borrowAmountPlusFee, tokenToTran);
+
+        uint256 balance = token.balanceOf(address(this));
+        require(balance >= minOut);
+        token.safeTransfer(borrower, balance);
     }
 
     /// @notice Close a vault after maturity.

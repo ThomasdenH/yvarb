@@ -162,6 +162,11 @@ contract ZeroStateTest is ZeroState {
 
         // Test that we left the join as we encountered it
         assertEq(availableBalance(ilkId), availableAtStart);
+
+        // Assert that the balances are empty
+        assertEq(IERC20(USDC).balanceOf(address(lever)), 0);
+        assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
+        assertEq(IERC20(fyToken).balanceOf(address(lever)), 0);
     }
 }
 
@@ -177,10 +182,15 @@ contract UnwindTest is ZeroState {
     function testRepay() public {
         uint256 availableAtStart = availableBalance(ilkId);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId);
+        lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId, 0);
 
         // Test that we left the join as we encountered it
         assertEq(availableBalance(ilkId), availableAtStart);
+
+        // Assert that the balances are empty
+        assertEq(IERC20(USDC).balanceOf(address(lever)), 0);
+        assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
+        assertEq(IERC20(fyToken).balanceOf(address(lever)), 0);
     }
 
     function testDoClose() public {
@@ -190,10 +200,15 @@ contract UnwindTest is ZeroState {
         emit log_uint(IERC20(USDC).balanceOf(address(this)));
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId);
+        lever.unwind(balances.ink, balances.art, vaultId, seriesId, ilkId, 0);
         emit log_uint(IERC20(USDC).balanceOf(address(this)));
 
         // Test that we left the join as we encountered it
         assertEq(availableBalance(ilkId), availableAtStart);
+
+        // Assert that the balances are empty
+        assertEq(IERC20(USDC).balanceOf(address(lever)), 0);
+        assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
+        assertEq(IERC20(fyToken).balanceOf(address(lever)), 0);
     }
 }
