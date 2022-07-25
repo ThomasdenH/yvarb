@@ -141,7 +141,7 @@ contract YieldStEthLever is YieldLeverBase {
         bytes6 seriesId = bytes6(data[1:7]);
         bytes12 vaultId = bytes12(data[7:19]);
         IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
-        // Test that the lender is either the fyToken contract or the Weth
+        // Test that the lender is either a fyToken contract or the Weth Join
         // Join.
         if (msg.sender != address(fyToken) && msg.sender != address(wethJoin))
             revert FlashLoanFailure();
