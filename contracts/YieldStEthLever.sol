@@ -381,7 +381,7 @@ contract YieldStEthLever is YieldLeverBase {
 
         // Convert weth to FY to repay loan. We want `borrowAmountPlusFee`.
         IPool pool = IPool(ladle.pools(seriesId));
-        uint128 wethToTran = pool.buyFYTokenPreview(borrowAmountPlusFee);
+        uint128 wethSpent = pool.buyFYTokenPreview(borrowAmountPlusFee);
         weth.safeTransfer(address(pool), wethToTran);
         pool.buyFYToken(address(this), borrowAmountPlusFee, wethToTran);
 
