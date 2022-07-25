@@ -1,0 +1,9 @@
+@use "../metrics.scss";
+
+.value_display {
+  display: flex;
+  justify-content: space-between;
+  p {
+    margin: metrics.$padding 0;
+  }
+}

@@ -1,0 +1,42 @@
+@use "../colors.scss";
+@use "../metrics.scss";
+
+.tabs {
+  display: flex;
+  justify-content: center;
+}
+
+.tab {
+  padding: metrics.$padding;
+  background-color: colors.$alt;
+  border: metrics.$border-width solid colors.$border-color;
+  border-bottom: none;
+  cursor: pointer;
+  margin: 0;
+  user-select: none;
+  &.selected {
+    background-color: colors.$alt-light;
+  }
+  &:active {
+    background: colors.$border-color;
+  }
+  &:hover {
+    background-color: colors.$alt-light;
+  }
+  &:first-child {
+    border-top-left-radius: metrics.$padding;
+  }
+  &:last-child {
+    border-top-right-radius: metrics.$padding;
+  }
+}
+
+.tabcontainer {
+  background: colors.$main;
+  border: metrics.$border-width solid colors.$main-border;
+  border-radius: metrics.$padding;
+  padding: metrics.$padding-large;
+  box-shadow: colors.$shadow;
+  min-width: 400px;
+  min-height: 240px;
+}
