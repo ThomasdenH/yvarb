@@ -50,8 +50,6 @@ contract YieldStEthLever is YieldLeverBase {
     ///     no tokens, no vaults. To save gas we give these tokens full
     ///     approval.
     constructor(Giver giver_) YieldLeverBase(giver_) {
-        // TODO: What if these approvals fail by returning `false`? Is that even a case worth
-        //  considering?
         weth.approve(address(stableSwap), type(uint256).max);
         steth.approve(address(stableSwap), type(uint256).max);
         weth.approve(address(wethJoin), type(uint256).max);
@@ -382,14 +380,14 @@ contract YieldStEthLever is YieldLeverBase {
         // Convert weth to FY to repay loan. We want `borrowAmountPlusFee`.
         IPool pool = IPool(ladle.pools(seriesId));
         uint128 wethSpent = pool.buyFYTokenPreview(borrowAmountPlusFee);
-        weth.safeTransfer(address(pool), wethToTran);
-        pool.buyFYToken(address(this), borrowAmountPlusFee, wethToTran);
+        weth.safeTransfer(address(pool), wethSpent);
+        pool.buyFYToken(address(this), borrowAmountPlusFee, wethSpent);
 
         // Send remaining weth to user
         uint256 wethRemaining;
         unchecked {
             // Unchecked: This is equal to our balance, so it must be positive.
-            wethRemaining = wethReceived - wethToTran;
+            wethRemaining = wethReceived - wethSpent;
         }
         if (wethRemaining < minWeth) revert SlippageFailure();
         weth.safeTransfer(borrower, wethRemaining);

@@ -92,7 +92,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         token.safeTransferFrom(msg.sender, address(this), baseAmount);
         success = info.join.flashLoan(this, address(token), borrowAmount, data);
         if (!success) revert FlashLoanFailure();
-        ladle.give(vaultId, msg.sender);
+        giver.give(vaultId, msg.sender);
         // The leftover assets originated in the join, so just deposit them back
         uint256 balance = token.balanceOf(address(this));
         token.safeTransfer(address(info.join), balance);
@@ -264,7 +264,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 bytes16(ink), // [25:41]
                 bytes16(art), // [41:57]
                 bytes32(minOut), // [57:89]
-                bytes20(msg.sender) // [89:129]
+                bytes20(msg.sender) // [89:109]
             );
             bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
                 this, // Loan Receiver
@@ -359,9 +359,10 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         pool.buyFYToken(address(this), borrowAmountPlusFee, tokenToTran);
 
         uint256 minOut = uint256(bytes32(data[57:89]));
-        address borrower = address(bytes20(data[89:129]));
+        address borrower = address(bytes20(data[89:109]));
         uint256 balance = token.balanceOf(address(this));
-        require(balance >= minOut);
+        require(balance >= minOut, "balance is not minout");
+
         token.safeTransfer(borrower, balance);
     }
 
