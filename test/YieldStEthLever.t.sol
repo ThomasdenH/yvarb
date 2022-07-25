@@ -73,7 +73,7 @@ abstract contract ZeroState is Test {
     }
 
     /// @notice Create a vault.
-    function leverUp(uint128 baseAmount, uint128 borrowAmount)
+    function invest(uint128 baseAmount, uint128 borrowAmount)
         public
         returns (bytes12 vaultId)
     {
