@@ -2,6 +2,7 @@
 pragma solidity ^0.8.14;
 import "./YieldLeverBase.sol";
 import "./interfaces/IStableSwap.sol";
+import "@yield-protocol/utils-v2/contracts/interfaces/IWETH9.sol";
 
 interface WstEth is IERC20 {
     function wrap(uint256 _stETHAmount) external returns (uint256);
@@ -19,12 +20,13 @@ interface WstEth is IERC20 {
 ///     The flash loan is repayed using funds borrowed using your collateral.
 contract YieldStEthLever is YieldLeverBase {
     using TransferHelper for IERC20;
+    using TransferHelper for IWETH9;
     using TransferHelper for IFYToken;
     using TransferHelper for WstEth;
 
     /// @notice WEth.
-    IERC20 public constant weth =
-        IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IWETH9 public constant weth =
+        IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     /// @notice StEth, represents Ether stakes on Lido.
     IERC20 public constant steth =
         IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
@@ -50,8 +52,6 @@ contract YieldStEthLever is YieldLeverBase {
     ///     no tokens, no vaults. To save gas we give these tokens full
     ///     approval.
     constructor(Giver giver_) YieldLeverBase(giver_) {
-        // TODO: What if these approvals fail by returning `false`? Is that even a case worth
-        //  considering?
         weth.approve(address(stableSwap), type(uint256).max);
         steth.approve(address(stableSwap), type(uint256).max);
         weth.approve(address(wethJoin), type(uint256).max);
@@ -75,19 +75,24 @@ contract YieldStEthLever is YieldLeverBase {
     ///     tests that at least `minCollateral` is attained in order to prevent
     ///     sandwich attacks.
     /// @param seriesId The series to create the vault for.
-    /// @param baseAmount The amount of own liquidity to supply.
     /// @param borrowAmount The amount of additional liquidity to borrow.
     /// @param minCollateral The minimum amount of collateral to end up with in
     ///     the vault. If this requirement is not satisfied, the transaction
     ///     will revert.
     function invest(
         bytes6 seriesId,
-        uint128 baseAmount,
         uint128 borrowAmount,
         uint128 minCollateral
-    ) external returns (bytes12 vaultId) {
-        IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
-        fyToken.safeTransferFrom(msg.sender, address(this), baseAmount);
+    ) external payable returns (bytes12 vaultId) {
+        IPool pool = IPool(ladle.pools(seriesId));
+        IFYToken fyToken = pool.fyToken();
+
+        // Convert ETH to WETH
+        weth.deposit{value: msg.value}();
+        // Sell WETH to get fyToken
+        weth.safeTransfer(address(pool), msg.value);
+        uint128 fyReceived = pool.sellBase(address(this), 0);
+        // Build the vault
         (vaultId, ) = ladle.build(seriesId, ilkId, 0);
         // Since we know the sizes exactly, packing values in this way is more
         // efficient than using `abi.encode`.
@@ -102,7 +107,7 @@ contract YieldStEthLever is YieldLeverBase {
             bytes1(uint8(uint256(Operation.BORROW))),
             seriesId,
             vaultId,
-            bytes16(baseAmount),
+            bytes16(fyReceived),
             bytes16(minCollateral)
         );
         bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
@@ -115,7 +120,10 @@ contract YieldStEthLever is YieldLeverBase {
         giver.give(vaultId, msg.sender);
         // We put everything that we borrowed into the vault, so there can't be
         // any FYTokens left. Check:
-        require(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
+        require(
+            IERC20(address(fyToken)).balanceOf(address(this)) == 0,
+            "FYToken remains"
+        );
     }
 
     /// @notice Called by a flash lender, which can be `wstethJoin` or
@@ -382,14 +390,14 @@ contract YieldStEthLever is YieldLeverBase {
         // Convert weth to FY to repay loan. We want `borrowAmountPlusFee`.
         IPool pool = IPool(ladle.pools(seriesId));
         uint128 wethSpent = pool.buyFYTokenPreview(borrowAmountPlusFee);
-        weth.safeTransfer(address(pool), wethToTran);
-        pool.buyFYToken(address(this), borrowAmountPlusFee, wethToTran);
+        weth.safeTransfer(address(pool), wethSpent);
+        pool.buyFYToken(address(this), borrowAmountPlusFee, wethSpent);
 
         // Send remaining weth to user
         uint256 wethRemaining;
         unchecked {
             // Unchecked: This is equal to our balance, so it must be positive.
-            wethRemaining = wethReceived - wethToTran;
+            wethRemaining = wethReceived - wethSpent;
         }
         if (wethRemaining < minWeth) revert SlippageFailure();
         weth.safeTransfer(borrower, wethRemaining);

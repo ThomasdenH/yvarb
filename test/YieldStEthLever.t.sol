@@ -17,6 +17,7 @@ import "@yield-protocol/yieldspace-interfaces/IPool.sol";
 abstract contract ZeroState is Test {
     address timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;
     address fyTokenWhale = 0x1c15b746360BB8E792C6ED8cB83f272Ce1D170E0;
+    address ethWhale = 0xDA9dfA130Df4dE4673b89022EE50ff26f6EA73Cf;
     YieldStEthLever lever;
     Protocol protocol;
     Giver giver;
@@ -65,6 +66,9 @@ abstract contract ZeroState is Test {
 
         vm.prank(fyTokenWhale);
         fyToken.transfer(address(this), 2e18);
+
+        vm.prank(ethWhale);
+        address(this).call{value: 1e18}("");
         // vm.prank(fyTokenWhale);
         // fyToken.transfer(address(lever), 3e18);
         AccessControl giverAccessControl = AccessControl(address(giver));
@@ -83,9 +87,9 @@ abstract contract ZeroState is Test {
         uint128 minCollateral = uint128(
             (stableSwap.get_dy(0, 1, wethAmount) * 80) / 100
         );
-        vaultId = lever.invest(
+
+        vaultId = lever.invest{value: baseAmount}(
             seriesId,
-            baseAmount,
             borrowAmount,
             minCollateral
         );
@@ -97,7 +101,7 @@ abstract contract VaultCreatedState is ZeroState {
 
     function setUp() public override {
         super.setUp();
-        vaultId = leverUp(2e18, 4e18);
+        vaultId = invest(1e18, 3.5e18);
     }
 
     function unwind() internal returns (bytes12) {
@@ -115,7 +119,7 @@ abstract contract VaultCreatedState is ZeroState {
 
 contract ZeroStateTest is ZeroState {
     function testVault() public {
-        bytes12 vaultId = leverUp(2e18, 6e18);
+        bytes12 vaultId = invest(1e18, 3.5e18);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
 
@@ -127,9 +131,9 @@ contract ZeroStateTest is ZeroState {
     }
 
     function testLever() public {
-        bytes12 vaultId = leverUp(2e18, 5e18);
+        bytes12 vaultId = invest(1e18, 3.5e18);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        assertEq(balances.art, 5e18);
+        assertEq(balances.art, 3.5e18);
 
         // No tokens should be left in the contract
         assertEq(weth.balanceOf(address(lever)), 0);
@@ -168,7 +172,7 @@ contract ZeroStateTest is ZeroState {
         );
 
         vm.expectRevert(SlippageFailure.selector);
-        lever.invest(seriesId, baseAmount, borrowAmount, minCollateral);
+        lever.invest{value: baseAmount}(seriesId, borrowAmount, minCollateral);
     }
 }
 
