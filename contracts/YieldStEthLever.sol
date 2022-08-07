@@ -289,7 +289,7 @@ contract YieldStEthLever is YieldLeverBase {
         if (uint32(block.timestamp) < cauldron.series(seriesId).maturity) {
             IPool pool = IPool(ladle.pools(seriesId));
             IFYToken fyToken = pool.fyToken();
-            // Close:
+            // Repay:
             // Series is not past maturity.
             // Borrow to repay debt, move directly to the pool.
             bytes memory data = bytes.concat(
@@ -314,7 +314,9 @@ contract YieldStEthLever is YieldLeverBase {
             // FYToken left. Check:
             require(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
         } else {
-            // Repay:
+            uint256 availableWeth = weth.balanceOf(address(wethJoin)) - wethJoin.storedBalance();
+
+            // Close:
             // Series is past maturity, borrow and move directly to collateral pool.
             bytes memory data = bytes.concat(
                 bytes1(bytes1(uint8(uint256(Operation.CLOSE)))), // [0:1]
@@ -336,6 +338,12 @@ contract YieldStEthLever is YieldLeverBase {
 
             // At this point, we have only Weth left. Hopefully: this comes
             // from the collateral in our vault!
+
+            // There is however one caveat. If there was Weth in the join to
+            // begin with, this will be billed first. Since we want to return
+            // the join to the starting state, we should deposit Weth back.
+            uint256 wethToDeposit = availableWeth - (weth.balanceOf(address(wethJoin)) - wethJoin.storedBalance());
+            weth.safeTransfer(address(wethJoin), wethToDeposit);
 
             uint256 wethBalance = weth.balanceOf(address(this));
             if (wethBalance < minWeth) revert SlippageFailure();

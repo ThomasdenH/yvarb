@@ -35,6 +35,13 @@ abstract contract ZeroState is Test {
     IStableSwap constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
 
+    /// @notice The Yield Protocol Join containing WstEth.
+    FlashJoin public constant wstethJoin =
+        FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
+    /// @notice The Yield Protocol Join containing Weth.
+    FlashJoin public constant wethJoin =
+        FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0);
+
     constructor() {
         protocol = new Protocol();
         fyToken = FYToken(0x53358d088d835399F1E97D2a01d79fC925c7D999);
@@ -74,6 +81,12 @@ abstract contract ZeroState is Test {
         AccessControl giverAccessControl = AccessControl(address(giver));
         giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
         giverAccessControl.grantRole(0x35775afb, address(lever));
+    }
+
+    /// Return the available balance in the join.
+    function availableBalance(FlashJoin join) public view returns (uint256 available) {
+        IERC20 token = IERC20(join.asset());
+        available = token.balanceOf(address(join)) - join.storedBalance();
     }
 
     /// @notice Create a vault.
@@ -119,6 +132,9 @@ abstract contract VaultCreatedState is ZeroState {
 
 contract ZeroStateTest is ZeroState {
     function testVault() public {
+        uint256 availableWStEthBalanceAtStart = availableBalance(wstethJoin);
+        uint256 availableWEthBalanceAtStart = availableBalance(wethJoin);
+
         bytes12 vaultId = invest(1e18, 3.5e18);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
@@ -128,9 +144,16 @@ contract ZeroStateTest is ZeroState {
         assertEq(wsteth.balanceOf(address(lever)), 0);
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
+
+        // Assert that the join state is the same as the start
+        assertEq(availableBalance(wstethJoin), availableWStEthBalanceAtStart);
+        assertEq(availableBalance(wethJoin), availableWEthBalanceAtStart);
     }
 
     function testLever() public {
+        uint256 availableWStEthBalanceAtStart = availableBalance(wstethJoin);
+        uint256 availableWEthBalanceAtStart = availableBalance(wethJoin);
+
         bytes12 vaultId = invest(1e18, 3.5e18);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         assertEq(balances.art, 3.5e18);
@@ -140,6 +163,10 @@ contract ZeroStateTest is ZeroState {
         assertEq(wsteth.balanceOf(address(lever)), 0);
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
+
+        // Assert that the join state is the same as the start
+        assertEq(availableBalance(wstethJoin), availableWStEthBalanceAtStart);
+        assertEq(availableBalance(wethJoin), availableWEthBalanceAtStart);
     }
 
     /// @notice This function should fail if called externally.
@@ -178,6 +205,9 @@ contract ZeroStateTest is ZeroState {
 
 contract VaultCreatedStateTest is VaultCreatedState {
     function testRepay() public {
+        uint256 availableWStEthBalanceAtStart = availableBalance(wstethJoin);
+        uint256 availableWEthBalanceAtStart = availableBalance(wethJoin);
+
         unwind();
 
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
@@ -192,9 +222,16 @@ contract VaultCreatedStateTest is VaultCreatedState {
         assertEq(wsteth.balanceOf(address(lever)), 0);
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
+
+        // Assert that the join state is the same as the start
+        assertEq(availableBalance(wstethJoin), availableWStEthBalanceAtStart);
+        assertEq(availableBalance(wethJoin), availableWEthBalanceAtStart);
     }
 
     function testClose() public {
+        uint256 availableWStEthBalanceAtStart = availableBalance(wstethJoin);
+        uint256 availableWEthBalanceAtStart = availableBalance(wethJoin);
+
         DataTypes.Series memory series_ = cauldron.series(seriesId);
 
         vm.warp(series_.maturity);
@@ -213,6 +250,10 @@ contract VaultCreatedStateTest is VaultCreatedState {
         assertEq(wsteth.balanceOf(address(lever)), 0);
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
+
+        // Assert that the join state is the same as the start
+        assertEq(availableBalance(wstethJoin), availableWStEthBalanceAtStart);
+        assertEq(availableBalance(wethJoin), availableWEthBalanceAtStart);
     }
 
     function testRepayRevertOnSlippage() public {
