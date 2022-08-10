@@ -32,6 +32,8 @@ abstract contract ZeroState is Test {
     IERC20 constant steth = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
     FYToken immutable fyToken;
 
+    bytes6 public constant wStEthIlkId = bytes6(0x303400000000);
+
     IStableSwap constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
 
@@ -63,6 +65,8 @@ abstract contract ZeroState is Test {
         vm.prank(timeLock);
         cauldronAccessControl.grantRole(0x798a828b, address(giver));
     }
+
+    receive() external payable {}
 
     function setUp() public virtual {
         lever = new YieldStEthLever(giver);
@@ -101,7 +105,8 @@ abstract contract ZeroState is Test {
             (stableSwap.get_dy(0, 1, wethAmount) * 80) / 100
         );
 
-        vaultId = lever.invest{value: baseAmount}(
+        vaultId = lever.investEther{value: baseAmount}(
+            wStEthIlkId,
             seriesId,
             borrowAmount,
             minCollateral
@@ -125,7 +130,7 @@ abstract contract VaultCreatedState is ZeroState {
         uint256 collateralValueWeth = stableSwap.get_dy(1, 0, balances.ink);
         uint256 minweth = ((collateralValueWeth - balances.art) * 80) / 100;
 
-        lever.divest(vaultId, seriesId, balances.ink, balances.art, minweth);
+        lever.divestEther(vaultId, seriesId, balances.ink, balances.art, minweth);
         return vaultId;
     }
 }
@@ -156,7 +161,8 @@ contract ZeroStateTest is ZeroState {
 
         bytes12 vaultId = invest(1e18, 3.5e18);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        assertEq(balances.art, 3.5e18);
+        // We expect to have the amount of the flash loan and the fee as debt
+        assertEq(balances.art, 3.5e18 + 3);
 
         // No tokens should be left in the contract
         assertEq(weth.balanceOf(address(lever)), 0);
@@ -199,7 +205,7 @@ contract ZeroStateTest is ZeroState {
         );
 
         vm.expectRevert(SlippageFailure.selector);
-        lever.invest{value: baseAmount}(seriesId, borrowAmount, minCollateral);
+        lever.investEther{value: baseAmount}(wStEthIlkId, seriesId, borrowAmount, minCollateral);
     }
 }
 
@@ -214,8 +220,8 @@ contract VaultCreatedStateTest is VaultCreatedState {
         assertEq(balances.art, 0);
         assertEq(balances.ink, 0);
 
-        // A very weak condition, but we should have at least some weth back.
-        assertGt(weth.balanceOf(address(this)), 0);
+        // A very weak condition, but we should have at least some eth back.
+        assertGt(address(this).balance, 0);
 
         // No tokens should be left in the contract
         assertEq(weth.balanceOf(address(lever)), 0);
@@ -242,8 +248,8 @@ contract VaultCreatedStateTest is VaultCreatedState {
         assertEq(balances.art, 0);
         assertEq(balances.ink, 0);
 
-        // A very weak condition, but we should have at least some weth back.
-        assertGt(weth.balanceOf(address(this)), 0);
+        // A very weak condition, but we should have at least some eth back.
+        assertGt(address(this).balance, 0);
 
         // No tokens should be left in the contract
         assertEq(weth.balanceOf(address(lever)), 0);

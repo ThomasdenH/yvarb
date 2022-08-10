@@ -19,14 +19,10 @@ interface WstEth is IERC20 {
 ///     through a flash loan and using this in additon to your own collateral.
 ///     The flash loan is repayed using funds borrowed using your collateral.
 contract YieldStEthLever is YieldLeverBase {
-    using TransferHelper for IERC20;
-    using TransferHelper for IWETH9;
     using TransferHelper for IFYToken;
+    using TransferHelper for IWETH9;
     using TransferHelper for WstEth;
 
-    /// @notice WEth.
-    IWETH9 public constant weth =
-        IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     /// @notice StEth, represents Ether stakes on Lido.
     IERC20 public constant steth =
         IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
@@ -58,130 +54,6 @@ contract YieldStEthLever is YieldLeverBase {
         steth.approve(address(wsteth), type(uint256).max);
     }
 
-    /// @notice Approve maximally for an fyToken.
-    /// @param seriesId The id of the pool to approve to.
-    function approveFyToken(bytes6 seriesId) external {
-        IPool(ladle.pools(seriesId)).fyToken().approve(
-            address(ladle),
-            type(uint256).max
-        );
-    }
-
-    /// @notice Invest by creating a levered vault.
-    ///
-    ///     We invest `FYToken`. For this the user should have given approval
-    ///     first. We borrow `borrowAmount` extra. We use it to buy Weth,
-    ///     exchange it to (W)StEth, which we use as collateral. The contract
-    ///     tests that at least `minCollateral` is attained in order to prevent
-    ///     sandwich attacks.
-    /// @param seriesId The series to create the vault for.
-    /// @param borrowAmount The amount of additional liquidity to borrow.
-    /// @param minCollateral The minimum amount of collateral to end up with in
-    ///     the vault. If this requirement is not satisfied, the transaction
-    ///     will revert.
-    function invest(
-        bytes6 seriesId,
-        uint128 borrowAmount,
-        uint128 minCollateral
-    ) external payable returns (bytes12 vaultId) {
-        IPool pool = IPool(ladle.pools(seriesId));
-        IFYToken fyToken = pool.fyToken();
-
-        // Convert ETH to WETH
-        weth.deposit{value: msg.value}();
-        // Sell WETH to get fyToken
-        weth.safeTransfer(address(pool), msg.value);
-        uint128 fyReceived = pool.sellBase(address(this), 0);
-        // Build the vault
-        (vaultId, ) = ladle.build(seriesId, ilkId, 0);
-        // Since we know the sizes exactly, packing values in this way is more
-        // efficient than using `abi.encode`.
-        //
-        // Encode data of
-        // OperationType    1 byte      [0:1]
-        // seriesId         6 bytes     [1:7]
-        // vaultId          12 bytes    [7:19]
-        // baseAmount       16 bytes    [19:35]
-        // minCollateral    16 bytes    [35:51]
-        bytes memory data = bytes.concat(
-            bytes1(uint8(uint256(Operation.BORROW))),
-            seriesId,
-            vaultId,
-            bytes16(fyReceived),
-            bytes16(minCollateral)
-        );
-        bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
-            this, // Loan Receiver
-            address(fyToken), // Loan Token
-            borrowAmount, // Loan Amount
-            data
-        );
-        if (!success) revert FlashLoanFailure();
-        giver.give(vaultId, msg.sender);
-        // We put everything that we borrowed into the vault, so there can't be
-        // any FYTokens left. Check:
-        require(
-            IERC20(address(fyToken)).balanceOf(address(this)) == 0,
-            "FYToken remains"
-        );
-    }
-
-    /// @notice Called by a flash lender, which can be `wstethJoin` or
-    ///     `wethJoin` (for Weth). The primary purpose is to check conditions
-    ///     and route to the correct internal function.
-    ///
-    ///     This function reverts if not called through a flashloan initiated
-    ///     by this contract.
-    /// @param initiator The initator of the flash loan, must be `address(this)`.
-    /// @param borrowAmount The amount of fyTokens received.
-    /// @param fee The fee that is subtracted in addition to the borrowed
-    ///     amount when repaying.
-    /// @param data The data we encoded for the functions. Here, we only check
-    ///     the first byte for the router.
-    function onFlashLoan(
-        address initiator,
-        address, // The token, not checked as we check the lender address.
-        uint256 borrowAmount,
-        uint256 fee,
-        bytes calldata data
-    ) external override returns (bytes32) {
-        Operation status = Operation(uint256(uint8(data[0])));
-        bytes6 seriesId = bytes6(data[1:7]);
-        bytes12 vaultId = bytes12(data[7:19]);
-        IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
-        // Test that the lender is either a fyToken contract or the Weth Join
-        // Join.
-        if (msg.sender != address(fyToken) && msg.sender != address(wethJoin))
-            revert FlashLoanFailure();
-        // We trust the lender, so now we can check that we were the initiator.
-        if (initiator != address(this)) revert FlashLoanFailure();
-
-        // Decode the operation to execute and then call that function.
-        if (status == Operation.BORROW) {
-            uint128 baseAmount = uint128(uint128(bytes16(data[19:35])));
-            uint256 minCollateral = uint128(bytes16(data[35:51]));
-            borrow(
-                seriesId,
-                vaultId,
-                baseAmount,
-                borrowAmount,
-                fee,
-                minCollateral
-            );
-        } else if (status == Operation.REPAY) {
-            // uint128 ink = uint128(bytes16(data[19:35]));
-            // uint128 art = uint128(bytes16(data[35:51]));
-            // address borrower = address(bytes20(data[51:71]));
-            // uint256 minWeth = uint256(bytes32(data[71:103]));
-            repay(vaultId, seriesId, uint128(borrowAmount + fee), data);
-        } else if (status == Operation.CLOSE) {
-            uint128 ink = uint128(bytes16(data[19:35]));
-            uint128 art = uint128(bytes16(data[35:51]));
-            close(vaultId, ink, art);
-        }
-        return FLASH_LOAN_RETURN;
-    }
-
     /// @notice This function is called from within the flash loan. The high
     ///     level functionality is as follows:
     ///         - We have supplied and borrowed FYWeth.
@@ -201,31 +73,17 @@ contract YieldStEthLever is YieldLeverBase {
         uint256 borrowAmount,
         uint256 fee,
         uint256 minCollateral
-    ) internal {
-        // The total amount to invest. Equal to the base plus the borrowed
-        // minus the flash loan fee. The fee saved here together with the
-        // borrowed amount later pays off the flash loan. This makes sure we
-        // borrow exactly `borrowAmount`.
-        IPool pool;
-        {
-            uint128 netInvestAmount = uint128(baseAmount + borrowAmount - fee);
-
-            // Get WEth by selling borrowed FYTokens. We don't need to check for a
-            // minimum since we check that we have enough collateral later on.
-            pool = IPool(ladle.pools(seriesId));
-            IFYToken fyToken = pool.fyToken();
-            fyToken.safeTransfer(address(pool), netInvestAmount);
-        }
+    ) internal override {
+        // We have borrowed to the pool, so we just need to sell.
+        IPool pool = IPool(ladle.pools(seriesId));
+        pool.fyToken().safeTransfer(address(pool), borrowAmount);
         uint256 wethReceived = pool.sellFYToken(address(this), 0);
 
-        // Swap WEth for StEth on Curve.fi. Again, we do not check for a
-        // minimum.
-        // 0: WEth
-        // 1: StEth
+        // Buy StEth from the base and the borrowed Weth
         uint256 boughtStEth = stableSwap.exchange(
             0,
             1,
-            wethReceived,
+            wethReceived + baseAmount,
             0,
             address(this)
         );
@@ -245,114 +103,11 @@ contract YieldStEthLever is YieldLeverBase {
             vaultId,
             address(this),
             int128(uint128(wrappedStEth)),
-            int128(uint128(borrowAmount))
+            int128(uint128(borrowAmount + fee))
         );
 
         // At the end, the flash loan will take exactly `borrowedAmount + fee`,
         // so the final balance should be exactly 0.
-    }
-
-    /// @notice Divest a position.
-    ///
-    ///     If pre maturity, borrow liquidity tokens to repay `art` debt and
-    ///     take `ink` collateral. Repay the loan and return remaining
-    ///     collateral as WEth.
-    ///
-    ///     If post maturity, borrow WEth to pay off the debt directly. Convert
-    ///     the WStEth collateral to WEth and return excess to user.
-    ///
-    ///     This function will take the vault from you using `Giver`, so make
-    ///     sure you have given it permission to do that.
-    /// @param vaultId The vault to use.
-    /// @param seriesId The seriesId corresponding to the vault.
-    /// @param ink The amount of collateral to recover.
-    /// @param art The debt to repay.
-    /// @param minWeth Revert the transaction if we don't obtain at least this
-    ///     much WEth at the end of the operation.
-    /// @dev It is more gas efficient to let the user supply the `seriesId`,
-    ///     but it should match the pool.
-    function divest(
-        bytes12 vaultId,
-        bytes6 seriesId,
-        uint128 ink,
-        uint128 art,
-        uint256 minWeth
-    ) external {
-        // Test that the caller is the owner of the vault.
-        // This is important as we will take the vault from the user.
-        require(cauldron.vaults(vaultId).owner == msg.sender);
-
-        // Give the vault to the contract
-        giver.seize(vaultId, address(this));
-
-        // Check if we're pre or post maturity.
-        if (uint32(block.timestamp) < cauldron.series(seriesId).maturity) {
-            IPool pool = IPool(ladle.pools(seriesId));
-            IFYToken fyToken = pool.fyToken();
-            // Repay:
-            // Series is not past maturity.
-            // Borrow to repay debt, move directly to the pool.
-            bytes memory data = bytes.concat(
-                bytes1(bytes1(uint8(uint256(Operation.REPAY)))), // [0:1]
-                seriesId, // [1:7]
-                vaultId, // [7:19]
-                bytes16(ink), // [19:35]
-                bytes16(art), // [35:51]
-                bytes20(msg.sender), // [51:71]
-                bytes32(minWeth) // [71:103]
-            );
-            bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
-                this, // Loan Receiver
-                address(fyToken), // Loan Token
-                art, // Loan Amount: borrow exactly the debt to repay.
-                data
-            );
-            if (!success) revert FlashLoanFailure();
-
-            // We have borrowed exactly enough for the debt and bought back
-            // exactly enough for the loan + fee, so there is no balance of
-            // FYToken left. Check:
-            require(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
-        } else {
-            uint256 availableWeth = weth.balanceOf(address(wethJoin)) - wethJoin.storedBalance();
-
-            // Close:
-            // Series is past maturity, borrow and move directly to collateral pool.
-            bytes memory data = bytes.concat(
-                bytes1(bytes1(uint8(uint256(Operation.CLOSE)))), // [0:1]
-                seriesId, // [1:7]
-                vaultId, // [7:19]
-                bytes16(ink), // [19:35]
-                bytes16(art) // [35:51]
-            );
-            // We have a debt in terms of fyWEth, but should pay back in WEth.
-            // `base` is how much WEth we should pay back.
-            uint128 base = cauldron.debtToBase(seriesId, art);
-            bool success = wethJoin.flashLoan(
-                this, // Loan Receiver
-                address(weth), // Loan Token
-                base, // Loan Amount
-                data
-            );
-            if (!success) revert FlashLoanFailure();
-
-            // At this point, we have only Weth left. Hopefully: this comes
-            // from the collateral in our vault!
-
-            // There is however one caveat. If there was Weth in the join to
-            // begin with, this will be billed first. Since we want to return
-            // the join to the starting state, we should deposit Weth back.
-            uint256 wethToDeposit = availableWeth - (weth.balanceOf(address(wethJoin)) - wethJoin.storedBalance());
-            weth.safeTransfer(address(wethJoin), wethToDeposit);
-
-            uint256 wethBalance = weth.balanceOf(address(this));
-            if (wethBalance < minWeth) revert SlippageFailure();
-            // Transferring the leftover to the user
-            IERC20(weth).safeTransfer(msg.sender, wethBalance);
-        }
-
-        // Give the vault back to the sender, just in case there is anything left
-        giver.give(vaultId, msg.sender);
     }
 
     /// @dev    - We have borrowed liquidity tokens, for which we have a debt.
@@ -370,11 +125,9 @@ contract YieldStEthLever is YieldLeverBase {
         bytes6 seriesId,
         uint128 borrowAmountPlusFee, // Amount of FYToken received
         bytes calldata data
-    ) internal {
+    ) internal override {
         uint128 ink = uint128(bytes16(data[19:35]));
         uint128 art = uint128(bytes16(data[35:51]));
-        address borrower = address(bytes20(data[51:71]));
-        uint256 minWeth = uint256(bytes32(data[71:103]));
 
         // Repay the vault, get collateral back.
         ladle.pour(vaultId, address(this), -int128(ink), -int128(art));
@@ -385,7 +138,7 @@ contract YieldStEthLever is YieldLeverBase {
         // Exchange StEth for WEth.
         // 0: WETH
         // 1: STETH
-        uint256 wethReceived = stableSwap.exchange(
+        stableSwap.exchange(
             1,
             0,
             stEthUnwrapped,
@@ -400,15 +153,6 @@ contract YieldStEthLever is YieldLeverBase {
         uint128 wethSpent = pool.buyFYTokenPreview(borrowAmountPlusFee);
         weth.safeTransfer(address(pool), wethSpent);
         pool.buyFYToken(address(this), borrowAmountPlusFee, wethSpent);
-
-        // Send remaining weth to user
-        uint256 wethRemaining;
-        unchecked {
-            // Unchecked: This is equal to our balance, so it must be positive.
-            wethRemaining = wethReceived - wethSpent;
-        }
-        if (wethRemaining < minWeth) revert SlippageFailure();
-        weth.safeTransfer(borrower, wethRemaining);
 
         // We should have exactly `borrowAmountPlusFee` fyWeth as that is what
         // we have bought. This pays back the flash loan exactly.
@@ -426,7 +170,7 @@ contract YieldStEthLever is YieldLeverBase {
         bytes12 vaultId,
         uint128 ink,
         uint128 art
-    ) internal {
+    ) internal override {
         // We have obtained Weth, exactly enough to repay the vault. This will
         // give us our WStEth collateral back.
         // data[1:13]: vaultId
