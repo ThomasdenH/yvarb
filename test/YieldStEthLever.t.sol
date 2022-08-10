@@ -213,6 +213,7 @@ contract VaultCreatedStateTest is VaultCreatedState {
     function testRepay() public {
         uint256 availableWStEthBalanceAtStart = availableBalance(wstethJoin);
         uint256 availableWEthBalanceAtStart = availableBalance(wethJoin);
+        uint256 startingBalance = address(this).balance;
 
         unwind();
 
@@ -221,7 +222,7 @@ contract VaultCreatedStateTest is VaultCreatedState {
         assertEq(balances.ink, 0);
 
         // A very weak condition, but we should have at least some eth back.
-        assertGt(address(this).balance, 0);
+        assertGt(address(this).balance, startingBalance);
 
         // No tokens should be left in the contract
         assertEq(weth.balanceOf(address(lever)), 0);
@@ -237,6 +238,7 @@ contract VaultCreatedStateTest is VaultCreatedState {
     function testClose() public {
         uint256 availableWStEthBalanceAtStart = availableBalance(wstethJoin);
         uint256 availableWEthBalanceAtStart = availableBalance(wethJoin);
+        uint256 startingBalance = address(this).balance;
 
         DataTypes.Series memory series_ = cauldron.series(seriesId);
 
@@ -249,7 +251,7 @@ contract VaultCreatedStateTest is VaultCreatedState {
         assertEq(balances.ink, 0);
 
         // A very weak condition, but we should have at least some eth back.
-        assertGt(address(this).balance, 0);
+        assertGt(address(this).balance, startingBalance);
 
         // No tokens should be left in the contract
         assertEq(weth.balanceOf(address(lever)), 0);
