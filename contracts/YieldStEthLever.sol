@@ -119,16 +119,13 @@ contract YieldStEthLever is YieldLeverBase {
     /// @param seriesId The seriesId corresponding to the vault.
     /// @param borrowAmountPlusFee The amount of fyWeth that we have borrowed,
     ///     plus the fee. This should be our final balance.
-    /// @param data Data containing the rest of the information
     function repay(
         bytes12 vaultId,
         bytes6 seriesId,
         uint128 borrowAmountPlusFee, // Amount of FYToken received
-        bytes calldata data
+        uint128 ink,
+        uint128 art
     ) internal override {
-        uint128 ink = uint128(bytes16(data[19:35]));
-        uint128 art = uint128(bytes16(data[35:51]));
-
         // Repay the vault, get collateral back.
         ladle.pour(vaultId, address(this), -int128(ink), -int128(art));
 

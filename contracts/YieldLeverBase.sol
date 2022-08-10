@@ -72,6 +72,18 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
     /// @notice Invest by creating a levered vault. The basic structure is
     ///     always the same. We borrow FyToken for the series and convert it to
     ///     the yield-bearing token that is used as collateral.
+    /// @param ilkId The ilkId to invest in. This is often a yield-bearing
+    ///     token, for example 0x303400000000 (WStEth).
+    /// @param seriesId The series to invest in. This series doesn't usually
+    ///     have the ilkId as base, but the asset the yield bearing token is
+    ///     based on. For example: 0x303030370000 (WEth) instead of WStEth.
+    /// @param amountToInvest The amount of the base to invest. This is denoted
+    ///     in terms of the base asset: USDC, DAI, etc.
+    /// @param borrowAmount The amount to borrow. This is denoted in terms of
+    ///     debt at maturity (and will thus be less before maturity).
+    /// @param minCollateral Used for countering slippage. This is the minimum
+    ///     amount of collateral that should be locked. The debt is always
+    ///     equal to the borrowAmount plus flash loan fees.
     function _invest(
         bytes6 ilkId,
         bytes6 seriesId,
@@ -105,6 +117,21 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
         giver.give(vaultId, msg.sender);
     }
 
+    /// @notice Invest by creating a levered vault. The basic structure is
+    ///     always the same. We borrow FyToken for the series and convert it to
+    ///     the yield-bearing token that is used as collateral.
+    /// @param ilkId The ilkId to invest in. This is often a yield-bearing
+    ///     token, for example 0x303400000000 (WStEth).
+    /// @param seriesId The series to invest in. This series doesn't usually
+    ///     have the ilkId as base, but the asset the yield bearing token is
+    ///     based on. For example: 0x303030370000 (WEth) instead of WStEth.
+    /// @param amountToInvest The amount of the base to invest. This is denoted
+    ///     in terms of the base asset: USDC, DAI, etc.
+    /// @param borrowAmount The amount to borrow. This is denoted in terms of
+    ///     debt at maturity (and will thus be less before maturity).
+    /// @param minCollateral Used for countering slippage. This is the minimum
+    ///     amount of collateral that should be locked. The debt is always
+    ///     equal to the borrowAmount plus flash loan fees.
     function invest(
         bytes6 ilkId,
         bytes6 seriesId,
@@ -115,6 +142,23 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
         return _invest(ilkId, seriesId, amountToInvest, borrowAmount, minCollateral);
     }
 
+
+    /// @notice Invest by creating a levered vault. The basic structure is
+    ///     always the same. We borrow FyToken for the series and convert it to
+    ///     the yield-bearing token that is used as collateral.
+    ///
+    ///     This function will invest Ether, which will be wrapped first. After
+    ///     that, the behaviour will be as if wrapped Ether was supplied.
+    /// @param ilkId The ilkId to invest in. This is often a yield-bearing
+    ///     token, for example 0x303400000000 (WStEth).
+    /// @param seriesId The series to invest in. This series doesn't usually
+    ///     have the ilkId as base, but the asset the yield bearing token is
+    ///     based on. For example: 0x303030370000 (WEth) instead of WStEth.
+    /// @param borrowAmount The amount to borrow. This is denoted in terms of
+    ///     debt at maturity (and will thus be less before maturity).
+    /// @param minCollateral Used for countering slippage. This is the minimum
+    ///     amount of collateral that should be locked. The debt is always
+    ///     equal to the borrowAmount plus flash loan fees.
     function investEther(
         bytes6 ilkId,
         bytes6 seriesId,
@@ -169,16 +213,25 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
                 fee,
                 minCollateral
             );
-        } else if (status == Operation.REPAY) {
-            repay(vaultId, seriesId, uint128(borrowAmount + fee), data);
-        } else if (status == Operation.CLOSE) {
+        } else {
             uint128 ink = uint128(bytes16(data[19:35]));
             uint128 art = uint128(bytes16(data[35:51]));
-            close(vaultId, ink, art);
+            if (status == Operation.REPAY) {
+                repay(vaultId, seriesId, uint128(borrowAmount + fee), ink, art);
+            } else if (status == Operation.CLOSE) {
+                close(vaultId, ink, art);
+            }
         }
         return FLASH_LOAN_RETURN;
     }
 
+    /// @notice Divest, either before or after maturity.
+    /// @param vaultId The vault to divest from.
+    /// @param seriesId The series to divest from.
+    /// @param ink The amount of collateral to recover.
+    /// @param art The amount of debt to repay.
+    /// @param minOut Used to minimize slippage. The transaction will revert
+    ///     if we don't obtain at least this much of the base asset.
     function divest(
         bytes12 vaultId,
         bytes6 seriesId,
@@ -195,6 +248,14 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
         IERC20(baseAsset).safeTransfer(msg.sender, assetBalance);
     }
 
+    /// @notice Divest, either before or after maturity. This function will
+    ///     then unwrap WEth.
+    /// @param vaultId The vault to divest from.
+    /// @param seriesId The series to divest from.
+    /// @param ink The amount of collateral to recover.
+    /// @param art The amount of debt to repay.
+    /// @param minOut Used to minimize slippage. The transaction will revert
+    ///     if we don't obtain at least this much of the base asset.
     function divestEther(
         bytes12 vaultId,
         bytes6 seriesId,
@@ -238,8 +299,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
                 seriesId, // [1:7]
                 vaultId, // [7:19]
                 bytes16(ink), // [19:35]
-                bytes16(art), // [35:51]
-                bytes20(msg.sender) // [51:71]
+                bytes16(art) // [35:51]
             );
             bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
                 this, // Loan Receiver
@@ -300,13 +360,23 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
         uint256 minCollateral
     ) internal virtual;
 
+    /// @notice The series is pre-maturity. We have borrowed art FyTokens. We
+    ///     should use it to repay the vault and take out ink collateral. This
+    ///     collateral should be converted to FyTokens to repay the flash loan
+    ///     exactly, and the rest should be converted to the base. It will then
+    ///     be sent to the borrower by this contract.
     function repay(
         bytes12 vaultId,
         bytes6 seriesId,
         uint128 borrowAmountPlusFee, // Amount of FYToken received
-        bytes calldata data
+        uint128 ink,
+        uint128 art
     ) internal virtual;
 
+    /// @notice The series is post-maturity. We have borrowed the base, which
+    ///     is exactly enough to pay back the vault debt. We should convert the
+    ///     collateral to base to repay the loan. The leftover will be sent to
+    ///     the vault owner.
     function close(
         bytes12 vaultId,
         uint128 ink,
