@@ -33,8 +33,6 @@ contract YieldStEthLever is YieldLeverBase {
     /// @notice Curve.fi token swapping contract between Ether and StETH.
     IStableSwap public constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
-    /// @notice The ild ID for WStEth.
-    bytes6 public constant ilkId = bytes6(0x303400000000);
     /// @notice The Yield Protocol Join containing WstEth.
     FlashJoin public constant wstethJoin =
         FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
@@ -64,17 +62,15 @@ contract YieldStEthLever is YieldLeverBase {
     /// @param baseAmount The amount of own collateral to supply.
     /// @param borrowAmount The amount of FYWeth borrowed in the flash loan.
     /// @param fee The fee that will be issued by the flash loan.
-    /// @param minCollateral The final amount of collateral to end up with, or
-    ///     the function will revert. Used to prevent slippage.
     function borrow(
+        bytes6, // ilkId
         bytes6 seriesId,
         bytes12 vaultId,
         uint128 baseAmount,
         uint256 borrowAmount,
-        uint256 fee,
-        uint256 minCollateral
+        uint256 fee
     ) internal override {
-        // We have borrowed to the pool, so we just need to sell.
+        // We need to sell fyTokens
         IPool pool = IPool(ladle.pools(seriesId));
         pool.fyToken().safeTransfer(address(pool), borrowAmount);
         uint256 wethReceived = pool.sellFYToken(address(this), 0);
@@ -90,11 +86,6 @@ contract YieldStEthLever is YieldLeverBase {
 
         // Wrap StEth to WStEth.
         uint128 wrappedStEth = uint128(wsteth.wrap(boughtStEth));
-
-        // This is the amount to deposit, so we check for slippage here. As
-        // long as we end up with the desired amount, it doesn't matter what
-        // slippage occurred where.
-        if (wrappedStEth < minCollateral) revert SlippageFailure();
 
         // Deposit WStEth in the vault & borrow `borrowAmount` fyToken to
         // pay back.
@@ -120,6 +111,7 @@ contract YieldStEthLever is YieldLeverBase {
     /// @param borrowAmountPlusFee The amount of fyWeth that we have borrowed,
     ///     plus the fee. This should be our final balance.
     function repay(
+        bytes6, // ilkId
         bytes12 vaultId,
         bytes6 seriesId,
         uint128 borrowAmountPlusFee, // Amount of FYToken received
@@ -164,6 +156,7 @@ contract YieldStEthLever is YieldLeverBase {
     /// @param art The debt to repay. This is denominated in fyTokens, even
     ///     though the payment is done in terms of WEth.
     function close(
+        bytes6, // ilkId
         bytes12 vaultId,
         uint128 ink,
         uint128 art

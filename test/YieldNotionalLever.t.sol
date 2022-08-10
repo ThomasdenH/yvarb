@@ -50,11 +50,6 @@ abstract contract ZeroState is Test {
         vm.prank(timeLock);
         AccessControl(address(cauldron)).grantRole(0x798a828b, address(giver));
 
-        vm.prank(usdcWhale);
-        IERC20(USDC).transfer(address(this), 2000e6);
-        vm.prank(daiWhale);
-        IERC20(DAI).transfer(address(this), 2000e18);
-
         vm.startPrank(timeLock);
         usdcJoin.setFlashFeeFactor(1);
         daiJoin.setFlashFeeFactor(1);
@@ -68,6 +63,11 @@ abstract contract ZeroState is Test {
 
         USDC.approve(address(lever), type(uint256).max);
         DAI.approve(address(lever), type(uint256).max);
+
+        vm.prank(usdcWhale);
+        IERC20(USDC).transfer(address(this), 2000e6);
+        vm.prank(daiWhale);
+        IERC20(DAI).transfer(address(this), 2000e18);
 
         // USDC
         lever.setIlkInfo(
@@ -108,7 +108,8 @@ abstract contract ZeroState is Test {
             ilkId, // ilkId
             seriesId,
             baseAmount,
-            borrowAmount
+            borrowAmount,
+            0
         );
     }
 
@@ -142,7 +143,6 @@ contract DivestTest is ZeroState {
 
     function setUp() public override {
         super.setUp();
-        emit log_uint(USDC.balanceOf(address(this)));
         vaultId = leverUp(2000e6, 5000e6, fUsdc2209IlkId, fyUsdc2209SeriesId);
     }
 
@@ -150,9 +150,10 @@ contract DivestTest is ZeroState {
         uint256 availableAtStart = availableBalance(fUsdc2209IlkId);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
 
-        emit log_uint(USDC.balanceOf(address(this)));
-        lever.divest(fUsdc2209IlkId, fyUsdc2209SeriesId, vaultId, balances.ink, balances.art, 0);
-        emit log_uint(USDC.balanceOf(address(this)));
+        uint256 startingUsdcBalance = USDC.balanceOf(address(this));
+        lever.divest(fUsdc2209IlkId, vaultId, fyUsdc2209SeriesId, balances.ink, balances.art, 0);
+        // Weak condition, but test that we gained some USDC
+        assertGt(USDC.balanceOf(address(this)), startingUsdcBalance);
 
         // Test that we left the join as we encountered it
         assertEq(availableBalance(fUsdc2209IlkId), availableAtStart);
@@ -167,11 +168,12 @@ contract DivestTest is ZeroState {
         uint256 availableAtStart = availableBalance(fUsdc2209IlkId);
 
         DataTypes.Series memory series_ = cauldron.series(fyUsdc2209SeriesId);
-        emit log_uint(USDC.balanceOf(address(this)));
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.divest(fUsdc2209IlkId, fyUsdc2209SeriesId, vaultId, balances.ink, balances.art, 0);
-        emit log_uint(USDC.balanceOf(address(this)));
+        uint256 startingUsdcBalance = USDC.balanceOf(address(this));
+        lever.divest(fUsdc2209IlkId, vaultId, fyUsdc2209SeriesId, balances.ink, balances.art, 0);
+        // Weak condition, but test that we gained some USDC
+        assertGt(USDC.balanceOf(address(this)), startingUsdcBalance);
 
         // Test that we left the join as we encountered it
         assertEq(availableBalance(fUsdc2209IlkId), availableAtStart);

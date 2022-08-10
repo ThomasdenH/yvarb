@@ -19,7 +19,7 @@ import "forge-std/Test.sol";
 error FlashLoanFailure();
 error SlippageFailure();
 
-abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
+abstract contract YieldLeverBase is IERC3156FlashBorrower {
     using TransferHelper for IWETH9;
     using TransferHelper for IERC20;
 
@@ -98,15 +98,14 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
         IFYToken fyToken = pool.fyToken();
 
         // Build the vault
-        // TODO: ilkId
-        (vaultId, ) = ladle.build(seriesId, ilkId, 0);
+        (vaultId,) = ladle.build(seriesId, ilkId, 0);
 
         bytes memory data = bytes.concat(
             bytes1(uint8(uint256(Operation.BORROW))),
             seriesId,
             vaultId,
-            bytes16(amountToInvest),
-            bytes16(minCollateral)
+            ilkId,
+            bytes16(amountToInvest)
         );
         bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
             this, // Loan Receiver
@@ -115,6 +114,13 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
             data
         );
         if (!success) revert FlashLoanFailure();
+
+        // This is the amount to deposit, so we check for slippage here. As
+        // long as we end up with the desired amount, it doesn't matter what
+        // slippage occurred where.
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+        if (balances.ink < minCollateral) revert SlippageFailure();
+
         giver.give(vaultId, msg.sender);
     }
 
@@ -140,6 +146,8 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
         uint128 borrowAmount,
         uint128 minCollateral
     ) external returns (bytes12 vaultId) {
+        IPool pool = IPool(ladle.pools(seriesId));
+        pool.base().safeTransferFrom(msg.sender, address(this), amountToInvest);
         return _invest(ilkId, seriesId, amountToInvest, borrowAmount, minCollateral);
     }
 
@@ -182,7 +190,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
     /// @param data The data we encoded for the functions. Here, we only check
     ///     the first byte for the router.
     function onFlashLoan(
-        address, // initiator,
+        address initiator,
         address, // The token, not checked as we check the lender address.
         uint256 borrowAmount,
         uint256 fee,
@@ -191,6 +199,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
         Operation status = Operation(uint256(uint8(data[0])));
         bytes6 seriesId = bytes6(data[1:7]);
         bytes12 vaultId = bytes12(data[7:19]);
+        bytes6 ilkId = bytes6(data[19:25]);
         {
             IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
             // Test that the lender is either a fyToken contract or the join.
@@ -204,23 +213,22 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
 
         // Decode the operation to execute and then call that function.
         if (status == Operation.BORROW) {
-            uint128 baseAmount = uint128(uint128(bytes16(data[19:35])));
-            uint256 minCollateral = uint128(bytes16(data[35:51]));
+            uint128 baseAmount = uint128(uint128(bytes16(data[25:41])));
             borrow(
+                ilkId,
                 seriesId,
                 vaultId,
                 baseAmount,
                 borrowAmount,
-                fee,
-                minCollateral
+                fee
             );
         } else {
-            uint128 ink = uint128(bytes16(data[19:35]));
-            uint128 art = uint128(bytes16(data[35:51]));
+            uint128 ink = uint128(bytes16(data[25:41]));
+            uint128 art = uint128(bytes16(data[41:57]));
             if (status == Operation.REPAY) {
-                repay(vaultId, seriesId, uint128(borrowAmount + fee), ink, art);
+                repay(ilkId, vaultId, seriesId, uint128(borrowAmount + fee), ink, art);
             } else if (status == Operation.CLOSE) {
-                close(vaultId, ink, art);
+                close(ilkId, vaultId, ink, art);
             }
         }
         return FLASH_LOAN_RETURN;
@@ -234,13 +242,14 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
     /// @param minOut Used to minimize slippage. The transaction will revert
     ///     if we don't obtain at least this much of the base asset.
     function divest(
+        bytes6 ilkId,
         bytes12 vaultId,
         bytes6 seriesId,
         uint128 ink,
         uint128 art,
         uint256 minOut
     ) external {
-        _divest(vaultId, seriesId, ink, art);
+        _divest(ilkId, vaultId, seriesId, ink, art);
         IPool pool = IPool(ladle.pools(seriesId));
         IERC20 baseAsset = IERC20(pool.base());
         uint256 assetBalance = baseAsset.balanceOf(address(this));
@@ -258,13 +267,14 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
     /// @param minOut Used to minimize slippage. The transaction will revert
     ///     if we don't obtain at least this much of the base asset.
     function divestEther(
+        bytes6 ilkId,
         bytes12 vaultId,
         bytes6 seriesId,
         uint128 ink,
         uint128 art,
         uint256 minOut
     ) external {
-        _divest(vaultId, seriesId, ink, art);
+        _divest(ilkId, vaultId, seriesId, ink, art);
         uint256 assetBalance = weth.balanceOf(address(this));
         if (assetBalance < minOut) revert SlippageFailure();
         weth.withdraw(assetBalance);
@@ -274,6 +284,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
     receive() external payable {}
 
     function _divest(
+        bytes6 ilkId,
         bytes12 vaultId,
         bytes6 seriesId,
         uint128 ink,
@@ -299,8 +310,9 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
                 bytes1(bytes1(uint8(uint256(Operation.REPAY)))), // [0:1]
                 seriesId, // [1:7]
                 vaultId, // [7:19]
-                bytes16(ink), // [19:35]
-                bytes16(art) // [35:51]
+                ilkId,
+                bytes16(ink),
+                bytes16(art)
             );
             bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
                 this, // Loan Receiver
@@ -320,8 +332,9 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
                 bytes1(bytes1(uint8(uint256(Operation.CLOSE)))), // [0:1]
                 seriesId, // [1:7]
                 vaultId, // [7:19]
-                bytes16(ink), // [19:35]
-                bytes16(art) // [35:51]
+                ilkId,
+                bytes16(ink),
+                bytes16(art)
             );
             // We have a debt in terms of fyWEth, but should pay back in WEth.
             // `base` is how much WEth we should pay back.
@@ -353,12 +366,12 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
     ///     fyTokens. We need to sell the fyTokens and then convert all to the
     ///     yield-bearing tokens.
     function borrow(
+        bytes6 ilkId,
         bytes6 seriesId,
         bytes12 vaultId,
         uint128 baseAmount,
         uint256 borrowAmount,
-        uint256 fee,
-        uint256 minCollateral
+        uint256 fee
     ) internal virtual;
 
     /// @notice The series is pre-maturity. We have borrowed art FyTokens. We
@@ -367,6 +380,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
     ///     exactly, and the rest should be converted to the base. It will then
     ///     be sent to the borrower by this contract.
     function repay(
+        bytes6 ilkId,
         bytes12 vaultId,
         bytes6 seriesId,
         uint128 borrowAmountPlusFee, // Amount of FYToken received
@@ -379,6 +393,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
     ///     collateral to base to repay the loan. The leftover will be sent to
     ///     the vault owner.
     function close(
+        bytes6 ilkId,
         bytes12 vaultId,
         uint128 ink,
         uint128 art

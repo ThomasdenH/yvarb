@@ -31,8 +31,17 @@ abstract contract ZeroState is Test {
     IERC20 constant steth = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
     FYToken immutable fyToken;
 
+    /// @notice The ild ID for WStEth.
+    bytes6 public constant wStEthIlkId = bytes6(0x303400000000);
+
     IStableSwap constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
+     /// @notice The Yield Protocol Join containing WstEth.
+     FlashJoin public constant wstethJoin =
+         FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
+     /// @notice The Yield Protocol Join containing Weth.
+     FlashJoin public constant wethJoin =
+         FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0);
 
     constructor() {
         protocol = new Protocol();
@@ -54,6 +63,12 @@ abstract contract ZeroState is Test {
         );
         vm.prank(timeLock);
         cauldronAccessControl.grantRole(0x798a828b, address(giver));
+    }
+ 
+    /// Return the available balance in the join.
+    function availableBalance(FlashJoin join) public view returns (uint256 available) {
+        IERC20 token = IERC20(join.asset());
+        available = token.balanceOf(address(join)) - join.storedBalance();
     }
 
     receive() external payable {}
@@ -111,7 +126,7 @@ abstract contract VaultCreatedState is ZeroState {
         uint256 collateralValueWeth = stableSwap.get_dy(1, 0, balances.ink);
         uint256 minweth = ((collateralValueWeth - balances.art) * 80) / 100;
 
-        lever.divestEther(vaultId, seriesId, balances.ink, balances.art, minweth);
+        lever.divestEther(wStEthIlkId, vaultId, seriesId, balances.ink, balances.art, minweth);
         return vaultId;
     }
 }
@@ -175,8 +190,8 @@ contract ZeroStateTest is ZeroState {
     }
 
     function testInvestRevertOnMinEth() public {
-        uint128 baseAmount = 4e17;
-        uint128 borrowAmount = 8e17;
+        uint128 baseAmount = 1e18;
+        uint128 borrowAmount = 3.5e18;
         fyToken.approve(address(lever), baseAmount);
 
         // Unreasonable expectation: twice the total value as collateral?
@@ -254,7 +269,7 @@ contract VaultCreatedStateTest is VaultCreatedState {
         uint256 minweth = (collateralValueWeth - balances.art) * 2;
 
         vm.expectRevert(SlippageFailure.selector);
-        lever.divest(vaultId, seriesId, balances.ink, balances.art, minweth);
+        lever.divest(wStEthIlkId, vaultId, seriesId, balances.ink, balances.art, minweth);
     }
 
     function testCloseRevertOnSlippage() public {
@@ -269,6 +284,6 @@ contract VaultCreatedStateTest is VaultCreatedState {
         uint256 minweth = (collateralValueWeth - balances.art) * 2;
 
         vm.expectRevert(SlippageFailure.selector);
-        lever.divest(vaultId, seriesId, balances.ink, balances.art, minweth);
+        lever.divest(wStEthIlkId, vaultId, seriesId, balances.ink, balances.art, minweth);
     }
 }
