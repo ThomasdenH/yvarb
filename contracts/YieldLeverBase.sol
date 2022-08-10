@@ -27,6 +27,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
     ///     operations.
     ILadle public constant ladle =
         ILadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
+
     /// @notice The Yield Cauldron, handles debt and collateral balances.
     ICauldron public constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
@@ -181,7 +182,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower, Test {
     /// @param data The data we encoded for the functions. Here, we only check
     ///     the first byte for the router.
     function onFlashLoan(
-        address initiator,
+        address, // initiator,
         address, // The token, not checked as we check the lender address.
         uint256 borrowAmount,
         uint256 fee,
