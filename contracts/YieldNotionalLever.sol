@@ -20,7 +20,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     mapping(bytes6 => IlkInfo) public ilkInfo;
 
     constructor(Giver giver_) YieldLeverBase(giver_) {
-        notional.setApprovalForAll(address(ladle), true);
+        notional.setApprovalForAll(address(LADLE), true);
         notional.setApprovalForAll(
             0x0Bfd3B8570A4247157c5468861d37dA55AAb9B4b,
             true
@@ -69,7 +69,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint256 fee
     ) internal override {
         // We need to sell fyTokens
-        IPool pool = IPool(ladle.pools(seriesId));
+        IPool pool = IPool(LADLE.pools(seriesId));
         pool.fyToken().safeTransfer(address(pool), borrowAmount);
         uint256 totalToInvest = baseAmount;
         totalToInvest += pool.sellFYToken(address(this), 0);
@@ -100,7 +100,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         actions[0].trades[0] = encodedTrade;
         notional.batchBalanceAndTradeAction(address(this), actions);
 
-        ladle.pour(
+        LADLE.pour(
             vaultId,
             address(this),
             int128(uint128(fCashAmount)),
@@ -120,7 +120,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint128 art
     ) internal override {
         // Repay the vault, get collateral back.
-        ladle.pour(vaultId, address(this), -int128(ink), -int128(art));
+        LADLE.pour(vaultId, address(this), -int128(ink), -int128(art));
         {
             IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
             // Trade fCash to receive USDC/DAI
@@ -149,7 +149,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         }
 
         // Buy FyTokens to repay flash loan
-        IPool pool = IPool(ladle.pools(seriesId));
+        IPool pool = IPool(LADLE.pools(seriesId));
         IERC20(pool.base()).safeTransfer(
             address(pool),
             pool.buyFYTokenPreview(borrowAmountPlusFee)
@@ -170,7 +170,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint128 ink,
         uint128 art
     ) internal override {
-        ladle.close(vaultId, address(this), -int128(ink), -int128(art));
+        LADLE.close(vaultId, address(this), -int128(ink), -int128(art));
     }
 
     /// @dev Called by the sender after a transfer to verify it was received. Ensures only `id` tokens are received.

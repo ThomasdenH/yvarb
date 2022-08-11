@@ -62,7 +62,7 @@ contract YieldEulerLever is YieldLeverBase {
         uint256 fee
     ) internal override {
         // We have borrowed FyTokens, so sell those
-        IPool pool = IPool(ladle.pools(seriesId));
+        IPool pool = IPool(LADLE.pools(seriesId));
         pool.fyToken().safeTransfer(address(pool), borrowAmount);
         uint128 totalToInvest = baseAmount + uint128(pool.sellFYToken(address(this), 0));
 
@@ -77,10 +77,10 @@ contract YieldEulerLever is YieldLeverBase {
 
         uint256 eBalance = eToken.balanceOf(address(this));
 
-        eToken.transfer(address(ladle.joins(ilkId)), eBalance);
+        eToken.transfer(address(LADLE.joins(ilkId)), eBalance);
 
         // Add collateral and borrow exactly enough to pay back the flash loan
-        ladle.pour(
+        LADLE.pour(
             vaultId,
             address(pool),
             int128(uint128(eBalance)),
@@ -105,7 +105,7 @@ contract YieldEulerLever is YieldLeverBase {
         uint128 art
     ) internal override {
         // Repay the vault, get collateral back.
-        ladle.pour(vaultId, address(this), -int128(ink), -int128(art));
+        LADLE.pour(vaultId, address(this), -int128(ink), -int128(art));
 
         address asset = ilkToAsset[ilkId];
         IEulerEToken eToken = IEulerEToken(
@@ -115,7 +115,7 @@ contract YieldEulerLever is YieldLeverBase {
         eToken.withdraw(0, type(uint256).max);
 
         // buyFyToken
-        IPool pool = IPool(ladle.pools(seriesId));
+        IPool pool = IPool(LADLE.pools(seriesId));
         uint128 tokenToTran = pool.buyFYTokenPreview(borrowAmountPlusFee);
 
         IERC20(asset).safeTransfer(address(pool), tokenToTran);
@@ -135,7 +135,7 @@ contract YieldEulerLever is YieldLeverBase {
         uint128 ink,
         uint128 art
     ) internal override {
-        ladle.close(vaultId, address(this), -int128(ink), -int128(art));
+        LADLE.close(vaultId, address(this), -int128(ink), -int128(art));
 
         IEulerEToken eToken = IEulerEToken(
             markets.underlyingToEToken(ilkToAsset[ilkId])

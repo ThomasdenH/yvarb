@@ -37,7 +37,7 @@ contract YieldStEthLever is YieldLeverBase {
     FlashJoin public constant wstethJoin =
         FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
     /// @notice The Yield Protocol Join containing Weth.
-    FlashJoin public constant wethJoin =
+    FlashJoin public constant WETHJoin =
         FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0);
 
     /// @notice Deploy this contract.
@@ -46,9 +46,9 @@ contract YieldStEthLever is YieldLeverBase {
     ///     no tokens, no vaults. To save gas we give these tokens full
     ///     approval.
     constructor(Giver giver_) YieldLeverBase(giver_) {
-        weth.approve(address(stableSwap), type(uint256).max);
+        WETH.approve(address(stableSwap), type(uint256).max);
         steth.approve(address(stableSwap), type(uint256).max);
-        weth.approve(address(wethJoin), type(uint256).max);
+        WETH.approve(address(WETHJoin), type(uint256).max);
         steth.approve(address(wsteth), type(uint256).max);
     }
 
@@ -71,15 +71,15 @@ contract YieldStEthLever is YieldLeverBase {
         uint256 fee
     ) internal override {
         // We need to sell fyTokens
-        IPool pool = IPool(ladle.pools(seriesId));
+        IPool pool = IPool(LADLE.pools(seriesId));
         pool.fyToken().safeTransfer(address(pool), borrowAmount);
-        uint256 wethReceived = pool.sellFYToken(address(this), 0);
+        uint256 WETHReceived = pool.sellFYToken(address(this), 0);
 
         // Buy StEth from the base and the borrowed Weth
         uint256 boughtStEth = stableSwap.exchange(
             0,
             1,
-            wethReceived + baseAmount,
+            WETHReceived + baseAmount,
             0,
             address(this)
         );
@@ -90,7 +90,7 @@ contract YieldStEthLever is YieldLeverBase {
         // Deposit WStEth in the vault & borrow `borrowAmount` fyToken to
         // pay back.
         wsteth.safeTransfer(address(wstethJoin), wrappedStEth);
-        ladle.pour(
+        LADLE.pour(
             vaultId,
             address(this),
             int128(uint128(wrappedStEth)),
@@ -119,7 +119,7 @@ contract YieldStEthLever is YieldLeverBase {
         uint128 art
     ) internal override {
         // Repay the vault, get collateral back.
-        ladle.pour(vaultId, address(this), -int128(ink), -int128(art));
+        LADLE.pour(vaultId, address(this), -int128(ink), -int128(art));
 
         // Unwrap WStEth to obtain StEth.
         uint256 stEthUnwrapped = wsteth.unwrap(ink);
@@ -137,9 +137,9 @@ contract YieldStEthLever is YieldLeverBase {
             address(this)
         );
 
-        // Convert weth to FY to repay loan. We want `borrowAmountPlusFee`.
-        IPool pool = IPool(ladle.pools(seriesId));
-        weth.safeTransfer(
+        // Convert WETH to FY to repay loan. We want `borrowAmountPlusFee`.
+        IPool pool = IPool(LADLE.pools(seriesId));
+        WETH.safeTransfer(
             address(pool),
             pool.buyFYTokenPreview(borrowAmountPlusFee)
         );
@@ -167,12 +167,12 @@ contract YieldStEthLever is YieldLeverBase {
         // give us our WStEth collateral back.
         // data[1:13]: vaultId
         // data[29:45]: art
-        ladle.close(vaultId, address(this), -int128(ink), -int128(art));
+        LADLE.close(vaultId, address(this), -int128(ink), -int128(art));
 
         // Convert wsteth to steth
         uint256 stEthUnwrapped = wsteth.unwrap(ink);
 
-        // convert steth - weth
+        // convert steth - WETH
         // 1: STETH
         // 0: WETH
         // No minimal amount is necessary: The flashloan will try to take the
