@@ -2,6 +2,6 @@
 src = 'contracts'
 out = 'out'
 libs = ['lib']
-gas_reports = ['YieldStEthLever', 'YieldNotionalLever']
+gas_reports = ['YieldStEthLever', 'YieldNotionalLever', 'YieldEulerLever']
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
