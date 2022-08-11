@@ -13,7 +13,6 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         Notional(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
 
     struct IlkInfo {
-        FlashJoin join;
         uint40 maturity;
         uint16 currencyId;
     }
@@ -34,9 +33,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     }
 
     // TODO: Make it auth controlled when deploying
-    function setIlkInfo(bytes6 ilkId, IlkInfo calldata underlying) external {
-        IERC20 token = IERC20(underlying.join.asset());
-        token.approve(address(underlying.join), type(uint256).max);
+    function setIlkInfo(bytes6 ilkId, IlkInfo calldata underlying, FlashJoin underlyingJoin) external {
+        IERC20 token = IERC20(underlyingJoin.asset());
+        token.approve(address(underlyingJoin), type(uint256).max);
         token.approve(address(notional), type(uint256).max);
         ilkInfo[ilkId] = underlying;
     }

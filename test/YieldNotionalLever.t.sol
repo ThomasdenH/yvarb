@@ -44,6 +44,8 @@ abstract contract ZeroState is Test {
     bytes6 constant usdcIlkId = 0x303200000000;
     bytes6 constant daiIlkId = 0x303100000000;
 
+    mapping(bytes6 => FlashJoin) underlyingJoinForAssetId;
+
     constructor() {
         protocol = new Protocol();
         giver = new Giver(cauldron);
@@ -56,10 +58,17 @@ abstract contract ZeroState is Test {
         FYToken(address(IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken())).setFlashFeeFactor(1);
         FYToken(address(IPool(ladle.pools(fyDai2209SeriesId)).fyToken())).setFlashFeeFactor(1);
         vm.stopPrank();
+
+        underlyingJoinForAssetId[fUsdc2209IlkId] = usdcJoin;
+        underlyingJoinForAssetId[fDai2209IlkId] = daiJoin;
     }
 
     function setUp() public virtual {
         lever = new YieldNotionalLever(giver);
+
+        lever.approveJoin(address(ladle));
+        lever.approveJoin(0x0Bfd3B8570A4247157c5468861d37dA55AAb9B4b); // Approving the Join
+        lever.approveJoin(0x399bA81A1f1Ed0221c39179C50d4d4Bc85C3F3Ab); // Approving the join
 
         USDC.approve(address(lever), type(uint256).max);
         DAI.approve(address(lever), type(uint256).max);
@@ -73,20 +82,20 @@ abstract contract ZeroState is Test {
         lever.setIlkInfo(
             fUsdc2209IlkId,
             YieldNotionalLever.IlkInfo({
-                join: usdcJoin,
                 maturity: 1664064000,
                 currencyId: 3
-            })
+            }),
+            usdcJoin
         );
 
         // DAI
         lever.setIlkInfo(
             fDai2209IlkId,
             YieldNotionalLever.IlkInfo({
-                join: daiJoin,
                 maturity: 1664064000,
                 currencyId: 2
-            })
+            }),
+            daiJoin
         );
 
         giver.grantRole(0xe4fd9dc5, timeLock);
@@ -115,7 +124,7 @@ abstract contract ZeroState is Test {
 
     /// Return the available balance in the join.
     function availableBalance(bytes6 ilkIdToCheck) public view returns (uint256 available) {
-        (FlashJoin join, , ) = lever.ilkInfo(ilkIdToCheck);
+        FlashJoin join = underlyingJoinForAssetId[ilkIdToCheck];
         IERC20 token = IERC20(join.asset());
         available = token.balanceOf(address(join)) - join.storedBalance();
     }
