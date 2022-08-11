@@ -18,14 +18,20 @@ import "@yield-protocol/utils-v2/contracts/interfaces/IWETH9.sol";
 error FlashLoanFailure();
 error SlippageFailure();
 
+interface Ladle is ILadle {
+    function give(bytes12 vaultId_, address receiver)
+        external payable
+        returns(DataTypes.Vault memory vault);
+}
+
 abstract contract YieldLeverBase is IERC3156FlashBorrower {
     using TransferHelper for IWETH9;
     using TransferHelper for IERC20;
 
     /// @notice The Yield Ladle, the primary entry point for most high-level
     ///     operations.
-    ILadle public constant ladle =
-        ILadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
+    Ladle public constant ladle =
+        Ladle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
 
     /// @notice The Yield Cauldron, handles debt and collateral balances.
     ICauldron public constant cauldron =
@@ -123,7 +129,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         if (cauldron.balances(vaultId).ink < minCollateral)
             revert SlippageFailure();
 
-        giver.give(vaultId, msg.sender);
+        ladle.give(vaultId, msg.sender);
     }
 
     /// @notice Invest by creating a levered vault. The basic structure is
@@ -214,25 +220,24 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         uint256 borrowAmount,
         uint256 fee,
         bytes calldata data
-    ) external override returns (bytes32) {
+    ) external override returns (bytes32 returnValue) {
+        returnValue = FLASH_LOAN_RETURN;
         Operation status = Operation(uint256(uint8(data[0])));
         bytes6 seriesId = bytes6(data[1:7]);
         bytes12 vaultId = bytes12(data[7:19]);
         bytes6 ilkId = bytes6(data[19:25]);
-        {
-            IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
-            // Test that the lender is either a fyToken contract or the join.
-            bytes6 assetId = seriesId & ASSET_ID_MASK;
-            IJoin join = ladle.joins(assetId);
-            if (msg.sender != address(fyToken) && msg.sender != address(join))
-                revert FlashLoanFailure();
-            // We trust the lender, so now we can check that we were the initiator.
-            if (initiator != address(this)) revert FlashLoanFailure();
-        }
+
+        // Test that the lender is either a fyToken contract or the join.
+        if (
+            msg.sender != address(IPool(ladle.pools(seriesId)).fyToken()) &&
+            msg.sender != address(ladle.joins(seriesId & ASSET_ID_MASK))
+        ) revert FlashLoanFailure();
+        // We trust the lender, so now we can check that we were the initiator.
+        if (initiator != address(this)) revert FlashLoanFailure();
 
         // Decode the operation to execute and then call that function.
         if (status == Operation.BORROW) {
-            uint128 baseAmount = uint128(uint128(bytes16(data[25:41])));
+            uint128 baseAmount = uint128(bytes16(data[25:41]));
             borrow(ilkId, seriesId, vaultId, baseAmount, borrowAmount, fee);
         } else {
             uint128 ink = uint128(bytes16(data[25:41]));
@@ -250,7 +255,6 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
                 close(ilkId, vaultId, ink, art);
             }
         }
-        return FLASH_LOAN_RETURN;
     }
 
     /// @notice Divest, either before or after maturity.
@@ -269,8 +273,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         uint256 minOut
     ) external {
         _divest(ilkId, vaultId, seriesId, ink, art);
-        IPool pool = IPool(ladle.pools(seriesId));
-        IERC20 baseAsset = IERC20(pool.base());
+        IERC20 baseAsset = IERC20(IPool(ladle.pools(seriesId)).base());
         uint256 assetBalance = baseAsset.balanceOf(address(this));
         if (assetBalance < minOut) revert SlippageFailure();
         // Transferring the leftover to the user
@@ -294,10 +297,9 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         uint256 minOut
     ) external {
         _divest(ilkId, vaultId, seriesId, ink, art);
-        uint256 assetBalance = weth.balanceOf(address(this));
-        if (assetBalance < minOut) revert SlippageFailure();
-        weth.withdraw(assetBalance);
-        payable(msg.sender).transfer(assetBalance);
+        weth.withdraw(weth.balanceOf(address(this)));
+        if (address(this).balance < minOut) revert SlippageFailure();
+        payable(msg.sender).transfer(address(this).balance);
     }
 
     receive() external payable {}
@@ -317,9 +319,9 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         giver.seize(vaultId, address(this));
 
         IPool pool = IPool(ladle.pools(seriesId));
-        IERC20 baseAsset = IERC20(pool.base());
 
         // Check if we're pre or post maturity.
+        bool success;
         if (uint32(block.timestamp) < cauldron.series(seriesId).maturity) {
             IFYToken fyToken = pool.fyToken();
             // Repay:
@@ -333,18 +335,16 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
                 bytes16(ink),
                 bytes16(art)
             );
-            bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
+            success = IERC3156FlashLender(address(fyToken)).flashLoan(
                 this, // Loan Receiver
                 address(fyToken), // Loan Token
                 art, // Loan Amount: borrow exactly the debt to repay.
                 data
             );
-            if (!success) revert FlashLoanFailure();
         } else {
-            bytes6 assetId = seriesId & ASSET_ID_MASK;
-            FlashJoin join = FlashJoin(address(ladle.joins(assetId)));
-            uint256 availableInJoin = baseAsset.balanceOf(address(join)) -
-                join.storedBalance();
+            FlashJoin join = FlashJoin(address(ladle.joins(seriesId & ASSET_ID_MASK)));
+            IERC20 baseAsset = IERC20(pool.base());
+            uint256 depositIntoJoin = baseAsset.balanceOf(address(join)) - join.storedBalance();
 
             // Close:
             // Series is past maturity, borrow and move directly to collateral pool.
@@ -359,27 +359,28 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
             // We have a debt in terms of fyWEth, but should pay back in WEth.
             // `base` is how much WEth we should pay back.
             uint128 base = cauldron.debtToBase(seriesId, art);
-            bool success = join.flashLoan(
+            success = join.flashLoan(
                 this, // Loan Receiver
                 address(baseAsset), // Loan Token
                 base, // Loan Amount
                 data
             );
-            if (!success) revert FlashLoanFailure();
 
             // At this point, we have only Weth left. Hopefully: this comes
             // from the collateral in our vault!
 
             // There is however one caveat. If there was Weth in the join to
             // begin with, this will be billed first. Since we want to return
-            // the join to the starting state, we should deposit Weth back.
-            uint256 assetToDeposit = availableInJoin -
-                (baseAsset.balanceOf(address(join)) - join.storedBalance());
-            baseAsset.safeTransfer(address(join), assetToDeposit);
+            // the join to the starting state, we should deposit tokens back.
+            // The amount is simply what was in it before, minus what is still
+            // in it. The calculation is as `available` in the Join contract.
+            depositIntoJoin += join.storedBalance() - baseAsset.balanceOf(address(join));
+            baseAsset.safeTransfer(address(join), depositIntoJoin);
         }
+        if (!success) revert FlashLoanFailure();
 
         // Give the vault back to the sender, just in case there is anything left
-        giver.give(vaultId, msg.sender);
+        ladle.give(vaultId, msg.sender);
     }
 
     /// @notice We start with base tokens (e.g. Weth, not eWeth) and borrowed
