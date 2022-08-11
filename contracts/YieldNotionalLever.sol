@@ -67,41 +67,33 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         // We need to sell fyTokens
         IPool pool = IPool(ladle.pools(seriesId));
         pool.fyToken().safeTransfer(address(pool), borrowAmount);
+        uint256 totalToInvest = baseAmount;
+        totalToInvest += pool.sellFYToken(address(this), 0);
 
-        // Reuse the variable for the total to invest. This is equal to the
-        // base, plus the converted fyTokens. This is equal to the entire
-        // balance.
-        uint256 totalToInvest = pool.sellFYToken(address(this), 0);
-        totalToInvest += baseAmount;
+        IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
+        // Deposit into notional to get the fCash
+        (uint88 fCashAmount, , bytes32 encodedTrade) = notional.getfCashLendFromDeposit(
+            ilkIdInfo.currencyId,
+            totalToInvest, // total to invest
+            ilkIdInfo.maturity,
+            0,
+            block.timestamp,
+            true
+        );
 
-        uint88 fCashAmount;
-        {
-            IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
-            // Deposit into notional to get the fCash
-            bytes32 encodedTrade;
-            (fCashAmount, , encodedTrade) = notional.getfCashLendFromDeposit(
-                ilkIdInfo.currencyId,
-                totalToInvest, // total to invest
-                ilkIdInfo.maturity,
-                0,
-                block.timestamp,
-                true
-            );
-
-            BalanceActionWithTrades[]
-                memory actions = new BalanceActionWithTrades[](1);
-            actions[0] = BalanceActionWithTrades({
-                actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
-                currencyId: ilkIdInfo.currencyId,
-                depositActionAmount: totalToInvest, // total to invest
-                withdrawAmountInternalPrecision: 0,
-                withdrawEntireCashBalance: false, // Return all residual cash to lender
-                redeemToUnderlying: false, // Convert cToken to token
-                trades: new bytes32[](1)
-            });
-            actions[0].trades[0] = encodedTrade;
-            notional.batchBalanceAndTradeAction(address(this), actions);
-        }
+        BalanceActionWithTrades[]
+            memory actions = new BalanceActionWithTrades[](1);
+        actions[0] = BalanceActionWithTrades({
+            actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
+            currencyId: ilkIdInfo.currencyId,
+            depositActionAmount: totalToInvest, // total to invest
+            withdrawAmountInternalPrecision: 0,
+            withdrawEntireCashBalance: false, // Return all residual cash to lender
+            redeemToUnderlying: false, // Convert cToken to token
+            trades: new bytes32[](1)
+        });
+        actions[0].trades[0] = encodedTrade;
+        notional.batchBalanceAndTradeAction(address(this), actions);
 
         ladle.pour(
             vaultId,
