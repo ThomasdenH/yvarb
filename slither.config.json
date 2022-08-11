@@ -1,0 +1,12 @@
+{
+  "filter_paths": "lib",
+  "solc_remaps": [
+    "ds-test/=lib/ds-test/src/",
+    "erc3156/=lib/erc3156/",
+    "forge-std/=lib/forge-std/src/",
+    "@yield-protocol/vault-interfaces/=lib/vault-interfaces/",
+    "@yield-protocol/vault-v2/=lib/vault-v2/packages/foundry/contracts/",
+    "@yield-protocol/utils-v2/=lib/yield-utils-v2/",
+    "@yield-protocol/yieldspace-interfaces/=lib/yieldspace-interfaces/"
+  ]
+}
