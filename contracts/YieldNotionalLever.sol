@@ -9,7 +9,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     using TransferHelper for IERC20;
     using TransferHelper for IFYToken;
 
-    Notional constant notional =
+    Notional constant NOTIONAL =
         Notional(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
 
     struct IlkInfo {
@@ -20,13 +20,13 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     mapping(bytes6 => IlkInfo) public ilkInfo;
 
     constructor(Giver giver_) YieldLeverBase(giver_) {
-        notional.setApprovalForAll(address(LADLE), true);
-        notional.setApprovalForAll(
+        NOTIONAL.setApprovalForAll(address(LADLE), true);
+        NOTIONAL.setApprovalForAll(
             0x0Bfd3B8570A4247157c5468861d37dA55AAb9B4b,
             true
         ); // Approving the Join
 
-        notional.setApprovalForAll(
+        NOTIONAL.setApprovalForAll(
             0x399bA81A1f1Ed0221c39179C50d4d4Bc85C3F3Ab,
             true
         ); // Approving the join
@@ -38,15 +38,15 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         IlkInfo calldata underlying,
         FlashJoin underlyingJoin
     ) external {
+        ilkInfo[ilkId] = underlying;
         IERC20 token = IERC20(underlyingJoin.asset());
         token.approve(address(underlyingJoin), type(uint256).max);
-        token.approve(address(notional), type(uint256).max);
-        ilkInfo[ilkId] = underlying;
+        token.approve(address(NOTIONAL), type(uint256).max);
     }
 
     // TODO: Make it auth controlled when deploying
     function approveJoin(address joinAddress) external {
-        notional.setApprovalForAll(joinAddress, true);
+        NOTIONAL.setApprovalForAll(joinAddress, true);
     }
 
     /// @notice This function is called from within the flash loan. The high
@@ -75,8 +75,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         totalToInvest += pool.sellFYToken(address(this), 0);
 
         IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
-        // Deposit into notional to get the fCash
-        (uint88 fCashAmount, , bytes32 encodedTrade) = notional
+        // Deposit into NOTIONAL to get the fCash
+        (uint88 fCashAmount, , bytes32 encodedTrade) = NOTIONAL
             .getfCashLendFromDeposit(
                 ilkIdInfo.currencyId,
                 totalToInvest, // total to invest
@@ -98,7 +98,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             trades: new bytes32[](1)
         });
         actions[0].trades[0] = encodedTrade;
-        notional.batchBalanceAndTradeAction(address(this), actions);
+        NOTIONAL.batchBalanceAndTradeAction(address(this), actions);
 
         LADLE.pour(
             vaultId,
@@ -136,7 +136,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 trades: new bytes32[](1)
             });
 
-            (, , , bytes32 encodedTrade) = notional.getPrincipalFromfCashBorrow(
+            (, , , bytes32 encodedTrade) = NOTIONAL.getPrincipalFromfCashBorrow(
                 ilkIdInfo.currencyId,
                 ink,
                 ilkIdInfo.maturity,
@@ -145,7 +145,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             );
 
             actions[0].trades[0] = encodedTrade;
-            notional.batchBalanceAndTradeAction(address(this), actions);
+            NOTIONAL.batchBalanceAndTradeAction(address(this), actions);
         }
 
         // Buy FyTokens to repay flash loan

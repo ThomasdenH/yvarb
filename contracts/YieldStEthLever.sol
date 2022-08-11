@@ -24,20 +24,20 @@ contract YieldStEthLever is YieldLeverBase {
     using TransferHelper for WstEth;
 
     /// @notice StEth, represents Ether stakes on Lido.
-    IERC20 public constant steth =
+    IERC20 public constant STETH =
         IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
     /// @notice WStEth, wrapped StEth, useful because StEth rebalances.
-    WstEth public constant wsteth =
+    WstEth public constant WSTETH =
         WstEth(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
 
     /// @notice Curve.fi token swapping contract between Ether and StETH.
-    IStableSwap public constant stableSwap =
+    IStableSwap public constant STABLE_SWAP =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
     /// @notice The Yield Protocol Join containing WstEth.
-    FlashJoin public constant wstethJoin =
+    FlashJoin public constant WSTETH_JOIN =
         FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
     /// @notice The Yield Protocol Join containing Weth.
-    FlashJoin public constant WETHJoin =
+    FlashJoin public constant WETH_JOIN =
         FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0);
 
     /// @notice Deploy this contract.
@@ -46,10 +46,10 @@ contract YieldStEthLever is YieldLeverBase {
     ///     no tokens, no vaults. To save gas we give these tokens full
     ///     approval.
     constructor(Giver giver_) YieldLeverBase(giver_) {
-        WETH.approve(address(stableSwap), type(uint256).max);
-        steth.approve(address(stableSwap), type(uint256).max);
-        WETH.approve(address(WETHJoin), type(uint256).max);
-        steth.approve(address(wsteth), type(uint256).max);
+        WETH.approve(address(STABLE_SWAP), type(uint256).max);
+        STETH.approve(address(STABLE_SWAP), type(uint256).max);
+        WETH.approve(address(WETH_JOIN), type(uint256).max);
+        STETH.approve(address(WSTETH), type(uint256).max);
     }
 
     /// @notice This function is called from within the flash loan. The high
@@ -76,7 +76,7 @@ contract YieldStEthLever is YieldLeverBase {
         uint256 WETHReceived = pool.sellFYToken(address(this), 0);
 
         // Buy StEth from the base and the borrowed Weth
-        uint256 boughtStEth = stableSwap.exchange(
+        uint256 boughtStEth = STABLE_SWAP.exchange(
             0,
             1,
             WETHReceived + baseAmount,
@@ -85,11 +85,11 @@ contract YieldStEthLever is YieldLeverBase {
         );
 
         // Wrap StEth to WStEth.
-        uint128 wrappedStEth = uint128(wsteth.wrap(boughtStEth));
+        uint128 wrappedStEth = uint128(WSTETH.wrap(boughtStEth));
 
         // Deposit WStEth in the vault & borrow `borrowAmount` fyToken to
         // pay back.
-        wsteth.safeTransfer(address(wstethJoin), wrappedStEth);
+        WSTETH.safeTransfer(address(WSTETH_JOIN), wrappedStEth);
         LADLE.pour(
             vaultId,
             address(this),
@@ -122,12 +122,12 @@ contract YieldStEthLever is YieldLeverBase {
         LADLE.pour(vaultId, address(this), -int128(ink), -int128(art));
 
         // Unwrap WStEth to obtain StEth.
-        uint256 stEthUnwrapped = wsteth.unwrap(ink);
+        uint256 stEthUnwrapped = WSTETH.unwrap(ink);
 
         // Exchange StEth for WEth.
         // 0: WETH
         // 1: STETH
-        stableSwap.exchange(
+        STABLE_SWAP.exchange(
             1,
             0,
             stEthUnwrapped,
@@ -169,15 +169,15 @@ contract YieldStEthLever is YieldLeverBase {
         // data[29:45]: art
         LADLE.close(vaultId, address(this), -int128(ink), -int128(art));
 
-        // Convert wsteth to steth
-        uint256 stEthUnwrapped = wsteth.unwrap(ink);
+        // Convert WSTETH to STETH
+        uint256 stEthUnwrapped = WSTETH.unwrap(ink);
 
-        // convert steth - WETH
+        // convert STETH - WETH
         // 1: STETH
         // 0: WETH
         // No minimal amount is necessary: The flashloan will try to take the
         // borrowed amount and fee, and we will check for slippage afterwards.
-        stableSwap.exchange(1, 0, stEthUnwrapped, 0, address(this));
+        STABLE_SWAP.exchange(1, 0, stEthUnwrapped, 0, address(this));
 
         // At the end of the flash loan, we repay in terms of WEth and have
         // used the inital balance entirely for the vault, so we have better

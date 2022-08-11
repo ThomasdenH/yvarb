@@ -65,22 +65,6 @@ enum TradeActionType {
     SettleCashDebt
 }
 
-function encodeLendTrade(
-    uint8 marketIndex,
-    uint88 fCashAmount,
-    uint32 minLendRate // Set this to zero to allow any lend rate
-) pure returns (bytes32) {
-    return
-        bytes32(
-            uint256(
-                (uint8(TradeActionType.Lend) << 248) |
-                    (marketIndex << 240) |
-                    (fCashAmount << 152) |
-                    (minLendRate << 120)
-            )
-        );
-}
-
 interface Notional {
     function getfCashLendFromDeposit(
         uint16 currencyId,
