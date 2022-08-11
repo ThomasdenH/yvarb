@@ -30,18 +30,17 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
     /// @notice The Yield Cauldron, handles debt and collateral balances.
     ICauldron public constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
-    
+
     /// @notice WEth.
     IWETH9 public constant weth =
         IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
-    bytes6 ASSET_ID_MASK = 0xFFFF00000000;
+    bytes6 constant ASSET_ID_MASK = 0xFFFF00000000;
 
     // TODO: Events?
     event LeveredUp();
     event Repaid();
     event Closed();
-    
 
     /// @notice The operation to execute in the flash loan.
     ///
@@ -98,12 +97,9 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         uint128 minCollateral
     ) internal returns (bytes12 vaultId) {
         // TODO: Maybe check whether the series/ilkId is supported
-        // The pool to invest into.
-        IPool pool = IPool(ladle.pools(seriesId));
-        IFYToken fyToken = pool.fyToken();
 
         // Build the vault
-        (vaultId,) = ladle.build(seriesId, ilkId, 0);
+        (vaultId, ) = ladle.build(seriesId, ilkId, 0);
 
         bytes memory data = bytes.concat(
             bytes1(uint8(uint256(Operation.BORROW))),
@@ -112,6 +108,7 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
             ilkId,
             bytes16(amountToInvest)
         );
+        IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
         bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
             this, // Loan Receiver
             address(fyToken), // Loan Token
@@ -123,8 +120,8 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         // This is the amount to deposit, so we check for slippage here. As
         // long as we end up with the desired amount, it doesn't matter what
         // slippage occurred where.
-        DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        if (balances.ink < minCollateral) revert SlippageFailure();
+        if (cauldron.balances(vaultId).ink < minCollateral)
+            revert SlippageFailure();
 
         giver.give(vaultId, msg.sender);
     }
@@ -151,11 +148,20 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         uint128 borrowAmount,
         uint128 minCollateral
     ) external returns (bytes12 vaultId) {
-        IPool pool = IPool(ladle.pools(seriesId));
-        pool.base().safeTransferFrom(msg.sender, address(this), amountToInvest);
-        return _invest(ilkId, seriesId, amountToInvest, borrowAmount, minCollateral);
+        IPool(ladle.pools(seriesId)).base().safeTransferFrom(
+            msg.sender,
+            address(this),
+            amountToInvest
+        );
+        return
+            _invest(
+                ilkId,
+                seriesId,
+                amountToInvest,
+                borrowAmount,
+                minCollateral
+            );
     }
-
 
     /// @notice Invest by creating a levered vault. The basic structure is
     ///     always the same. We borrow FyToken for the series and convert it to
@@ -179,8 +185,15 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         uint128 borrowAmount,
         uint128 minCollateral
     ) external payable returns (bytes12 vaultId) {
-        weth.deposit{ value: msg.value }();
-        return _invest(ilkId, seriesId, uint128(msg.value), borrowAmount, minCollateral);
+        weth.deposit{value: msg.value}();
+        return
+            _invest(
+                ilkId,
+                seriesId,
+                uint128(msg.value),
+                borrowAmount,
+                minCollateral
+            );
     }
 
     /// @notice Called by a flash lender. The primary purpose is to check
@@ -220,19 +233,19 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         // Decode the operation to execute and then call that function.
         if (status == Operation.BORROW) {
             uint128 baseAmount = uint128(uint128(bytes16(data[25:41])));
-            borrow(
-                ilkId,
-                seriesId,
-                vaultId,
-                baseAmount,
-                borrowAmount,
-                fee
-            );
+            borrow(ilkId, seriesId, vaultId, baseAmount, borrowAmount, fee);
         } else {
             uint128 ink = uint128(bytes16(data[25:41]));
             uint128 art = uint128(bytes16(data[41:57]));
             if (status == Operation.REPAY) {
-                repay(ilkId, vaultId, seriesId, uint128(borrowAmount + fee), ink, art);
+                repay(
+                    ilkId,
+                    vaultId,
+                    seriesId,
+                    uint128(borrowAmount + fee),
+                    ink,
+                    art
+                );
             } else if (status == Operation.CLOSE) {
                 close(ilkId, vaultId, ink, art);
             }
@@ -330,7 +343,8 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
         } else {
             bytes6 assetId = seriesId & ASSET_ID_MASK;
             FlashJoin join = FlashJoin(address(ladle.joins(assetId)));
-            uint256 availableInJoin = baseAsset.balanceOf(address(join)) - join.storedBalance();
+            uint256 availableInJoin = baseAsset.balanceOf(address(join)) -
+                join.storedBalance();
 
             // Close:
             // Series is past maturity, borrow and move directly to collateral pool.
@@ -359,8 +373,8 @@ abstract contract YieldLeverBase is IERC3156FlashBorrower {
             // There is however one caveat. If there was Weth in the join to
             // begin with, this will be billed first. Since we want to return
             // the join to the starting state, we should deposit Weth back.
-            uint256 assetToDeposit = availableInJoin
-                - (baseAsset.balanceOf(address(join)) - join.storedBalance());
+            uint256 assetToDeposit = availableInJoin -
+                (baseAsset.balanceOf(address(join)) - join.storedBalance());
             baseAsset.safeTransfer(address(join), assetToDeposit);
         }
 
