@@ -71,16 +71,17 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         // Reuse the variable for the total to invest. This is equal to the
         // base, plus the converted fyTokens. This is equal to the entire
         // balance.
-        baseAmount += uint128(pool.sellFYToken(address(this), 0));
+        uint256 totalToInvest = pool.sellFYToken(address(this), 0);
+        totalToInvest += baseAmount;
 
         uint88 fCashAmount;
-        bytes32 encodedTrade;
         {
             IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
             // Deposit into notional to get the fCash
+            bytes32 encodedTrade;
             (fCashAmount, , encodedTrade) = notional.getfCashLendFromDeposit(
                 ilkIdInfo.currencyId,
-                baseAmount, // total to invest
+                totalToInvest, // total to invest
                 ilkIdInfo.maturity,
                 0,
                 block.timestamp,
@@ -92,7 +93,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             actions[0] = BalanceActionWithTrades({
                 actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
                 currencyId: ilkIdInfo.currencyId,
-                depositActionAmount: baseAmount, // total to invest
+                depositActionAmount: totalToInvest, // total to invest
                 withdrawAmountInternalPrecision: 0,
                 withdrawEntireCashBalance: false, // Return all residual cash to lender
                 redeemToUnderlying: false, // Convert cToken to token
