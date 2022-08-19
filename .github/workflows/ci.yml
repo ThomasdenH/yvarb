@@ -27,3 +27,6 @@ jobs:
 
       - name: Run tests
         run: forge test -vvv --fork-url ${{ secrets.ALCHEMY_MAINNET_RPC }}
+
+      - name: Convex Lever test
+        run: forge test --match-path test/YieldConvexLever.t.sol -vvv --fork-url https://rpc.tenderly.co/fork/326a74cb-dfcf-43cf-b987-696f0d0bd66e
