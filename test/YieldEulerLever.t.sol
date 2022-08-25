@@ -126,8 +126,6 @@ contract ZeroStateTest is ZeroState {
     }
 }
 
-// 1124197600
-
 contract UnwindTest is ZeroState {
     bytes12 vaultId;
 
