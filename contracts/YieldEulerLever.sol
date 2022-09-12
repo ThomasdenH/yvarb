@@ -77,6 +77,37 @@ contract YieldEulerLever is YieldLeverBase {
     /// @param minCollateral The minimum amount of collateral to end up with in
     ///     the vault. If this requirement is not satisfied, the transaction
     ///     will revert.
+    // +-------+                                            +-------+                                                  +-------+ +-------------+ +-------+ +-------+
+    // | User  |                                            | Lever |                                                  | Join  | | eulerMarket | | Ladle | | Pool  |
+    // +-------+                                            +-------+                                                  +-------+ +-------------+ +-------+ +-------+
+    //     |                                                    |                                                          |            |            |         |
+    //     | invest x amount & borrow y amount                  |                                                          |            |            |         |
+    //     |--------------------------------------------------->|                                                          |            |            |         |
+    //     |                                                    |                                                          |            |            |         |
+    //     | transfer x amount of eToken from user to lever     |                                                          |            |            |         |
+    //     |--------------------------------------------------->|                                                          |            |            |         |
+    //     |                                                    |                                                          |            |            |         |
+    //     |                                                    | Build a vault                                            |            |            |         |
+    //     |                                                    |----------------------------------------------------------------------------------->|         |
+    //     |                                                    |                                                          |            |            |         |
+    //     |                                                    | borrow y amount using flashLoan from underlying join     |            |            |         |
+    //     |                                                    |--------------------------------------------------------->|            |            |         |
+    //     |                                                    |                                                          |            |            |         |
+    //     |                                                    | Deposit y token                                          |            |            |         |
+    //     |                                                    |---------------------------------------------------------------------->|            |         |
+    //     |                                                    |                                                          |            |            |         |
+    //     |                                                    |                                                       Transfer eToken |            |         |
+    //     |                                                    |<----------------------------------------------------------------------|            |         |
+    //     |                                                    |                                                          |            |            |         |
+    //     |                                                    | pour x+y to borrow y fyToken                             |            |            |         |
+    //     |                                                    |----------------------------------------------------------------------------------->|         |
+    //     |                                                    |                                                          |            |            |         |
+    //     |                                                    | sell y to get underlying to payback the flashloan        |            |            |         |
+    //     |                                                    |--------------------------------------------------------------------------------------------->|
+    //     |                                                    |                                                          |            |            |         |
+    //     |                Transfer the vault back to the user |                                                          |            |            |         |
+    //     |<---------------------------------------------------|                                                          |            |            |         |
+    //     |                                                    |                                                          |            |            |         |
     function invest(
         bytes6 ilkId, // We are having a custom one here since we will have different eulerTokens
         bytes6 seriesId,
@@ -168,7 +199,7 @@ contract YieldEulerLever is YieldLeverBase {
                 vaultId,
                 seriesId,
                 ilkId,
-                uint128(borrowAmount + fee),
+                (borrowAmount + fee),
                 ink,
                 art
             );
@@ -342,7 +373,7 @@ contract YieldEulerLever is YieldLeverBase {
         bytes12 vaultId,
         bytes6 seriesId,
         bytes6 ilkId,
-        uint128 borrowPlusFee, // Amount of FYToken received
+        uint256 borrowPlusFee, // Amount of FYToken received
         uint256 ink,
         uint256 art
     ) internal {
@@ -362,7 +393,7 @@ contract YieldEulerLever is YieldLeverBase {
 
         // buyFyToken
         IPool pool = IPool(ladle.pools(seriesId));
-        uint128 tokensTransferred = pool.buyFYTokenPreview(borrowPlusFee);
+        uint128 tokensTransferred = pool.buyFYTokenPreview(borrowPlusFee.u128());
 
         IERC20(ilkToAsset[ilkId]).safeTransfer(
             address(pool),
