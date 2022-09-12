@@ -195,14 +195,7 @@ contract YieldEulerLever is YieldLeverBase {
         } else if (status == Operation.REPAY) {
             uint256 ink = uint256(bytes32(data[25:57]));
             uint256 art = uint256(bytes32(data[57:89]));
-            repay(
-                vaultId,
-                seriesId,
-                ilkId,
-                (borrowAmount + fee),
-                ink,
-                art
-            );
+            repay(vaultId, seriesId, ilkId, (borrowAmount + fee), ink, art);
         } else if (status == Operation.CLOSE) {
             uint256 ink = uint256(bytes32(data[25:57]));
             uint256 art = uint256(bytes32(data[57:89]));
@@ -393,7 +386,9 @@ contract YieldEulerLever is YieldLeverBase {
 
         // buyFyToken
         IPool pool = IPool(ladle.pools(seriesId));
-        uint128 tokensTransferred = pool.buyFYTokenPreview(borrowPlusFee.u128());
+        uint128 tokensTransferred = pool.buyFYTokenPreview(
+            borrowPlusFee.u128()
+        );
 
         IERC20(ilkToAsset[ilkId]).safeTransfer(
             address(pool),
