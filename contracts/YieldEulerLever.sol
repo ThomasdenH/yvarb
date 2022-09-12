@@ -21,7 +21,7 @@ contract YieldEulerLever is YieldLeverBase {
     using CastI128U128 for int128;
     using CastU256U128 for uint256;
     using CastU256I256 for uint256;
-    // address constant EULER_MAINNET;
+
     address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -185,8 +185,8 @@ contract YieldEulerLever is YieldLeverBase {
             uint256 minCollateral = uint128(bytes16(data[41:57]));
             borrow(
                 vaultId,
-                seriesId,
                 ilkId,
+                ladle.pools(seriesId),
                 borrowAmount,
                 fee,
                 baseAmount,
@@ -195,7 +195,14 @@ contract YieldEulerLever is YieldLeverBase {
         } else if (status == Operation.REPAY) {
             uint256 ink = uint256(bytes32(data[25:57]));
             uint256 art = uint256(bytes32(data[57:89]));
-            repay(vaultId, seriesId, ilkId, (borrowAmount + fee), ink, art);
+            repay(
+                vaultId,
+                ilkId,
+                ladle.pools(seriesId),
+                uint256(borrowAmount + fee),
+                ink,
+                art
+            );
         } else if (status == Operation.CLOSE) {
             uint256 ink = uint256(bytes32(data[25:57]));
             uint256 art = uint256(bytes32(data[57:89]));
@@ -212,7 +219,7 @@ contract YieldEulerLever is YieldLeverBase {
     ///         - We convert it to StEth and put it in the vault.
     ///         - Against it, we borrow enough FYWeth to repay the flash loan.
     /// @param ilkId The id of the ilk being borrowed.
-    /// @param seriesId The pool (and thereby series) to borrow from.
+    /// @param poolAddress The pool (and thereby series) to borrow from.
     /// @param vaultId The vault id to put collateral into and borrow from.
     /// @param borrowAmount The amount of FYWeth borrowed in the flash loan.
     /// @param fee The fee that will be issued by the flash loan.
@@ -221,8 +228,8 @@ contract YieldEulerLever is YieldLeverBase {
     ///     the function will revert. Used to prevent slippage.
     function borrow(
         bytes12 vaultId,
-        bytes6 seriesId,
         bytes6 ilkId,
+        address poolAddress,
         uint256 borrowAmount,
         uint256 fee,
         uint256 baseAmount,
@@ -241,21 +248,21 @@ contract YieldEulerLever is YieldLeverBase {
 
         IERC20(address(eToken)).transfer(address(ladle.joins(ilkId)), eBalance);
 
-        _pourAndSell(vaultId, eBalance, borrowAmount, seriesId);
+        _pourAndSell(vaultId, eBalance, borrowAmount, poolAddress);
     }
 
     /// @dev Additional function to get over stack too deep
     /// @param vaultId VaultId
     /// @param baseAmount Amount of collateral
     /// @param borrowAmount Amount being borrowed
-    /// @param seriesId SeriesId being
+    /// @param poolAddress Address of the pool to trade on
     function _pourAndSell(
         bytes12 vaultId,
         uint256 baseAmount,
         uint256 borrowAmount,
-        bytes6 seriesId
+        address poolAddress
     ) internal {
-        IPool pool = IPool(ladle.pools(seriesId));
+        IPool pool = IPool(poolAddress);
         uint128 fyBorrow = pool.buyBasePreview(borrowAmount.u128());
         ladle.pour(
             vaultId,
@@ -298,8 +305,7 @@ contract YieldEulerLever is YieldLeverBase {
 
         // Check if we're pre or post maturity.
         if (uint32(block.timestamp) < cauldron.series(seriesId).maturity) {
-            IPool pool = IPool(ladle.pools(seriesId));
-            IFYToken fyToken = pool.fyToken();
+            IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
             // Close:
             // Series is not past maturity.
             // Borrow to repay debt, move directly to the pool.
@@ -355,7 +361,7 @@ contract YieldEulerLever is YieldLeverBase {
     }
 
     /// @param ilkId The id of the ilk being invested.
-    /// @param seriesId The seriesId corresponding to the vault.
+    /// @param poolAddress The address of the pool.
     /// @param vaultId The vault to repay.
     /// @param borrowPlusFee The amount of fyDai/fyUsdc that we have borrowed,
     ///     plus the fee. This should be our final balance.
@@ -364,8 +370,8 @@ contract YieldEulerLever is YieldLeverBase {
     ///     slippage.
     function repay(
         bytes12 vaultId,
-        bytes6 seriesId,
         bytes6 ilkId,
+        address poolAddress,
         uint256 borrowPlusFee, // Amount of FYToken received
         uint256 ink,
         uint256 art
@@ -384,18 +390,15 @@ contract YieldEulerLever is YieldLeverBase {
 
         eToken.withdraw(0, type(uint256).max);
 
+        IPool pool = IPool(poolAddress);
         // buyFyToken
-        IPool pool = IPool(ladle.pools(seriesId));
         uint128 tokensTransferred = pool.buyFYTokenPreview(
             borrowPlusFee.u128()
         );
 
-        IERC20(ilkToAsset[ilkId]).safeTransfer(
-            address(pool),
-            tokensTransferred
-        );
+        IERC20(ilkToAsset[ilkId]).safeTransfer(poolAddress, tokensTransferred);
 
-        pool.buyFYToken(address(this), borrowPlusFee, tokensTransferred);
+        pool.buyFYToken(address(this), borrowPlusFee.u128(), tokensTransferred);
     }
 
     /// @notice Close a vault after maturity.
