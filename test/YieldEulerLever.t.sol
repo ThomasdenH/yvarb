@@ -97,7 +97,7 @@ abstract contract ZeroState is Test {
         giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
         giverAccessControl.grantRole(0x35775afb, address(lever));
 
-        lever.approveSeriesAndIlk(seriesId, ilkId, 0x303100000000);
+        lever.approveFyToken(seriesId);
     }
 
     /// @notice Create a vault.

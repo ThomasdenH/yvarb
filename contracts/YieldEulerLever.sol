@@ -60,26 +60,13 @@ contract YieldEulerLever is YieldLeverBase {
         IERC20(WETH).approve(WETHJOIN, type(uint256).max);
     }
 
-    /// @notice Approve maximally for an fyToken & the ilk
+    /// @notice Approve maximally for an fyToken.
     /// @param seriesId The id of the pool to approve to.
-    /// @param ilkId The id of the ilk to be added
-    /// @param assetId The id of the asset underlying the ilk
-    // TODO: Add auth before deployment
-    function approveSeriesAndIlk(bytes6 seriesId, bytes6 ilkId,bytes6 assetId) external {
-        IPool pool = IPool(ladle.pools(seriesId));
-        pool.fyToken().approve(address(ladle), type(uint256).max);
-        pool.base().approve(EULER, type(uint256).max);
-
-        ilkToAsset[ilkId] = cauldron.assets(assetId);
-        flashJoins[ilkId] = FlashJoin(address(ladle.joins(assetId)));
-
-        IERC20(ilkToAsset[ilkId]).approve(
-            address(flashJoins[ilkId]),
+    function approveFyToken(bytes6 seriesId) external {
+        IPool(ladle.pools(seriesId)).fyToken().approve(
+            address(ladle),
             type(uint256).max
         );
-
-        // Approve euler to pull underlying asset
-        IERC20(ilkToAsset[ilkId]).approve(EULER, type(uint256).max);
     }
 
     /// @notice Invest by creating a levered vault.
