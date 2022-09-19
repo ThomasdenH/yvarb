@@ -153,8 +153,8 @@ contract YieldEulerLever is YieldLeverBase {
         giver.give(vaultId, msg.sender);
     }
 
-    /// @notice Called by a flash lender, which can be `wstethJoin` or
-    ///     `wethJoin` (for Weth). The primary purpose is to check conditions
+    /// @notice Called by a flash lender, which will be the join of the asset underlying the eToken
+    ///     The primary purpose is to check conditions
     ///     and route to the correct internal function.
     ///
     ///     This function reverts if not called through a flashloan initiated
@@ -215,13 +215,13 @@ contract YieldEulerLever is YieldLeverBase {
 
     /// @notice This function is called from within the flash loan. The high
     ///     level functionality is as follows:
-    ///         - We have supplied and borrowed FYWeth.
-    ///         - We convert it to StEth and put it in the vault.
-    ///         - Against it, we borrow enough FYWeth to repay the flash loan.
+    ///         - We have supplied and borrowed underlying asset.
+    ///         - We deposit it to euler and put the etoken received in the vault.
+    ///         - Against it, we borrow enough fyToken to sell & repay the flash loan.
     /// @param ilkId The id of the ilk being borrowed.
     /// @param poolAddress The pool (and thereby series) to borrow from.
     /// @param vaultId The vault id to put collateral into and borrow from.
-    /// @param borrowAmount The amount of FYWeth borrowed in the flash loan.
+    /// @param borrowAmount The amount of underlying asset borrowed in the flash loan.
     /// @param fee The fee that will be issued by the flash loan.
     /// @param baseAmount The amount of own collateral to supply.
     /// @param minCollateral The final amount of collateral to end up with, or
@@ -405,8 +405,7 @@ contract YieldEulerLever is YieldLeverBase {
     /// @param ilkId The id of the ilk.
     /// @param vaultId The ID of the vault to close.
     /// @param ink The collateral to take from the vault.
-    /// @param art The debt to repay. This is denominated in fyTokens, even
-    ///     though the payment is done in terms of WEth.
+    /// @param art The debt to repay.
     function close(
         bytes6 ilkId,
         bytes12 vaultId,

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.14;
 
 import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
@@ -10,40 +10,46 @@ import "./interfaces/IEulerMarkets.sol";
 import "./interfaces/IEulerEToken.sol";
 import "./YieldLeverBase.sol";
 
-// Get flash loan of USDC/DAI/WETH
-// Deposit to get eulerToken
-// Deposit & borrow against it
-// Sell the fyToken to get USDC/DAI
-// Close the flash loan
-contract YieldEulerLeverv2 is YieldLeverBase {
+/// @title A simple euler lever designed to work for one euler token & its underlying at a time
+/// @author iamsahu
+/// @notice Working:
+///         - Get flash loan of USDC/DAI/WETH
+///         - Deposit to get eulerToken
+///         - Deposit & borrow against it
+///         - Sell the fyToken to get USDC/DAI/WETH
+///         - Close the flash loan
+contract SimpleYieldEulerLever is YieldLeverBase {
     using TransferHelper for IERC20;
     using CastU128I128 for uint128;
     using CastI128U128 for int128;
     using CastU256U128 for uint256;
     using CastU256I256 for uint256;
 
-    // Use the markets module:
+    /// @notice euler market
     IEulerMarkets public constant markets =
         IEulerMarkets(0x3520d5a913427E6F0D6A83E07ccD4A4da316e4d3);
-
+    /// @notice Euler protocol address
     address constant EULER = 0x27182842E098f60e3D576794A5bFFb0777E025d3;
-
+    /// @notice Asset underlying the Euler Token
     address immutable asset;
-    FlashJoin immutable flashJoin;
-    IEulerEToken eToken;
+    /// @notice Join of the underlying asset
+    FlashJoin immutable assetJoin;
+    /// @notice Euler token for the asset
+    IEulerEToken immutable eToken;
+    /// @notice ilkId of the asset
     bytes6 immutable ILKID;
 
     constructor(
-        FlashJoin flashJoin_,
-        address asset_,
         bytes6 ilkId_,
-        Giver giver_
+        Giver giver_,
+        address asset_,
+        FlashJoin assetJoin_
     ) YieldLeverBase(giver_) {
         // Approve the main euler contract to pull your tokens:
         IERC20(asset_).approve(EULER, type(uint256).max);
         // Approve join for
-        IERC20(asset_).approve(address(flashJoin_), type(uint256).max);
-        flashJoin = flashJoin_;
+        IERC20(asset_).approve(address(assetJoin_), type(uint256).max);
+        assetJoin = assetJoin_;
         asset = asset_;
         ILKID = ilkId_;
 
@@ -127,7 +133,7 @@ contract YieldEulerLeverv2 is YieldLeverBase {
             bytes16(minCollateral)
         );
 
-        bool success = flashJoin.flashLoan(
+        bool success = assetJoin.flashLoan(
             this, // Loan Receiver
             asset, // Loan Token
             borrowAmount, // Loan Amount
@@ -138,8 +144,8 @@ contract YieldEulerLeverv2 is YieldLeverBase {
         giver.give(vaultId, msg.sender);
     }
 
-    /// @notice Called by a flash lender, which can be `wstethJoin` or
-    ///     `wethJoin` (for Weth). The primary purpose is to check conditions
+    /// @notice Called by a flash lender, which will be the join of the asset underlying the eToken
+    ///     The primary purpose is to check conditions
     ///     and route to the correct internal function.
     ///
     ///     This function reverts if not called through a flashloan initiated
@@ -197,12 +203,12 @@ contract YieldEulerLeverv2 is YieldLeverBase {
 
     /// @notice This function is called from within the flash loan. The high
     ///     level functionality is as follows:
-    ///         - We have supplied and borrowed FYWeth.
-    ///         - We convert it to StEth and put it in the vault.
-    ///         - Against it, we borrow enough FYWeth to repay the flash loan.
+    ///         - We have supplied and borrowed underlying asset.
+    ///         - We deposit it to euler and put the etoken received in the vault.
+    ///         - Against it, we borrow enough fyToken to sell & repay the flash loan.
     /// @param poolAddress The pool (and thereby series) to borrow from.
     /// @param vaultId The vault id to put collateral into and borrow from.
-    /// @param borrowAmount The amount of FYWeth borrowed in the flash loan.
+    /// @param borrowAmount The amount of underlying asset borrowed in the flash loan.
     /// @param fee The fee that will be issued by the flash loan.
     /// @param baseAmount The amount of own collateral to supply.
     /// @param minCollateral The final amount of collateral to end up with, or
@@ -312,7 +318,7 @@ contract YieldEulerLeverv2 is YieldLeverBase {
                 bytes32(art) // [51:83]
             );
 
-            bool success = flashJoin.flashLoan(
+            bool success = assetJoin.flashLoan(
                 this, // Loan Receiver
                 asset, // Loan Token
                 art, // Loan Amount
@@ -331,7 +337,7 @@ contract YieldEulerLeverv2 is YieldLeverBase {
 
     /// @param vaultId The vault to repay.
     /// @param poolAddress The address of the pool.
-    /// @param borrowPlusFee The amount of fyDai/fyUsdc that we have borrowed,
+    /// @param borrowPlusFee The amount of fyToken that we have borrowed,
     ///     plus the fee. This should be our final balance.
     /// @param ink The amount of collateral to retake.
     /// @param art The debt to repay.
@@ -368,7 +374,7 @@ contract YieldEulerLeverv2 is YieldLeverBase {
     /// @param vaultId The ID of the vault to close.
     /// @param ink The collateral to take from the vault.
     /// @param art The debt to repay. This is denominated in fyTokens, even
-    ///     though the payment is done in terms of WEth.
+    ///     though the payment is done in terms of underlying.
     function close(
         bytes12 vaultId,
         uint256 ink,

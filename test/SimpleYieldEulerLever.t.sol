@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "contracts/YieldEulerLeverv2.sol";
+import "contracts/SimpleYieldEulerLever.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/vault-v2/FYToken.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
@@ -20,7 +20,7 @@ abstract contract ZeroState is Test {
     address eDai = 0xe025E3ca2bE02316033184551D4d3Aa22024D9DC;
     Protocol protocol;
     Giver giver;
-    YieldEulerLeverv2 lever;
+    SimpleYieldEulerLever lever;
     ICauldron cauldron;
     FlashJoin daiJoin;
     FlashJoin usdcJoin;
@@ -89,11 +89,11 @@ abstract contract ZeroState is Test {
     }
 
     function setUp() public virtual {
-        lever = new YieldEulerLeverv2(
-            FlashJoin(0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc),
-            address(0x6B175474E89094C44Da98b954EedeAC495271d0F),
+        lever = new SimpleYieldEulerLever(
             0x323000000000,
-            giver
+            giver,
+            address(0x6B175474E89094C44Da98b954EedeAC495271d0F),
+            FlashJoin(0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc)
         );
 
         vm.label(address(lever), "LEVER");
