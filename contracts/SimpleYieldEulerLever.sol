@@ -38,6 +38,8 @@ contract SimpleYieldEulerLever is YieldLeverBase {
     IEulerEToken immutable eToken;
     /// @notice ilkId of the asset
     bytes6 immutable ILKID;
+    /// @notice Join of the ilk
+    address immutable ilkJoin;
 
     constructor(
         bytes6 ilkId_,
@@ -54,6 +56,7 @@ contract SimpleYieldEulerLever is YieldLeverBase {
         ILKID = ilkId_;
 
         eToken = IEulerEToken(markets.underlyingToEToken(asset_));
+        ilkJoin = address(ladle.joins(ILKID));
     }
 
     /// @notice Approve maximally for an fyToken.
@@ -226,7 +229,7 @@ contract SimpleYieldEulerLever is YieldLeverBase {
 
         uint256 eBalance = IERC20(address(eToken)).balanceOf(address(this));
 
-        IERC20(address(eToken)).transfer(address(ladle.joins(ILKID)), eBalance);
+        IERC20(address(eToken)).transfer(ilkJoin, eBalance);
 
         _pourAndSell(vaultId, eBalance, borrowAmount, poolAddress);
     }
