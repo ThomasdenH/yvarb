@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 
 import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
@@ -6,57 +6,58 @@ import "@yield-protocol/utils-v2/contracts/cast/CastI128U128.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastU256U128.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastU256I256.sol";
 import "@yield-protocol/utils-v2/contracts/token/TransferHelper.sol";
-import "./interfaces/IEulerMarkets.sol";
-import "./interfaces/IEulerEToken.sol";
-import "./YieldLeverBase.sol";
+import "../interfaces/IEulerMarkets.sol";
+import "../interfaces/IEulerEToken.sol";
+import "../YieldLeverBase.sol";
 
-/// @title A simple euler lever designed to work for one euler token & its underlying at a time
-/// @author iamsahu
-/// @notice Working:
-///         - Get flash loan of USDC/DAI/WETH
-///         - Deposit to get eulerToken
-///         - Deposit & borrow against it
-///         - Sell the fyToken to get USDC/DAI/WETH
-///         - Close the flash loan
-contract SimpleYieldEulerLever is YieldLeverBase {
+// Get flash loan of USDC/DAI/WETH
+// Deposit to get eulerToken
+// Deposit & borrow against it
+// Sell the fyToken to get USDC/DAI
+// Close the flash loan
+contract YieldEulerLeverV2 is YieldLeverBase {
     using TransferHelper for IERC20;
     using CastU128I128 for uint128;
     using CastI128U128 for int128;
     using CastU256U128 for uint256;
     using CastU256I256 for uint256;
 
-    /// @notice euler market
+    address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address constant EULER = 0x27182842E098f60e3D576794A5bFFb0777E025d3;
+    address constant DAIJOIN = 0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc;
+    address constant USDCJOIN = 0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4;
+    address constant WETHJOIN = 0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0;
+    // assetIds
+    bytes6 constant DAIID = 0x323000000000;
+    bytes6 constant USDCID = 0x323100000000;
+    bytes6 constant WETHID = 0x323200000000;
+    // Use the markets module:
     IEulerMarkets public constant markets =
         IEulerMarkets(0x3520d5a913427E6F0D6A83E07ccD4A4da316e4d3);
-    /// @notice Euler protocol address
-    address constant EULER = 0x27182842E098f60e3D576794A5bFFb0777E025d3;
-    /// @notice Asset underlying the Euler Token
-    address immutable asset;
-    /// @notice Join of the underlying asset
-    FlashJoin immutable assetJoin;
-    /// @notice Euler token for the asset
-    IEulerEToken immutable eToken;
-    /// @notice ilkId of the asset
-    bytes6 immutable ILKID;
-    /// @notice Join of the ilk
-    address immutable ilkJoin;
 
-    constructor(
-        bytes6 ilkId_,
-        Giver giver_,
-        address asset_,
-        FlashJoin assetJoin_
-    ) YieldLeverBase(giver_) {
+    mapping(bytes6 => FlashJoin) public flashJoins;
+    mapping(bytes6 => address) public ilkToAsset;
+
+    constructor(Giver giver_) YieldLeverBase(giver_) {
         // Approve the main euler contract to pull your tokens:
-        IERC20(asset_).approve(EULER, type(uint256).max);
-        // Approve join for
-        IERC20(asset_).approve(address(assetJoin_), type(uint256).max);
-        assetJoin = assetJoin_;
-        asset = asset_;
-        ILKID = ilkId_;
+        IERC20(USDC).approve(EULER, type(uint256).max);
+        IERC20(DAI).approve(EULER, type(uint256).max);
+        IERC20(WETH).approve(EULER, type(uint256).max);
 
-        eToken = IEulerEToken(markets.underlyingToEToken(asset_));
-        ilkJoin = address(ladle.joins(ILKID));
+        flashJoins[DAIID] = FlashJoin(DAIJOIN); // daiJoin
+        flashJoins[USDCID] = FlashJoin(USDCJOIN); // usdcJoin
+        flashJoins[WETHID] = FlashJoin(WETHJOIN); // wethJoin
+
+        ilkToAsset[DAIID] = DAI;
+        ilkToAsset[USDCID] = USDC;
+        ilkToAsset[WETHID] = WETH;
+
+        // Approve join for
+        IERC20(USDC).approve(USDCJOIN, type(uint256).max);
+        IERC20(DAI).approve(DAIJOIN, type(uint256).max);
+        IERC20(WETH).approve(WETHJOIN, type(uint256).max);
     }
 
     /// @notice Approve maximally for an fyToken.
@@ -69,9 +70,10 @@ contract SimpleYieldEulerLever is YieldLeverBase {
     }
 
     /// @notice Invest by creating a levered vault.
+    /// @param ilkId The id of the ilk being invested.
     /// @param seriesId The series to create the vault for.
     /// @param baseAmount The amount of own liquidity to supply.
-    /// @param borrow The amount of additional liquidity to borrow.
+    /// @param borrowAmount The amount of additional liquidity to borrow.
     /// @param minCollateral The minimum amount of collateral to end up with in
     ///     the vault. If this requirement is not satisfied, the transaction
     ///     will revert.
@@ -107,38 +109,42 @@ contract SimpleYieldEulerLever is YieldLeverBase {
     //     |<---------------------------------------------------|                                                          |            |            |         |
     //     |                                                    |                                                          |            |            |         |
     function invest(
+        bytes6 ilkId, // We are having a custom one here since we will have different eulerTokens
         bytes6 seriesId,
         uint128 baseAmount,
         uint128 borrowAmount,
         uint128 minCollateral
     ) external returns (bytes12 vaultId) {
+        address eulerToken = markets.underlyingToEToken(ilkToAsset[ilkId]);
         // Transfer the tokens from user based on the ilk
-        IERC20(address(eToken)).safeTransferFrom(
+        IERC20(eulerToken).safeTransferFrom(
             msg.sender,
             address(this),
             baseAmount
         );
 
         // Build vault
-        (vaultId, ) = ladle.build(seriesId, ILKID, 0);
+        (vaultId, ) = ladle.build(seriesId, ilkId, 0);
 
         // Encode data of
         // OperationType    1 byte      [0:1]
         // seriesId         6 bytes     [1:7]
-        // vaultId          12 bytes    [7:19]
-        // baseAmount       16 bytes    [19:35]
-        // minCollateral    16 bytes    [35:51]
+        // ilkId            6 bytes     [7:13]
+        // vaultId          12 bytes    [13:25]
+        // baseAmount       16 bytes    [25:41]
+        // minCollateral    16 bytes    [41:57]
         bytes memory data = bytes.concat(
             bytes1(uint8(uint256(Operation.BORROW))),
             seriesId,
+            ilkId,
             vaultId,
             bytes16(baseAmount),
             bytes16(minCollateral)
         );
 
-        bool success = assetJoin.flashLoan(
+        bool success = flashJoins[ilkId].flashLoan(
             this, // Loan Receiver
-            asset, // Loan Token
+            ilkToAsset[ilkId], // Loan Token
             borrowAmount, // Loan Amount
             data
         );
@@ -168,16 +174,18 @@ contract SimpleYieldEulerLever is YieldLeverBase {
     ) external override returns (bytes32) {
         Operation status = Operation(uint256(uint8(data[0])));
         bytes6 seriesId = bytes6(data[1:7]);
-        bytes12 vaultId = bytes12(data[7:19]);
+        bytes6 ilkId = bytes6(data[7:13]);
+        bytes12 vaultId = bytes12(data[13:25]);
         // We trust the lender, so now we can check that we were the initiator.
         if (initiator != address(this)) revert FlashLoanFailure();
 
         // Decode the operation to execute and then call that function.
         if (status == Operation.BORROW) {
-            uint128 baseAmount = uint128(bytes16(data[19:35]));
-            uint256 minCollateral = uint128(bytes16(data[35:51]));
+            uint128 baseAmount = uint128(bytes16(data[25:41]));
+            uint256 minCollateral = uint128(bytes16(data[41:57]));
             borrow(
                 vaultId,
+                ilkId,
                 ladle.pools(seriesId),
                 borrowAmount,
                 fee,
@@ -185,20 +193,21 @@ contract SimpleYieldEulerLever is YieldLeverBase {
                 minCollateral
             );
         } else if (status == Operation.REPAY) {
-            uint256 ink = uint256(bytes32(data[19:51]));
-            uint256 art = uint256(bytes32(data[51:83]));
+            uint256 ink = uint256(bytes32(data[25:57]));
+            uint256 art = uint256(bytes32(data[57:89]));
             repay(
                 vaultId,
+                ilkId,
                 ladle.pools(seriesId),
                 uint256(borrowAmount + fee),
                 ink,
                 art
             );
         } else if (status == Operation.CLOSE) {
-            uint256 ink = uint256(bytes32(data[19:51]));
-            uint256 art = uint256(bytes32(data[51:83]));
+            uint256 ink = uint256(bytes32(data[25:57]));
+            uint256 art = uint256(bytes32(data[57:89]));
 
-            close(vaultId, ink, art);
+            close(ilkId, vaultId, ink, art);
         }
 
         return FLASH_LOAN_RETURN;
@@ -209,6 +218,7 @@ contract SimpleYieldEulerLever is YieldLeverBase {
     ///         - We have supplied and borrowed underlying asset.
     ///         - We deposit it to euler and put the etoken received in the vault.
     ///         - Against it, we borrow enough fyToken to sell & repay the flash loan.
+    /// @param ilkId The id of the ilk being borrowed.
     /// @param poolAddress The pool (and thereby series) to borrow from.
     /// @param vaultId The vault id to put collateral into and borrow from.
     /// @param borrowAmount The amount of underlying asset borrowed in the flash loan.
@@ -218,6 +228,7 @@ contract SimpleYieldEulerLever is YieldLeverBase {
     ///     the function will revert. Used to prevent slippage.
     function borrow(
         bytes12 vaultId,
+        bytes6 ilkId,
         address poolAddress,
         uint256 borrowAmount,
         uint256 fee,
@@ -225,11 +236,17 @@ contract SimpleYieldEulerLever is YieldLeverBase {
         uint256 minCollateral
     ) internal {
         // Deposit to get Euler token in return which would be used to payback flashloan
+        // Get the eToken address using the markets module:
+
+        IEulerEToken eToken = IEulerEToken(
+            markets.underlyingToEToken(ilkToAsset[ilkId])
+        );
+
         eToken.deposit(0, borrowAmount - fee);
 
         uint256 eBalance = IERC20(address(eToken)).balanceOf(address(this));
 
-        IERC20(address(eToken)).transfer(ilkJoin, eBalance);
+        IERC20(address(eToken)).transfer(address(ladle.joins(ilkId)), eBalance);
 
         _pourAndSell(vaultId, eBalance, borrowAmount, poolAddress);
     }
@@ -265,6 +282,7 @@ contract SimpleYieldEulerLever is YieldLeverBase {
     ///
     ///     This function will take the vault from you using `Giver`, so make
     ///     sure you have given it permission to do that.
+    /// @param ilkId The id of the ilk being divested.
     /// @param seriesId The seriesId corresponding to the vault.
     /// @param vaultId The vault to use.
     /// @param ink The amount of collateral to recover.
@@ -272,6 +290,7 @@ contract SimpleYieldEulerLever is YieldLeverBase {
     /// @dev It is more gas efficient to let the user supply the `seriesId`,
     ///     but it should match the pool.
     function divest(
+        bytes6 ilkId,
         bytes6 seriesId,
         bytes12 vaultId,
         uint256 ink,
@@ -293,9 +312,10 @@ contract SimpleYieldEulerLever is YieldLeverBase {
             bytes memory data = bytes.concat(
                 bytes1(bytes1(uint8(uint256(Operation.REPAY)))), // [0:1]
                 seriesId, // [1:7]
-                vaultId, // [7:19]
-                bytes32(ink), // [19:51]
-                bytes32(art) // [51:83]
+                ilkId, // [7:13]
+                vaultId, // [13:25]
+                bytes32(ink), // [25:57]
+                bytes32(art) // [57:89]
             );
             bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
                 this, // Loan Receiver
@@ -310,18 +330,20 @@ contract SimpleYieldEulerLever is YieldLeverBase {
             // FYToken left. Check:
             require(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
         } else {
+            address asset = ilkToAsset[ilkId];
             // Close:
             // Series is not past maturity.
             // Borrow to repay debt, move directly to the pool.
             bytes memory data = bytes.concat(
                 bytes1(bytes1(uint8(uint256(Operation.CLOSE)))), // [0:1]
                 seriesId, // [1:7]
-                vaultId, // [7:19]
-                bytes32(ink), // [19:51]
-                bytes32(art) // [51:83]
+                ilkId, // [7:13]
+                vaultId, // [13:25]
+                bytes32(ink), // [25:57]
+                bytes32(art) // [57:89]
             );
 
-            bool success = assetJoin.flashLoan(
+            bool success = flashJoins[ilkId].flashLoan(
                 this, // Loan Receiver
                 asset, // Loan Token
                 art, // Loan Amount
@@ -338,15 +360,17 @@ contract SimpleYieldEulerLever is YieldLeverBase {
         giver.give(vaultId, msg.sender);
     }
 
-    /// @param vaultId The vault to repay.
+    /// @param ilkId The id of the ilk being invested.
     /// @param poolAddress The address of the pool.
-    /// @param borrowPlusFee The amount of fyToken that we have borrowed,
+    /// @param vaultId The vault to repay.
+    /// @param borrowPlusFee The amount of fyDai/fyUsdc that we have borrowed,
     ///     plus the fee. This should be our final balance.
     /// @param ink The amount of collateral to retake.
     /// @param art The debt to repay.
     ///     slippage.
     function repay(
         bytes12 vaultId,
+        bytes6 ilkId,
         address poolAddress,
         uint256 borrowPlusFee, // Amount of FYToken received
         uint256 ink,
@@ -360,6 +384,10 @@ contract SimpleYieldEulerLever is YieldLeverBase {
             -art.u128().i128()
         );
 
+        IEulerEToken eToken = IEulerEToken(
+            markets.underlyingToEToken(ilkToAsset[ilkId])
+        );
+
         eToken.withdraw(0, type(uint256).max);
 
         IPool pool = IPool(poolAddress);
@@ -368,17 +396,18 @@ contract SimpleYieldEulerLever is YieldLeverBase {
             borrowPlusFee.u128()
         );
 
-        IERC20(asset).safeTransfer(poolAddress, tokensTransferred);
+        IERC20(ilkToAsset[ilkId]).safeTransfer(poolAddress, tokensTransferred);
 
         pool.buyFYToken(address(this), borrowPlusFee.u128(), tokensTransferred);
     }
 
     /// @notice Close a vault after maturity.
+    /// @param ilkId The id of the ilk.
     /// @param vaultId The ID of the vault to close.
     /// @param ink The collateral to take from the vault.
-    /// @param art The debt to repay. This is denominated in fyTokens, even
-    ///     though the payment is done in terms of underlying.
+    /// @param art The debt to repay.
     function close(
+        bytes6 ilkId,
         bytes12 vaultId,
         uint256 ink,
         uint256 art
@@ -388,6 +417,10 @@ contract SimpleYieldEulerLever is YieldLeverBase {
             address(this),
             -ink.u128().i128(),
             -art.u128().i128()
+        );
+
+        IEulerEToken eToken = IEulerEToken(
+            markets.underlyingToEToken(ilkToAsset[ilkId])
         );
 
         eToken.withdraw(0, type(uint256).max);

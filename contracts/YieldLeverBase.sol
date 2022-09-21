@@ -39,6 +39,7 @@ contract YieldLeverBase is IERC3156FlashBorrower {
         CLOSE
     }
 
+    // TODO: Hardcode this as well
     /// @notice The Giver contract can give vaults on behalf on a user who gave
     ///     permission.
     Giver public immutable giver;

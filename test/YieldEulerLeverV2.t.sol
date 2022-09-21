@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "contracts/SimpleYieldEulerLever.sol";
+import "contracts/draft/YieldEulerLeverV2.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/vault-v2/FYToken.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
@@ -20,7 +20,7 @@ abstract contract ZeroState is Test {
     address eDai = 0xe025E3ca2bE02316033184551D4d3Aa22024D9DC;
     Protocol protocol;
     Giver giver;
-    SimpleYieldEulerLever lever;
+    YieldEulerLeverV2 lever;
     ICauldron cauldron;
     FlashJoin daiJoin;
     FlashJoin usdcJoin;
@@ -89,12 +89,7 @@ abstract contract ZeroState is Test {
     }
 
     function setUp() public virtual {
-        lever = new SimpleYieldEulerLever(
-            0x323000000000,
-            giver,
-            address(0x6B175474E89094C44Da98b954EedeAC495271d0F),
-            FlashJoin(0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc)
-        );
+        lever = new YieldEulerLeverV2(giver);
 
         vm.label(address(lever), "LEVER");
 
@@ -114,6 +109,7 @@ abstract contract ZeroState is Test {
         // uint256 eulerAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
         IERC20(eDai).approve(address(lever), 100000e18);
         vaultId = lever.invest(
+            ilkId, // ilkId edai
             seriesId,
             baseAmount,
             borrowAmount,
@@ -142,13 +138,13 @@ contract UnwindTest is ZeroState {
 
     function testRepay() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.divest(seriesId, vaultId, balances.ink, balances.art);
+        lever.divest(ilkId, seriesId, vaultId, balances.ink, balances.art);
     }
 
     function testDoClose() public {
         DataTypes.Series memory series_ = cauldron.series(seriesId);
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.divest(seriesId, vaultId, balances.ink, balances.art);
+        lever.divest(ilkId, seriesId, vaultId, balances.ink, balances.art);
     }
 }

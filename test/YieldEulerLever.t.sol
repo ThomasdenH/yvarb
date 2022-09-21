@@ -28,6 +28,7 @@ abstract contract ZeroState is Test {
     IERC20 constant weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     bytes6 seriesId = 0x303130370000;
     bytes6 ilkId = 0x323000000000;
+    bytes6 baseId = 0x303100000000;
     ILadle public constant ladle =
         ILadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
 
@@ -89,7 +90,7 @@ abstract contract ZeroState is Test {
     }
 
     function setUp() public virtual {
-        lever = new YieldEulerLever(giver);
+        lever = new YieldEulerLever(ilkId, baseId, giver);
 
         vm.label(address(lever), "LEVER");
 
@@ -109,7 +110,6 @@ abstract contract ZeroState is Test {
         // uint256 eulerAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
         IERC20(eDai).approve(address(lever), 100000e18);
         vaultId = lever.invest(
-            ilkId, // ilkId edai
             seriesId,
             baseAmount,
             borrowAmount,
@@ -138,13 +138,13 @@ contract UnwindTest is ZeroState {
 
     function testRepay() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.divest(ilkId, seriesId, vaultId, balances.ink, balances.art);
+        lever.divest(seriesId, vaultId, balances.ink, balances.art);
     }
 
     function testDoClose() public {
         DataTypes.Series memory series_ = cauldron.series(seriesId);
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.divest(ilkId, seriesId, vaultId, balances.ink, balances.art);
+        lever.divest(seriesId, vaultId, balances.ink, balances.art);
     }
 }
