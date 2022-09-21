@@ -63,8 +63,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     /// @param borrowAmount The amount of additional liquidity to borrow.
     /// @param seriesId The series to create the vault for.
     function invest(
-        bytes6 ilkId,
         bytes6 seriesId,
+        bytes6 ilkId,
         uint128 baseAmount,
         uint128 borrowAmount
     ) external returns (bytes12 vaultId) {
@@ -167,9 +167,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     /// @param fee The fee that will be issued by the flash loan.
     /// @param baseAmount The amount of own collateral to supply.
     function borrow(
-        bytes6 ilkId,
-        bytes6 seriesId,
         bytes12 vaultId,
+        bytes6 seriesId,
+        bytes6 ilkId,
         uint256 borrowAmount,
         uint256 fee,
         uint128 baseAmount
@@ -235,9 +235,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     /// @dev It is more gas efficient to let the user supply the `seriesId`,
     ///     but it should match the pool.
     function divest(
-        bytes6 ilkId,
-        bytes6 seriesId,
         bytes12 vaultId,
+        bytes6 seriesId,
+        bytes6 ilkId,
         uint128 ink,
         uint128 art,
         uint256 minOut
@@ -311,9 +311,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     ///     plus the fee. This should be our final balance.
     /// @param vaultId The vault to repay.
     function repay(
-        bytes6 ilkId,
-        bytes6 seriesId,
         bytes12 vaultId,
+        bytes6 seriesId,
+        bytes6 ilkId,
         uint128 borrowAmountPlusFee, // Amount of FYToken received
         bytes calldata data
     ) internal {
