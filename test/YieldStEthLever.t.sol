@@ -17,6 +17,7 @@ import "@yield-protocol/yieldspace-interfaces/IPool.sol";
 abstract contract ZeroState is Test {
     address timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;
     address fyTokenWhale = 0x1c15b746360BB8E792C6ED8cB83f272Ce1D170E0;
+    address ethWhale = 0xDA9dfA130Df4dE4673b89022EE50ff26f6EA73Cf;
     YieldStEthLever lever;
     Protocol protocol;
     Giver giver;
@@ -33,6 +34,13 @@ abstract contract ZeroState is Test {
 
     IStableSwap constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
+
+    /// @notice The Yield Protocol Join containing WstEth.
+    FlashJoin public constant wstethJoin =
+        FlashJoin(0x5364d336c2d2391717bD366b29B6F351842D7F82);
+    /// @notice The Yield Protocol Join containing Weth.
+    FlashJoin public constant wethJoin =
+        FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0);
 
     constructor() {
         protocol = new Protocol();
@@ -65,11 +73,24 @@ abstract contract ZeroState is Test {
 
         vm.prank(fyTokenWhale);
         fyToken.transfer(address(this), 2e18);
+
+        vm.prank(ethWhale);
+        address(this).call{value: 1e18}("");
         // vm.prank(fyTokenWhale);
         // fyToken.transfer(address(lever), 3e18);
         AccessControl giverAccessControl = AccessControl(address(giver));
         giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
         giverAccessControl.grantRole(0x35775afb, address(lever));
+    }
+
+    /// Return the available balance in the join.
+    function availableBalance(FlashJoin join)
+        public
+        view
+        returns (uint256 available)
+    {
+        IERC20 token = IERC20(join.asset());
+        available = token.balanceOf(address(join)) - join.storedBalance();
     }
 
     /// @notice Create a vault.
@@ -83,9 +104,9 @@ abstract contract ZeroState is Test {
         uint128 minCollateral = uint128(
             (stableSwap.get_dy(0, 1, wethAmount) * 80) / 100
         );
-        vaultId = lever.invest(
+
+        vaultId = lever.invest{value: baseAmount}(
             seriesId,
-            baseAmount,
             borrowAmount,
             minCollateral
         );
@@ -97,7 +118,8 @@ abstract contract VaultCreatedState is ZeroState {
 
     function setUp() public override {
         super.setUp();
-        vaultId = invest(2e18, 4e18);
+
+        vaultId = invest(1e18, 3.5e18);
     }
 
     function unwind() internal returns (bytes12) {
@@ -115,7 +137,11 @@ abstract contract VaultCreatedState is ZeroState {
 
 contract ZeroStateTest is ZeroState {
     function testVault() public {
-        bytes12 vaultId = invest(2e18, 6e18);
+        uint256 availableWStEthBalanceAtStart = availableBalance(wstethJoin);
+        uint256 availableWEthBalanceAtStart = availableBalance(wethJoin);
+
+        bytes12 vaultId = invest(1e18, 3.5e18);
+
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
 
@@ -124,18 +150,30 @@ contract ZeroStateTest is ZeroState {
         assertEq(wsteth.balanceOf(address(lever)), 0);
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
+
+        // Assert that the join state is the same as the start
+        assertEq(availableBalance(wstethJoin), availableWStEthBalanceAtStart);
+        assertEq(availableBalance(wethJoin), availableWEthBalanceAtStart);
     }
 
     function testLever() public {
-        bytes12 vaultId = invest(2e18, 5e18);
+        uint256 availableWStEthBalanceAtStart = availableBalance(wstethJoin);
+        uint256 availableWEthBalanceAtStart = availableBalance(wethJoin);
+
+        bytes12 vaultId = invest(1e18, 3.5e18);
+
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        assertEq(balances.art, 5e18);
+        assertEq(balances.art, 3.5e18);
 
         // No tokens should be left in the contract
         assertEq(weth.balanceOf(address(lever)), 0);
         assertEq(wsteth.balanceOf(address(lever)), 0);
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
+
+        // Assert that the join state is the same as the start
+        assertEq(availableBalance(wstethJoin), availableWStEthBalanceAtStart);
+        assertEq(availableBalance(wethJoin), availableWEthBalanceAtStart);
     }
 
     /// @notice This function should fail if called externally.
@@ -168,12 +206,15 @@ contract ZeroStateTest is ZeroState {
         );
 
         vm.expectRevert(SlippageFailure.selector);
-        lever.invest(seriesId, baseAmount, borrowAmount, minCollateral);
+        lever.invest{value: baseAmount}(seriesId, borrowAmount, minCollateral);
     }
 }
 
 contract VaultCreatedStateTest is VaultCreatedState {
     function testRepay() public {
+        uint256 availableWStEthBalanceAtStart = availableBalance(wstethJoin);
+        uint256 availableWEthBalanceAtStart = availableBalance(wethJoin);
+
         unwind();
 
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
@@ -188,9 +229,16 @@ contract VaultCreatedStateTest is VaultCreatedState {
         assertEq(wsteth.balanceOf(address(lever)), 0);
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
+
+        // Assert that the join state is the same as the start
+        assertEq(availableBalance(wstethJoin), availableWStEthBalanceAtStart);
+        assertEq(availableBalance(wethJoin), availableWEthBalanceAtStart);
     }
 
     function testClose() public {
+        uint256 availableWStEthBalanceAtStart = availableBalance(wstethJoin);
+        uint256 availableWEthBalanceAtStart = availableBalance(wethJoin);
+
         DataTypes.Series memory series_ = cauldron.series(seriesId);
 
         vm.warp(series_.maturity);
@@ -209,6 +257,10 @@ contract VaultCreatedStateTest is VaultCreatedState {
         assertEq(wsteth.balanceOf(address(lever)), 0);
         assertEq(steth.balanceOf(address(lever)), 0);
         assertEq(fyToken.balanceOf(address(lever)), 0);
+
+        // Assert that the join state is the same as the start
+        assertEq(availableBalance(wstethJoin), availableWStEthBalanceAtStart);
+        assertEq(availableBalance(wethJoin), availableWEthBalanceAtStart);
     }
 
     function testRepayRevertOnSlippage() public {
