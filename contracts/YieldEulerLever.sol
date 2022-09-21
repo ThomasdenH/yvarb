@@ -54,7 +54,6 @@ contract YieldEulerLever is YieldLeverBase {
         IERC20(baseToken).approve(address(baseJoin), type(uint256).max);
 
         ilkId = ilkId_;
-
         eToken = IEulerEToken(eulerMarkets.underlyingToEToken(baseToken));
         ilkJoin = address(ladle.joins(ilkId));
     }
@@ -162,7 +161,7 @@ contract YieldEulerLever is YieldLeverBase {
     ///     the first byte for the router.
     function onFlashLoan(
         address,
-        address, // The token, not checked as we check the lender address.
+        address,
         uint256 borrowAmount,
         uint256 fee,
         bytes calldata data
@@ -210,49 +209,44 @@ contract YieldEulerLever is YieldLeverBase {
     ///         - Against it, we borrow enough fyToken to sell & repay the flash loan.
     /// @param poolAddress The pool (and thereby series) to borrow from.
     /// @param vaultId The vault id to put collateral into and borrow from.
-    /// @param borrowAmount The amount of underlying asset borrowed in the flash loan.
+    /// @param borrow The amount of underlying asset borrowed in the flash loan.
     /// @param fee The fee that will be issued by the flash loan.
-    /// @param baseAmount The amount of own collateral to supply.
+    /// @param ink The amount of own collateral to supply.
     /// @param minCollateral The final amount of collateral to end up with, or
     ///     the function will revert. Used to prevent slippage.
     function borrow(
         bytes12 vaultId,
         address poolAddress,
-        uint256 borrowAmount,
+        uint256 borrow,
         uint256 fee,
-        uint256 baseAmount,
+        uint256 ink,
         uint256 minCollateral
     ) internal {
         // Deposit to get Euler token in return which would be used to payback flashloan
-        eToken.deposit(0, borrowAmount - fee);
+        eToken.deposit(0, borrow - fee);
 
         uint256 eBalance = IERC20(address(eToken)).balanceOf(address(this));
 
         IERC20(address(eToken)).transfer(ilkJoin, eBalance);
 
-        _pourAndSell(vaultId, poolAddress, eBalance, borrowAmount);
+        _pourAndSell(vaultId, poolAddress, eBalance, borrow);
     }
 
     /// @dev Additional function to get over stack too deep
     /// @param vaultId VaultId
     /// @param poolAddress Address of the pool to trade on
-    /// @param baseAmount Amount of collateral
-    /// @param borrowAmount Amount being borrowed
+    /// @param ink Amount of collateral
+    /// @param borrow Amount being borrowed
     function _pourAndSell(
         bytes12 vaultId,
         address poolAddress,
-        uint256 baseAmount,
-        uint256 borrowAmount
+        uint256 ink,
+        uint256 borrow
     ) internal {
         IPool pool = IPool(poolAddress);
-        uint128 fyBorrow = pool.buyBasePreview(borrowAmount.u128());
-        ladle.pour(
-            vaultId,
-            address(pool),
-            baseAmount.u128().i128(),
-            fyBorrow.i128()
-        );
-        pool.buyBase(address(this), borrowAmount.u128(), fyBorrow);
+        uint128 fyBorrow = pool.buyBasePreview(borrow.u128());
+        ladle.pour(vaultId, address(pool), ink.u128().i128(), fyBorrow.i128());
+        pool.buyBase(address(this), borrow.u128(), fyBorrow);
     }
 
     /// @notice divest a position.
@@ -260,9 +254,9 @@ contract YieldEulerLever is YieldLeverBase {
     ///     If pre maturity, borrow liquidity tokens to repay `art` debt and
     ///     take `ink` collateral.
     ///
-    ///     If post maturity, borrow USDC/DAI to pay off the debt directly.
+    ///     If post maturity, borrow USDC/DAI/ETH to pay off the debt directly.
     ///
-    ///     This function will take the vault from you using `Giver`, so make
+    ///     This function will take the vault from the user, using `Giver`, so make
     ///     sure you have given it permission to do that.
     /// @param seriesId The seriesId corresponding to the vault.
     /// @param vaultId The vault to use.
