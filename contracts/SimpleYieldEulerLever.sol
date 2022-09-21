@@ -71,7 +71,7 @@ contract SimpleYieldEulerLever is YieldLeverBase {
     /// @notice Invest by creating a levered vault.
     /// @param seriesId The series to create the vault for.
     /// @param baseAmount The amount of own liquidity to supply.
-    /// @param borrowAmount The amount of additional liquidity to borrow.
+    /// @param borrow The amount of additional liquidity to borrow.
     /// @param minCollateral The minimum amount of collateral to end up with in
     ///     the vault. If this requirement is not satisfied, the transaction
     ///     will revert.
