@@ -26,9 +26,12 @@ abstract contract ZeroState is Test {
     address constant daiWhale = 0xaD0135AF20fa82E106607257143d0060A7eB5cBf;
     IERC20 constant USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IERC20 constant DAI = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-    ICauldron constant cauldron = ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
-    FlashJoin constant daiJoin = FlashJoin(0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc); // dai
-    FlashJoin constant usdcJoin = FlashJoin(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4); // usdc
+    ICauldron constant cauldron =
+        ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
+    FlashJoin constant daiJoin =
+        FlashJoin(0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc); // dai
+    FlashJoin constant usdcJoin =
+        FlashJoin(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4); // usdc
     ILadle constant ladle = ILadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
 
     Protocol immutable protocol;
@@ -58,8 +61,10 @@ abstract contract ZeroState is Test {
         vm.startPrank(timeLock);
         usdcJoin.setFlashFeeFactor(1);
         daiJoin.setFlashFeeFactor(1);
-        FYToken(address(IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken())).setFlashFeeFactor(1);
-        FYToken(address(IPool(ladle.pools(fyDai2209SeriesId)).fyToken())).setFlashFeeFactor(1);
+        FYToken(address(IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken()))
+            .setFlashFeeFactor(1);
+        FYToken(address(IPool(ladle.pools(fyDai2209SeriesId)).fyToken()))
+            .setFlashFeeFactor(1);
         vm.stopPrank();
     }
 
@@ -97,10 +102,12 @@ abstract contract ZeroState is Test {
     }
 
     /// @notice Create a vault.
-    function leverUp(uint128 baseAmount, uint128 borrowAmount, bytes6 ilkId, bytes6 seriesId)
-        public
-        returns (bytes12 vaultId)
-    {
+    function leverUp(
+        uint128 baseAmount,
+        uint128 borrowAmount,
+        bytes6 ilkId,
+        bytes6 seriesId
+    ) public returns (bytes12 vaultId) {
         // Expect at least 80% of the value to end up as collateral
         // uint256 eulerAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
 
@@ -113,7 +120,11 @@ abstract contract ZeroState is Test {
     }
 
     /// Return the available balance in the join.
-    function availableBalance(bytes6 ilkIdToCheck) public view returns (uint256 available) {
+    function availableBalance(bytes6 ilkIdToCheck)
+        public
+        view
+        returns (uint256 available)
+    {
         (FlashJoin join, , ) = lever.ilkInfo(ilkIdToCheck);
         IERC20 token = IERC20(join.asset());
         available = token.balanceOf(address(join)) - join.storedBalance();
@@ -123,7 +134,12 @@ abstract contract ZeroState is Test {
 contract VaultTest is ZeroState {
     function testVault() public {
         uint256 availableAtStart = availableBalance(fUsdc2209IlkId);
-        bytes12 vaultId = leverUp(2000e6, 5000e6, fUsdc2209IlkId, fyUsdc2209SeriesId);
+        bytes12 vaultId = leverUp(
+            2000e6,
+            5000e6,
+            fUsdc2209IlkId,
+            fyUsdc2209SeriesId
+        );
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
 
@@ -133,7 +149,12 @@ contract VaultTest is ZeroState {
         // Assert that the balances are empty
         assertEq(IERC20(USDC).balanceOf(address(lever)), 0);
         assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
-        assertEq(IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken().balanceOf(address(lever)), 0);
+        assertEq(
+            IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken().balanceOf(
+                address(lever)
+            ),
+            0
+        );
     }
 }
 
@@ -151,7 +172,14 @@ contract DivestTest is ZeroState {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
 
         emit log_uint(USDC.balanceOf(address(this)));
-        lever.divest(fUsdc2209IlkId, fyUsdc2209SeriesId, vaultId, balances.ink, balances.art, 0);
+        lever.divest(
+            vaultId,
+            fyUsdc2209SeriesId,
+            fUsdc2209IlkId,
+            balances.ink,
+            balances.art,
+            0
+        );
         emit log_uint(USDC.balanceOf(address(this)));
 
         // Test that we left the join as we encountered it
@@ -160,7 +188,12 @@ contract DivestTest is ZeroState {
         // Assert that the balances are empty
         assertEq(USDC.balanceOf(address(lever)), 0);
         assertEq(DAI.balanceOf(address(lever)), 0);
-        assertEq(IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken().balanceOf(address(lever)), 0);
+        assertEq(
+            IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken().balanceOf(
+                address(lever)
+            ),
+            0
+        );
     }
 
     function testDoClose() public {
@@ -170,7 +203,14 @@ contract DivestTest is ZeroState {
         emit log_uint(USDC.balanceOf(address(this)));
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.divest(fUsdc2209IlkId, fyUsdc2209SeriesId, vaultId, balances.ink, balances.art, 0);
+        lever.divest(
+            vaultId,
+            fyUsdc2209SeriesId,
+            fUsdc2209IlkId,
+            balances.ink,
+            balances.art,
+            0
+        );
         emit log_uint(USDC.balanceOf(address(this)));
 
         // Test that we left the join as we encountered it
@@ -179,6 +219,11 @@ contract DivestTest is ZeroState {
         // Assert that the balances are empty
         assertEq(USDC.balanceOf(address(lever)), 0);
         assertEq(DAI.balanceOf(address(lever)), 0);
-        assertEq(IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken().balanceOf(address(lever)), 0);
+        assertEq(
+            IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken().balanceOf(
+                address(lever)
+            ),
+            0
+        );
     }
 }

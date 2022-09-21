@@ -133,7 +133,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
             bytes12 vaultId = bytes12(data[13:25]);
             uint128 baseAmount = uint128(uint128(bytes16(data[25:41])));
-            borrow(ilkId, seriesId, vaultId, borrowAmount, fee, baseAmount);
+            borrow(vaultId, seriesId, ilkId, borrowAmount, fee, baseAmount);
         } else if (status == Operation.REPAY) {
             // 1. Check the caller
             IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
@@ -141,7 +141,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
             bytes6 ilkId = bytes6(data[7:13]);
             bytes12 vaultId = bytes12(data[13:25]);
-            repay(ilkId, seriesId, vaultId, uint128(borrowAmount + fee), data);
+            repay(vaultId, seriesId, ilkId, uint128(borrowAmount + fee), data);
         } else if (status == Operation.CLOSE) {
             bytes12 vaultId = bytes12(data[7:19]);
             uint128 ink = uint128(bytes16(data[19:35]));
