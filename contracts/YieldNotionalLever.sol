@@ -148,12 +148,12 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
             bytes6 ilkId = bytes6(data[7:13]);
             bytes12 vaultId = bytes12(data[13:25]);
-            repay(vaultId, seriesId, ilkId, uint128(borrowAmount + fee), data);
+            repay(vaultId, seriesId, ilkId, borrowAmount + fee, data);
         } else if (status == Operation.CLOSE) {
             bytes12 vaultId = bytes12(data[7:19]);
             uint256 ink = uint256(bytes32(data[19:51]));
             uint256 art = uint256(bytes32(data[51:83]));
-            bytes6 ilkId = bytes6(data[51:57]);
+            bytes6 ilkId = bytes6(data[83:89]);
             // 1. Check the caller
             require(msg.sender == address(ilkInfo[ilkId].join));
 
@@ -370,8 +370,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         token.safeTransfer(address(pool), tokenToTran);
         pool.buyFYToken(address(this), borrowPlusFee.u128(), tokenToTran);
 
-        uint256 minOut = uint256(bytes32(data[57:89]));
-        address borrower = address(bytes20(data[89:109]));
+        uint256 minOut = uint256(bytes32(data[89:121]));
+        address borrower = address(bytes20(data[121:141]));
         uint256 balance = token.balanceOf(address(this));
         require(balance >= minOut, "balance is not minout");
 
