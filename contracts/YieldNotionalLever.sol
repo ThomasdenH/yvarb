@@ -167,9 +167,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     ///         - We have supplied 'dai' or 'usdc'.
     ///         - We deposit it to get fCash and put it in the vault.
     ///         - Against it, we borrow enough fyDai or fyUSDC to repay the flash loan.
-    /// @param ilkId Id of the Ilk
-    /// @param seriesId The pool (and thereby series) to borrow from.
     /// @param vaultId The vault id to put collateral into and borrow from.
+    /// @param seriesId The pool (and thereby series) to borrow from.
+    /// @param ilkId Id of the Ilk
     /// @param borrowAmount The amount of DAI/USDC borrowed in the flash loan.
     /// @param fee The fee that will be issued by the flash loan.
     /// @param baseAmount The amount of own collateral to supply.
@@ -233,9 +233,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     ///
     ///     This function will take the vault from you using `Giver`, so make
     ///     sure you have given it permission to do that.
-    /// @param ilkId Id of the Ilk
-    /// @param seriesId The seriesId corresponding to the vault.
     /// @param vaultId The vault to use.
+    /// @param seriesId The seriesId corresponding to the vault.
+    /// @param ilkId Id of the Ilk
     /// @param ink The amount of collateral to recover.
     /// @param art The debt to repay.
     /// @param minOut The minimum amount of token to get out of the contract.
@@ -314,9 +314,11 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         giver.give(vaultId, msg.sender);
     }
 
+    /// @param vaultId The vault to repay.
+    /// @param seriesId The seriesId corresponding to the vault.
+    /// @param ilkId Id of the Ilk
     /// @param borrowPlusFee The amount of fyDai/fyUsdc that we have borrowed,
     ///     plus the fee. This should be our final balance.
-    /// @param vaultId The vault to repay.
     function repay(
         bytes12 vaultId,
         bytes6 seriesId,
