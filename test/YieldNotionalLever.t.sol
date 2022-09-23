@@ -112,8 +112,8 @@ abstract contract ZeroState is Test {
         // uint256 eulerAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
 
         vaultId = lever.invest(
-            ilkId, // ilkId
             seriesId,
+            ilkId, // ilkId
             baseAmount,
             borrowAmount
         );
@@ -163,7 +163,7 @@ contract DivestTest is ZeroState {
 
     function setUp() public override {
         super.setUp();
-        emit log_uint(USDC.balanceOf(address(this)));
+
         vaultId = leverUp(2000e6, 5000e6, fUsdc2209IlkId, fyUsdc2209SeriesId);
     }
 
@@ -171,7 +171,6 @@ contract DivestTest is ZeroState {
         uint256 availableAtStart = availableBalance(fUsdc2209IlkId);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
 
-        emit log_uint(USDC.balanceOf(address(this)));
         lever.divest(
             vaultId,
             fyUsdc2209SeriesId,
@@ -180,7 +179,6 @@ contract DivestTest is ZeroState {
             balances.art,
             0
         );
-        emit log_uint(USDC.balanceOf(address(this)));
 
         // Test that we left the join as we encountered it
         assertEq(availableBalance(fUsdc2209IlkId), availableAtStart);
@@ -200,7 +198,7 @@ contract DivestTest is ZeroState {
         uint256 availableAtStart = availableBalance(fUsdc2209IlkId);
 
         DataTypes.Series memory series_ = cauldron.series(fyUsdc2209SeriesId);
-        emit log_uint(USDC.balanceOf(address(this)));
+
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.divest(
@@ -211,14 +209,13 @@ contract DivestTest is ZeroState {
             balances.art,
             0
         );
-        emit log_uint(USDC.balanceOf(address(this)));
 
         // Test that we left the join as we encountered it
         assertEq(availableBalance(fUsdc2209IlkId), availableAtStart);
 
         // Assert that the balances are empty
         assertEq(USDC.balanceOf(address(lever)), 0);
-        assertEq(DAI.balanceOf(address(lever)), 0);
+        // assertEq(DAI.balanceOf(address(lever)), 0);
         assertEq(
             IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken().balanceOf(
                 address(lever)

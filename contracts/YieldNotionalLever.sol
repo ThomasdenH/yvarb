@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 
+import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
+import "@yield-protocol/utils-v2/contracts/cast/CastI128U128.sol";
+import "@yield-protocol/utils-v2/contracts/cast/CastU256U128.sol";
+import "@yield-protocol/utils-v2/contracts/cast/CastU256I256.sol";
 import "./YieldLeverBase.sol";
 import "./NotionalTypes.sol";
 import "@yield-protocol/vault-v2/other/notional/ERC1155.sol";
@@ -8,7 +12,10 @@ import "@yield-protocol/vault-v2/other/notional/ERC1155.sol";
 contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     using TransferHelper for IERC20;
     using TransferHelper for IFYToken;
-
+    using CastU128I128 for uint128;
+    using CastI128U128 for int128;
+    using CastU256U128 for uint256;
+    using CastU256I256 for uint256;
     Notional constant notional =
         Notional(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
 
@@ -65,8 +72,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     function invest(
         bytes6 seriesId,
         bytes6 ilkId,
-        uint128 baseAmount,
-        uint128 borrowAmount
+        uint256 baseAmount,
+        uint256 borrowAmount
     ) external returns (bytes12 vaultId) {
         (vaultId, ) = ladle.build(seriesId, ilkId, 0);
         // Since we know the sizes exactly, packing values in this way is more
@@ -83,7 +90,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             seriesId,
             ilkId,
             vaultId,
-            bytes16(baseAmount)
+            bytes32(baseAmount)
         );
 
         bool success;
@@ -132,7 +139,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             require(msg.sender == address(ilkInfo[ilkId].join));
 
             bytes12 vaultId = bytes12(data[13:25]);
-            uint128 baseAmount = uint128(uint128(bytes16(data[25:41])));
+            uint256 baseAmount = uint256(bytes32(data[25:57]));
             borrow(vaultId, seriesId, ilkId, borrowAmount, fee, baseAmount);
         } else if (status == Operation.REPAY) {
             // 1. Check the caller
@@ -144,8 +151,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             repay(vaultId, seriesId, ilkId, uint128(borrowAmount + fee), data);
         } else if (status == Operation.CLOSE) {
             bytes12 vaultId = bytes12(data[7:19]);
-            uint128 ink = uint128(bytes16(data[19:35]));
-            uint128 art = uint128(bytes16(data[35:51]));
+            uint256 ink = uint256(bytes32(data[19:51]));
+            uint256 art = uint256(bytes32(data[51:83]));
             bytes6 ilkId = bytes6(data[51:57]);
             // 1. Check the caller
             require(msg.sender == address(ilkInfo[ilkId].join));
@@ -172,11 +179,11 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         bytes6 ilkId,
         uint256 borrowAmount,
         uint256 fee,
-        uint128 baseAmount
+        uint256 baseAmount
     ) internal {
         // Reuse variable to denote how much to invest. Done to prevent stack
         // too deep error while being gas efficient.
-        baseAmount += uint128(borrowAmount - fee);
+        baseAmount += (borrowAmount - fee);
         uint88 fCashAmount;
         bytes32 encodedTrade;
         {
@@ -207,14 +214,14 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         }
 
         IPool pool = IPool(ladle.pools(seriesId));
-        uint128 maxFyOut = pool.buyBasePreview(uint128(borrowAmount));
+        uint128 maxFyOut = pool.buyBasePreview(borrowAmount.u128());
         ladle.pour(
             vaultId,
             address(pool),
-            int128(uint128(fCashAmount)),
-            int128(maxFyOut)
+            (uint128(fCashAmount)).i128(),
+            (maxFyOut).i128()
         );
-        pool.buyBase(address(this), uint128(borrowAmount), maxFyOut);
+        pool.buyBase(address(this), borrowAmount.u128(), maxFyOut);
     }
 
     /// @notice Unwind a position.
@@ -238,8 +245,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         bytes12 vaultId,
         bytes6 seriesId,
         bytes6 ilkId,
-        uint128 ink,
-        uint128 art,
+        uint256 ink,
+        uint256 art,
         uint256 minOut
     ) external {
         // Test that the caller is the owner of the vault.
@@ -261,10 +268,10 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 seriesId, // [1:7]
                 ilkId, // [7:13]
                 vaultId, // [13:25]
-                bytes16(ink), // [25:41]
-                bytes16(art), // [41:57]
-                bytes32(minOut), // [57:89]
-                bytes20(msg.sender) // [89:109]
+                bytes32(ink), // [25:57]
+                bytes32(art), // [57:89]
+                bytes32(minOut), // [89:121]
+                bytes20(msg.sender) // [121:141]
             );
             bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
                 this, // Loan Receiver
@@ -286,9 +293,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 bytes1(bytes1(uint8(uint256(Operation.CLOSE)))), // [0:1]
                 seriesId, // [1:7]
                 vaultId, // [7:19]
-                bytes16(ink), // [19:35]
-                bytes16(art), // [35:51]
-                ilkId // [51:57]
+                bytes32(ink), // [19:51]
+                bytes32(art), // [51:83]
+                ilkId // [83:89]
             );
             bool success;
             IlkInfo memory info = ilkInfo[ilkId];
@@ -307,22 +314,27 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         giver.give(vaultId, msg.sender);
     }
 
-    /// @param borrowAmountPlusFee The amount of fyDai/fyUsdc that we have borrowed,
+    /// @param borrowPlusFee The amount of fyDai/fyUsdc that we have borrowed,
     ///     plus the fee. This should be our final balance.
     /// @param vaultId The vault to repay.
     function repay(
         bytes12 vaultId,
         bytes6 seriesId,
         bytes6 ilkId,
-        uint128 borrowAmountPlusFee, // Amount of FYToken received
+        uint256 borrowPlusFee, // Amount of FYToken received
         bytes calldata data
     ) internal {
         // Repay the vault, get collateral back.
         IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
         {
-            uint128 ink = uint128(bytes16(data[25:41]));
-            uint128 art = uint128(bytes16(data[41:57]));
-            ladle.pour(vaultId, address(this), -int128(ink), -int128(art));
+            uint256 ink = uint256(bytes32(data[25:57]));
+            uint256 art = uint256(bytes32(data[57:89]));
+            ladle.pour(
+                vaultId,
+                address(this),
+                -ink.u128().i128(),
+                -art.u128().i128()
+            );
             {
                 // Trade fCash to receive USDC/DAI
                 BalanceActionWithTrades[]
@@ -353,10 +365,10 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
         // buyFyToken
         IPool pool = IPool(ladle.pools(seriesId));
-        uint128 tokenToTran = pool.buyFYTokenPreview(borrowAmountPlusFee);
+        uint128 tokenToTran = pool.buyFYTokenPreview(borrowPlusFee.u128());
         IERC20 token = IERC20(ilkIdInfo.join.asset());
         token.safeTransfer(address(pool), tokenToTran);
-        pool.buyFYToken(address(this), borrowAmountPlusFee, tokenToTran);
+        pool.buyFYToken(address(this), borrowPlusFee.u128(), tokenToTran);
 
         uint256 minOut = uint256(bytes32(data[57:89]));
         address borrower = address(bytes20(data[89:109]));
@@ -373,10 +385,15 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     ///     though the payment is done in terms of WEth.
     function close(
         bytes12 vaultId,
-        uint128 ink,
-        uint128 art
+        uint256 ink,
+        uint256 art
     ) internal {
-        ladle.close(vaultId, address(this), -int128(ink), -int128(art));
+        ladle.close(
+            vaultId,
+            address(this),
+            -ink.u128().i128(),
+            -art.u128().i128()
+        );
     }
 
     /// @dev Called by the sender after a transfer to verify it was received. Ensures only `id` tokens are received.
