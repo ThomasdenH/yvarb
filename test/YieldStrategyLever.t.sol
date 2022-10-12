@@ -101,8 +101,8 @@ abstract contract ZeroState is Test {
             seriesId,
             baseAmount,
             borrowAmount,
-            0, //minCollateral,
-            baseAmount/2
+            baseAmount/2,
+            0 //minCollateral,
         );
     }
 
