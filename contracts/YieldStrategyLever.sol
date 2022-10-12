@@ -19,20 +19,26 @@ import "@yield-protocol/utils-v2/contracts/interfaces/IWETH9.sol";
 error FlashLoanFailure();
 error SlippageFailure();
 
-/// @notice This contracts allows a user to 'lever up' their StrategyToken position. The concept
-///     is as follows: Using Yield, it is possible to borrow fyToken, which in
-///     turn can be sold in the pool to get base in return. The base is then used to mint
-///     LP tokens which is then deposited in strategy to mint strategy tokens. The strategy
-///     tokens are then used to borrow fyToken and repay the flash loan.
+/// @notice This contracts allows a user to 'lever up' their StrategyToken position.
+///     Levering up happens as follows:
+///     1. FlashBorrow fyToken
+///     2. Sell fyToken to get base (USDC/DAI/ETH)
+///     3. Mint LP token & deposit to strategy
+///     4. Mint strategy token
+///     5. Put strategy token as a collateral to borrow fyToken to repay flash loan
+///
 ///     To get out of the levered position depending on whether we are past maturity the following happens:
 ///     1. Before maturity
-///         We flashloan to get fyToken. Then use the fyToken to repay the loan and get strategy token.
-///         The strategy token is burnt to get LP token which is then burnt to get fyToken & base.
-///         The base is used to buy fyToken to repay the flash loan
+///         i. FlashBorrow fyToken
+///         ii. Payback the debt to get back the underlying
+///         iii. Burn the strategy token to get LP
+///         iv. Burn LP to get base & fyToken
+///         v. Buy fyToken using the base to repay the flash loan
 ///     2. After maturity
-///         We flashloan the amount of base which is owed. The base is used to close the debt position.
-///         The strategy token received after closing the position is burnt to obtain LP token which is burnt
-//          to obtain the base token to repay the flashloan
+///         i. FlashBorrow base
+///         ii. Close the debt position using the base
+///         iii. Burn the strategy token received from closing the position to get LP token
+///         iv. Burn LP token to obtain base to repay the flash loan
 contract YieldStrategyLever is IERC3156FlashBorrower {
     using TransferHelper for IWETH9;
     using TransferHelper for IERC20;
