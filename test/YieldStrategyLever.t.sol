@@ -101,7 +101,8 @@ abstract contract ZeroState is Test {
             seriesId,
             baseAmount,
             borrowAmount,
-            0 //minCollateral,
+            0, //minCollateral,
+            baseAmount/2
         );
     }
 
@@ -120,7 +121,7 @@ abstract contract ZeroState is Test {
 contract ZeroStateTest is ZeroState {
     function testVault() public {
         uint256 availableAtStart = availableBalance(strategyIlkId);
-        bytes12 vaultId = leverUp(2000e18, 5000e18);
+        bytes12 vaultId = leverUp(5000e18, 5000e18);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
 
