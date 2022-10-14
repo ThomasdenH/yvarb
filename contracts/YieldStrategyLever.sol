@@ -64,10 +64,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
 
     bytes6 constant ASSET_ID_MASK = 0xFFFF00000000;
 
-    /// @notice WEth.
-    IWETH9 public constant WETH =
-        IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-
     /// @notice The Yield Cauldron, handles debt and collateral balances.
     ICauldron public constant CAULDRON =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
@@ -84,7 +80,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     mapping(bytes6 => IStrategy) strategies;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-
+    address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     event Invested(
         bytes6 ilkId,
         bytes12 indexed vaultId,
