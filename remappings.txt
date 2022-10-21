@@ -4,4 +4,4 @@
 @yield-protocol/yieldspace-v2/=lib/yieldspace-v2/
 @yield-protocol/vault-v2/=lib/vault-v2/packages/foundry/contracts/
 forge-std/=lib/forge-std/src/
-erc3156/=lib/ERC3156/
+erc3156/=lib/erc3156/
