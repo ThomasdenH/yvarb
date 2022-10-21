@@ -264,8 +264,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
                 address(LADLE.joins(seriesId & ASSET_ID_MASK))
             );
             IERC20 baseAsset = IERC20(pool.base());
-            uint256 depositIntoJoin = baseAsset.balanceOf(address(join)) -
-                join.storedBalance();
 
             // Close:
             // Series is past maturity, borrow and move directly to collateral pool.
@@ -285,18 +283,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
                 base, // Loan Amount
                 data
             );
-
-            // At this point, we have only base left.
-
-            // There is however one caveat. If there was base in the join to
-            // begin with, this will be billed first. Since we want to return
-            // the join to the starting state, we should deposit tokens back.
-            // The amount is simply what was in it before, minus what is still
-            // in it. The calculation is as `available` in the Join contract.
-            depositIntoJoin +=
-                join.storedBalance() -
-                baseAsset.balanceOf(address(join));
-            baseAsset.safeTransfer(address(join), depositIntoJoin);
         }
         if (!success) revert FlashLoanFailure();
 
