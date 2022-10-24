@@ -12,6 +12,8 @@ import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
 import "@yield-protocol/utils-v2/contracts/token/TransferHelper.sol";
 import "@yield-protocol/vault-v2/utils/Giver.sol";
 import "@yield-protocol/vault-v2/FlashJoin.sol";
+import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
+import "@yield-protocol/utils-v2/contracts/cast/CastU256U128.sol";
 
 error FlashLoanFailure();
 error SlippageFailure();
