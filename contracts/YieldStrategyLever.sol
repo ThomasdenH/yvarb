@@ -40,6 +40,7 @@ error SlippageFailure();
 ///         iii. Burn the strategy token received from closing the position to get LP token
 ///         iv. Burn LP token to obtain base to repay the flash loan
 /// @notice For leveringup we could flash borrow base instead of fyToken as well
+/// @author iamsahu
 contract YieldStrategyLever is IERC3156FlashBorrower {
     using TransferHelper for IWETH9;
     using TransferHelper for IERC20;
@@ -48,7 +49,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     using CastU256U128 for uint256;
 
     /// @notice The operation to execute in the flash loan.
-    ///
     ///     - BORROW: Invest
     ///     - REPAY: Unwind before maturity
     ///     - CLOSE: Unwind after maturity
@@ -147,11 +147,11 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
             strategyId, //[19:25]
             bytes32(fyTokenToBuy) //[25:57]
         );
-        IFYToken fyToken = IPool(LADLE.pools(seriesId)).fyToken();
+        address fyToken = address(IPool(LADLE.pools(seriesId)).fyToken());
 
-        bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
+        bool success = IERC3156FlashLender(fyToken).flashLoan(
             this, // Loan Receiver
-            address(fyToken), // Loan Token
+            fyToken, // Loan Token
             borrowAmount, // Loan Amount
             data
         );
@@ -204,7 +204,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         // Check if we're pre or post maturity.
         bool success;
         if (uint32(block.timestamp) < CAULDRON.series(seriesId).maturity) {
-            IFYToken fyToken = pool.fyToken();
+            address fyToken = address(pool.fyToken());
             // Repay:
             // Series is not past maturity.
             // Borrow to repay debt, move directly to the pool.
@@ -216,9 +216,9 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
                 bytes32(ink), // [25:57]
                 bytes32(art) // [57:89]
             );
-            success = IERC3156FlashLender(address(fyToken)).flashLoan(
+            success = IERC3156FlashLender(fyToken).flashLoan(
                 this, // Loan Receiver
-                address(fyToken), // Loan Token
+                fyToken, // Loan Token
                 art, // Loan Amount: borrow exactly the debt to repay.
                 data
             );
@@ -309,11 +309,12 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
             } else if (status == Operation.CLOSE) {
                 bytes6 seriesId = CAULDRON.vaults(vaultId).seriesId;
                 IPool pool = IPool(LADLE.pools(seriesId));
-                _close(ilkId, vaultId, ink, art, pool);
+                // Approving the join to pull required amount of token to close the position & the flash loan
                 pool.base().approve(
                     address(LADLE.joins(seriesId & ASSET_ID_MASK)),
-                    art + fee
+                    2 * art + fee
                 );
+                _close(ilkId, vaultId, ink, art, pool);
             }
         }
     }
@@ -388,6 +389,8 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     ) internal {
         IPool pool = IPool(LADLE.pools(seriesId));
         address strategy = CAULDRON.assets(ilkId);
+
+        // Approving the Ladle to pull required amount of tokens from the lever before pouring
         CAULDRON.series(seriesId).fyToken.approve(address(LADLE), ink);
         // Payback debt to get back the underlying
         LADLE.pour(vaultId, strategy, -ink.u128().i128(), -art.u128().i128());
@@ -433,13 +436,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         IPool pool
     ) internal {
         address strategy = CAULDRON.assets(ilkId);
-        // IPool pool = strategy.pool();
-        pool.base().approve(
-            address(
-                LADLE.joins(CAULDRON.vaults(vaultId).seriesId & ASSET_ID_MASK)
-            ),
-            art
-        );
+
         LADLE.close(vaultId, strategy, -ink.u128().i128(), -art.u128().i128());
         // Burn Strategy Tokens and send LP token to the pool
         IStrategy(strategy).burn(address(pool));
