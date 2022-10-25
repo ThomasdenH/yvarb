@@ -108,7 +108,6 @@ abstract contract ZeroState is Test {
         giverAccessControl.grantRole(0x35775afb, address(lever));
 
         lever.approveFyToken(seriesId);
-        lever.setStrategy(strategyIlkId, IStrategy(strategyTokenAddress));
     }
 
     /// @notice Create a vault.
@@ -117,8 +116,8 @@ abstract contract ZeroState is Test {
         returns (bytes12 vaultId)
     {
         vaultId = lever.invest(
-            strategyIlkId, // ilkId edai
             seriesId,
+            strategyIlkId, // ilkId edai
             baseAmount,
             borrowAmount,
             baseAmount / 3,
@@ -168,9 +167,9 @@ contract UnwindTest is ZeroState {
     function testRepay() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.divest(
-            strategyIlkId,
             vaultId,
             seriesId,
+            strategyIlkId,
             balances.ink,
             balances.art,
             0
@@ -188,9 +187,9 @@ contract UnwindTest is ZeroState {
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.divest(
-            strategyIlkId,
             vaultId,
             seriesId,
+            strategyIlkId,
             balances.ink,
             balances.art,
             0
