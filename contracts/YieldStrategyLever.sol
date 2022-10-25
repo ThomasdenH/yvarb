@@ -108,16 +108,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         giver = giver_;
     }
 
-    // TODO: add auth when shipping
-    /// @notice Approve maximally for an fyToken.
-    /// @param seriesId The id of the pool to approve to.
-    function approveFyToken(bytes6 seriesId) external {
-        IPool(LADLE.pools(seriesId)).fyToken().approve(
-            address(LADLE),
-            type(uint256).max
-        );
-    }
-
     /// @notice Invest by creating a levered vault. The basic structure is
     ///     always the same. We borrow FyToken for the series and convert it to
     ///     the yield-bearing token that is used as collateral.
@@ -328,7 +318,11 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         }
     }
 
-    /// @notice This function sells the flash loaned fyToken to get base in return which is then added as liquidity in the pool to obtain LP tokens which are in turn deposited in strategy to get strategy tokens
+    /// @notice The function does the following to create a leveraged position:
+    ///         1. Sells the flash loaned fyToken to get base
+    ///         2. Add the base as liquidity to obtain LP tokens
+    ///         3. Deposit LP tokens in strategy to obtain strategy token
+    ///         4. Finally use the Strategy tokens to borrow fyToken to repay the flash loan
     /// @param vaultId The vault id to put collateral into and borrow from.
     /// @param seriesId The pool (and thereby series) to borrow from.
     /// @param ilkId The id of the ilk being borrowed.
@@ -394,6 +388,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     ) internal {
         IPool pool = IPool(LADLE.pools(seriesId));
         address strategy = CAULDRON.assets(ilkId);
+        CAULDRON.series(seriesId).fyToken.approve(address(LADLE), ink);
         // Payback debt to get back the underlying
         LADLE.pour(vaultId, strategy, -ink.u128().i128(), -art.u128().i128());
 

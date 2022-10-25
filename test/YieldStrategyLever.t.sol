@@ -106,8 +106,6 @@ abstract contract ZeroState is Test {
         AccessControl giverAccessControl = AccessControl(address(giver));
         giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
         giverAccessControl.grantRole(0x35775afb, address(lever));
-
-        lever.approveFyToken(seriesId);
     }
 
     /// @notice Create a vault.
