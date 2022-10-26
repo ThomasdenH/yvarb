@@ -48,12 +48,14 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
 
     /// @notice The operation to execute in the flash loan.
     ///     - BORROW: Invest
-    ///     - REPAY: Unwind before maturity
-    ///     - CLOSE: Unwind after maturity
+    ///     - REPAY: Unwind before maturity, if pool rates are high
+    ///     - CLOSE: Unwind before maturity, if pool rates are low
+    ///     - REDEEM: Unwind after maturity
     enum Operation {
         BORROW,
         REPAY,
-        CLOSE
+        CLOSE,
+        REDEEM
     }
 
     /// @notice By IERC3156, the flash loan should return this constant.
@@ -78,7 +80,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     event Invested(
         bytes12 indexed vaultId,
         bytes6 seriesId,
-        bytes6 ilkId,
+        bytes6 strategyId,
         address indexed investor,
         uint256 amountToInvest,
         uint256 borrowAmount
@@ -87,7 +89,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     event Repaid(
         bytes12 indexed vaultId,
         bytes6 seriesId,
-        bytes6 ilkId,
+        bytes6 strategyId,
         address indexed investor,
         uint256 borrowAmountPlusFee,
         uint256 ink,
@@ -95,8 +97,8 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     );
 
     event Closed(
-        bytes6 ilkId,
         bytes12 indexed vaultId,
+        bytes6 strategyId,
         address indexed investor,
         uint256 ink,
         uint256 art
@@ -297,17 +299,11 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
             uint256 ink = uint256(bytes32(data[25:57]));
             uint256 art = uint256(bytes32(data[57:89]));
             if (status == Operation.REPAY) {
-                _repay(
-                    vaultId,
-                    seriesId,
-                    ilkId,
-                    (borrowAmount + fee),
-                    ink.u128(),
-                    art.u128()
-                );
+                _repay(vaultId, seriesId, ilkId, (borrowAmount + fee), ink.u128(), art.u128());
             } else if (status == Operation.CLOSE) {
-                IPool pool = IPool(LADLE.pools(seriesId));
-                _close(ilkId, vaultId, ink, art, pool);
+                _close(IERC20(token), vaultId, seriesId, ilkId, borrowAmount, ink, art);
+            } else if (status == Operation.REDEEM) {
+                _redeem(IERC20(token), vaultId, seriesId, ilkId, borrowAmount, ink, art);
             }
         }
     }
@@ -364,10 +360,11 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         );
     }
 
+    /// @notice Unwind position and repay using fyToken
     /// @param vaultId The vault to repay.
     /// @param seriesId The seriesId corresponding to the vault.
     /// @param ilkId The id of the ilk being invested.
-    /// @param borrowAmountPlusFee The amount of fyDai/fyUsdc that we have borrowed,
+    /// @param borrowAmountPlusFee The amount of fyToken that we have borrowed,
     ///     plus the fee. This should be our final balance.
     /// @param ink The amount of collateral to retake.
     /// @param art The debt to repay.
@@ -381,11 +378,11 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         uint256 art
     ) internal {
         IPool pool = IPool(LADLE.pools(seriesId));
+        address fyToken = address(pool.fyToken());
         address strategy = CAULDRON.assets(ilkId);
 
-        // Approving the Ladle to pull required amount of tokens from the lever before pouring
-        CAULDRON.series(seriesId).fyToken.approve(address(LADLE), ink);
         // Payback debt to get back the underlying
+        IERC20(fyToken).transfer(fyToken, art);
         LADLE.pour(vaultId, strategy, -ink.u128().i128(), -art.u128().i128());
 
         // Burn strat token to get LP
@@ -398,12 +395,15 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
             0,
             type(uint256).max
         );
-        // buyFyToken
-        pool.buyFYToken(
-            address(this),
-            (borrowAmountPlusFee - fyTokens).u128(),
-            bases.u128()
-        );
+
+        // Buy fyToken to repay the flash loan
+        if (borrowAmountPlusFee > fyTokens) {
+            pool.buyFYToken(
+                address(this),
+                (borrowAmountPlusFee - fyTokens).u128(),
+                bases.u128()
+            );
+        }
 
         emit Repaid(
             vaultId,
@@ -416,27 +416,75 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         );
     }
 
-    /// @notice Close a vault after maturity.
-    /// @param ilkId The id of the ilk.
+    /// @notice Unwind position using the base asset and redeeming any fyToken
+    /// @param baseAsset The base asset used for repayment
     /// @param vaultId The ID of the vault to close.
+    /// @param seriesId The seriesId corresponding to the vault.
+    /// @param strategyId The id of the strategy.
+    /// @param debtInBase The amount of debt in base terms.
     /// @param ink The collateral to take from the vault.
     /// @param art The debt to repay. This is denominated in fyTokens
     function _close(
-        bytes6 ilkId,
+        IERC20 baseAsset,
         bytes12 vaultId,
+        bytes6 seriesId,
+        bytes6 strategyId,
+        uint256 debtInBase,
         uint256 ink,
-        uint256 art,
-        IPool pool
+        uint256 art
     ) internal {
-        address strategy = CAULDRON.assets(ilkId);
+        address strategy = CAULDRON.assets(strategyId);
+        address pool = LADLE.pools(seriesId);
+        address baseJoin = address(LADLE.joins(CAULDRON.series(seriesId).baseId));
 
+        // Payback debt to get back the underlying
+        baseAsset.safeTransfer(baseJoin, debtInBase);
         LADLE.close(vaultId, strategy, -ink.u128().i128(), -art.u128().i128());
+
         // Burn Strategy Tokens and send LP token to the pool
         IStrategy(strategy).burn(address(pool));
-        // Burn LP token to obtain base to repay the flash loan
-        pool.burnForBase(address(this), 0, type(uint256).max);
 
-        emit Closed(ilkId, vaultId, msg.sender, ink, art);
+        // Burn LP token to obtain base to repay the flash loan
+        IPool(pool).burnForBase(address(this), 0, type(uint256).max);
+
+        emit Closed(vaultId, strategyId, msg.sender, ink, art);
+    }
+
+
+    /// @notice Unwind position using the base asset and redeeming any fyToken
+    /// @param baseAsset The base asset used for repayment
+    /// @param vaultId The ID of the vault to close.
+    /// @param seriesId The seriesId corresponding to the vault.
+    /// @param strategyId The id of the strategy.
+    /// @param debtInBase The amount of debt in base terms.
+    /// @param ink The collateral to take from the vault.
+    /// @param art The debt to repay. This is denominated in fyTokens
+    function _redeem(
+        IERC20 baseAsset,
+        bytes12 vaultId,
+        bytes6 seriesId,
+        bytes6 strategyId,
+        uint256 debtInBase,
+        uint256 ink,
+        uint256 art
+    ) internal {
+        address strategy = CAULDRON.assets(strategyId);
+        address pool = LADLE.pools(seriesId);
+        address fyToken = address(IPool(pool).fyToken());
+        address baseJoin = address(LADLE.joins(CAULDRON.series(seriesId).baseId));
+
+        // Payback debt to get back the underlying
+        baseAsset.safeTransfer(baseJoin, debtInBase);
+        LADLE.close(vaultId, strategy, -ink.u128().i128(), -art.u128().i128());
+
+        // Burn Strategy Tokens and send LP token to the pool
+        IStrategy(strategy).burn(pool);
+
+        // Burn LP token to obtain base to repay the flash loan, redeem the fyToken
+        (,, uint256 fyTokens) = IPool(pool).burn(address(this), fyToken, 0, type(uint256).max);
+        IFYToken(fyToken).redeem(address(this), fyTokens);
+
+        emit Closed(vaultId, strategyId, msg.sender, ink, art);
     }
 
     receive() external payable {}
