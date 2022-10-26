@@ -82,28 +82,18 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     event Invested(
         bytes12 indexed vaultId,
         bytes6 seriesId,
-        bytes6 strategyId,
         address indexed investor,
-        uint256 amountToInvest,
-        uint256 borrowAmount
+        uint256 investment,
+        uint256 debt
     );
 
-    event Repaid(
+    event Divested(
+        Operation indexed operation,
         bytes12 indexed vaultId,
         bytes6 seriesId,
-        bytes6 strategyId,
         address indexed investor,
-        uint256 borrowAmountPlusFee,
-        uint256 ink,
-        uint256 art
-    );
-
-    event Closed(
-        bytes12 indexed vaultId,
-        bytes6 strategyId,
-        address indexed investor,
-        uint256 ink,
-        uint256 art
+        uint256 profit,
+        uint256 debt
     );
 
     constructor(Giver giver_) {
@@ -171,14 +161,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
 
         giver.give(vaultId, msg.sender);
 
-        emit Invested(
-            vaultId,
-            seriesId,
-            strategyId,
-            msg.sender,
-            amountToInvest,
-            borrowAmount
-        );
+        emit Invested(vaultId, seriesId, msg.sender, amountToInvest, CAULDRON.balances(vaultId).art);
     }
 
     /// @notice Divest, either before or after maturity.
@@ -271,6 +254,8 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         if (assetBalance < minBaseOut) revert SlippageFailure();
         // Transferring the leftover to the user
         IERC20(baseAsset).safeTransfer(msg.sender, assetBalance);
+
+        emit Divested(operation, vaultId, seriesId, msg.sender, assetBalance, art);
     }
 
     /// @notice Called by a flash lender. The primary purpose is to check
@@ -380,7 +365,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     /// @notice Unwind position and repay using fyToken
     /// @param vaultId The vault to repay.
     /// @param seriesId The seriesId corresponding to the vault.
-    /// @param ilkId The id of the ilk being invested.
+    /// @param strategyId The id of the strategy being invested.
     /// @param borrowAmountPlusFee The amount of fyToken that we have borrowed,
     ///     plus the fee. This should be our final balance.
     /// @param ink The amount of collateral to retake.
@@ -389,14 +374,14 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     function _repay(
         bytes12 vaultId,
         bytes6 seriesId,
-        bytes6 ilkId,
+        bytes6 strategyId,
         uint256 borrowAmountPlusFee,
         uint256 ink,
         uint256 art
     ) internal {
         IPool pool = IPool(LADLE.pools(seriesId));
         address fyToken = address(pool.fyToken());
-        address strategy = CAULDRON.assets(ilkId);
+        address strategy = CAULDRON.assets(strategyId);
 
         // Payback debt to get back the underlying
         IERC20(fyToken).transfer(fyToken, art);
@@ -421,16 +406,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
                 bases.u128()
             );
         }
-
-        emit Repaid(
-            vaultId,
-            seriesId,
-            ilkId,
-            msg.sender,
-            borrowAmountPlusFee,
-            ink,
-            art
-        );
     }
 
     /// @notice Unwind position using the base asset and redeeming any fyToken
@@ -463,8 +438,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
 
         // Burn LP token to obtain base to repay the flash loan
         IPool(pool).burnForBase(address(this), 0, type(uint256).max);
-
-        emit Closed(vaultId, strategyId, msg.sender, ink, art);
     }
 
 
@@ -500,8 +473,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         // Burn LP token to obtain base to repay the flash loan, redeem the fyToken
         (,, uint256 fyTokens) = IPool(pool).burn(address(this), fyToken, 0, type(uint256).max);
         IFYToken(fyToken).redeem(address(this), fyTokens);
-
-        emit Closed(vaultId, strategyId, msg.sender, ink, art);
     }
 
     receive() external payable {}
