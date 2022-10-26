@@ -114,6 +114,7 @@ abstract contract ZeroState is Test {
         returns (bytes12 vaultId)
     {
         vaultId = lever.invest(
+            YieldStrategyLever.Operation.BORROW,
             seriesId,
             strategyIlkId, // ilkId edai
             baseAmount,
@@ -165,6 +166,7 @@ contract UnwindTest is ZeroState {
     function testRepay() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.divest(
+            YieldStrategyLever.Operation.REPAY,
             vaultId,
             seriesId,
             strategyIlkId,
@@ -185,6 +187,7 @@ contract UnwindTest is ZeroState {
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.divest(
+            YieldStrategyLever.Operation.CLOSE,
             vaultId,
             seriesId,
             strategyIlkId,

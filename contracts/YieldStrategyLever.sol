@@ -13,10 +13,12 @@ import "@yield-protocol/vault-v2/contracts/interfaces/ICauldron.sol";
 import "@yield-protocol/vault-v2/contracts/interfaces/ILadle.sol";
 import "@yield-protocol/vault-v2/contracts/interfaces/IFYToken.sol";
 import "@yield-protocol/vault-v2/contracts/utils/Giver.sol";
-import "@yield-protocol/vault-v2/contracts/FlashJoin.sol";
 
 error FlashLoanFailure();
 error SlippageFailure();
+error OnlyBorrow();
+error OnlyRedeem();
+error OnlyRepayOrClose();
 
 /// @notice This contracts allows a user to 'lever up' their StrategyToken position.
 ///     Levering up happens as follows:
@@ -111,6 +113,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     /// @notice Invest by creating a levered vault. The basic structure is
     ///     always the same. We borrow FyToken for the series and convert it to
     ///     the yield-bearing token that is used as collateral.
+    /// @param operation In can only be BORROW
     /// @param seriesId The series to invest in. This series doesn't usually
     ///     have the ilkId as base, but the asset the yield bearing token is
     ///     based on. For example: 0x303030370000 (WEth) instead of WStEth.
@@ -125,6 +128,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     ///     amount of collateral that should be locked. The debt is always
     ///     equal to the borrowAmount plus flash loan fees.
     function invest(
+        Operation operation,
         bytes6 seriesId,
         bytes6 strategyId,
         uint256 amountToInvest,
@@ -132,6 +136,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         uint256 fyTokenToBuy,
         uint256 minCollateral
     ) external returns (bytes12 vaultId) {
+        if (operation != Operation.BORROW) revert OnlyBorrow();
         IPool(LADLE.pools(seriesId)).base().safeTransferFrom(
             msg.sender,
             address(this),
@@ -141,7 +146,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         (vaultId, ) = LADLE.build(seriesId, strategyId, 0);
 
         bytes memory data = bytes.concat(
-            bytes1(uint8(uint256(Operation.BORROW))), //[0]
+            bytes1(uint8(uint256(operation))), //[0]
             seriesId, //[1:7]
             vaultId, //[7:19]
             strategyId, //[19:25]
@@ -177,6 +182,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     }
 
     /// @notice Divest, either before or after maturity.
+    /// @param operation REPAY, CLOSE or REDEEM
     /// @param vaultId The vault to divest from.
     /// @param seriesId The series to divest from.
     /// @param strategyId The strategyId to invest in. This is often a yield-bearing
@@ -185,6 +191,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     /// @param minBaseOut Used to minimize slippage. The transaction will revert
     ///     if we don't obtain at least this much of the base asset.
     function divest(
+        Operation operation,
         bytes12 vaultId,
         bytes6 seriesId,
         bytes6 strategyId,
@@ -202,49 +209,59 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         IPool pool = IPool(LADLE.pools(seriesId));
         IERC20 baseAsset = IERC20(pool.base());
 
+        bytes memory data = bytes.concat(
+            bytes1(bytes1(uint8(uint256(operation)))), // [0:1]
+            seriesId, // [1:7]
+            vaultId, // [7:19]
+            strategyId, // [19:25]
+            bytes32(ink), // [25:57]
+            bytes32(art) // [57:89]
+        );
+
         // Check if we're pre or post maturity.
         bool success;
-        if (uint32(block.timestamp) < CAULDRON.series(seriesId).maturity) {
-            address fyToken = address(pool.fyToken());
-            // Repay:
-            // Series is not past maturity.
-            // Borrow to repay debt, move directly to the pool.
-            bytes memory data = bytes.concat(
-                bytes1(bytes1(uint8(uint256(Operation.REPAY)))), // [0:1]
-                seriesId, // [1:7]
-                vaultId, // [7:19]
-                strategyId, // [19:25]
-                bytes32(ink), // [25:57]
-                bytes32(art) // [57:89]
-            );
-            success = IERC3156FlashLender(fyToken).flashLoan(
-                this, // Loan Receiver
-                fyToken, // Loan Token
-                art, // Loan Amount: borrow exactly the debt to repay.
-                data
-            );
-        } else {
-            FlashJoin join = FlashJoin(
-                address(LADLE.joins(seriesId & ASSET_ID_MASK))
-            );
-            // Close:
+        if (uint32(block.timestamp) > CAULDRON.series(seriesId).maturity) {
+            if (operation != Operation.REDEEM) revert OnlyRedeem();
+            address join = address(LADLE.joins(seriesId & ASSET_ID_MASK));
+
+            // Redeem:
             // Series is past maturity, borrow and move directly to collateral pool.
-            bytes memory data = bytes.concat(
-                bytes1(bytes1(uint8(uint256(Operation.CLOSE)))), // [0:1]
-                seriesId, // [1:7]
-                vaultId, // [7:19]
-                strategyId, // [19:25]
-                bytes32(ink), // [25:57]
-                bytes32(art) // [57:89]
-            );
             // We have a debt in terms of fyToken, but should pay back in base.
             uint128 base = CAULDRON.debtToBase(seriesId, art.u128());
-            success = join.flashLoan(
+            success = IERC3156FlashLender(join).flashLoan(
                 this, // Loan Receiver
                 address(baseAsset), // Loan Token
                 base, // Loan Amount
                 data
             );
+        } else {
+            if (operation == Operation.REPAY) {
+                address fyToken = address(pool.fyToken());
+
+                // Repay:
+                // Series is not past maturity.
+                // Borrow to repay debt, move directly to the pool.
+                success = IERC3156FlashLender(fyToken).flashLoan(
+                    this, // Loan Receiver
+                    fyToken, // Loan Token
+                    art, // Loan Amount: borrow exactly the debt to repay.
+                    data
+                );
+            } else if (operation == Operation.CLOSE) {
+                address join = address(LADLE.joins(seriesId & ASSET_ID_MASK));
+
+                // Close:
+                // Series is not past maturity, borrow and move directly to collateral pool.
+                // We have a debt in terms of fyToken, but should pay back in base.
+                uint128 base = CAULDRON.debtToBase(seriesId, art.u128());
+                success = IERC3156FlashLender(join).flashLoan(
+                    this, // Loan Receiver
+                    address(baseAsset), // Loan Token
+                    base, // Loan Amount
+                    data
+                );                
+            } else revert OnlyRepayOrClose();
+
         }
         if (!success) revert FlashLoanFailure();
 
