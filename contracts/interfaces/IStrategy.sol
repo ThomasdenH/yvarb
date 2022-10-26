@@ -1,4 +1,8 @@
-import "@yield-protocol/yieldspace-interfaces/IPool.sol";
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.14;
+
+import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
+
 interface IStrategy {
     function mint(address to) external returns (uint256 minted);
 

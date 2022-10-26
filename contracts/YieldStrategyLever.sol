@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 
+import "erc3156/contracts/interfaces/IERC3156FlashBorrower.sol";
+import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
+import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
 import "./interfaces/IStrategy.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastU256U128.sol";
-import "erc3156/contracts/interfaces/IERC3156FlashBorrower.sol";
-import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
-import "@yield-protocol/yieldspace-interfaces/IPool.sol";
-import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
-import "@yield-protocol/vault-interfaces/src/ILadle.sol";
-import "@yield-protocol/vault-interfaces/src/IFYToken.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
 import "@yield-protocol/utils-v2/contracts/token/TransferHelper.sol";
-import "@yield-protocol/vault-v2/utils/Giver.sol";
-import "@yield-protocol/vault-v2/FlashJoin.sol";
-import "@yield-protocol/utils-v2/contracts/interfaces/IWETH9.sol";
+import "@yield-protocol/vault-v2/contracts/interfaces/ICauldron.sol";
+import "@yield-protocol/vault-v2/contracts/interfaces/ILadle.sol";
+import "@yield-protocol/vault-v2/contracts/interfaces/IFYToken.sol";
+import "@yield-protocol/vault-v2/contracts/utils/Giver.sol";
+import "@yield-protocol/vault-v2/contracts/FlashJoin.sol";
 
 error FlashLoanFailure();
 error SlippageFailure();
@@ -42,7 +41,6 @@ error SlippageFailure();
 /// @notice For leveringup we could flash borrow base instead of fyToken as well
 /// @author iamsahu
 contract YieldStrategyLever is IERC3156FlashBorrower {
-    using TransferHelper for IWETH9;
     using TransferHelper for IERC20;
     using TransferHelper for IFYToken;
     using CastU128I128 for uint128;
@@ -200,6 +198,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         giver.seize(vaultId, address(this));
 
         IPool pool = IPool(LADLE.pools(seriesId));
+        IERC20 baseAsset = IERC20(pool.base());
 
         // Check if we're pre or post maturity.
         bool success;
@@ -226,8 +225,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
             FlashJoin join = FlashJoin(
                 address(LADLE.joins(seriesId & ASSET_ID_MASK))
             );
-            IERC20 baseAsset = IERC20(pool.base());
-
             // Close:
             // Series is past maturity, borrow and move directly to collateral pool.
             bytes memory data = bytes.concat(
@@ -251,7 +248,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
 
         // Give the vault back to the sender, just in case there is anything left
         giver.give(vaultId, msg.sender);
-        IERC20 baseAsset = IERC20(IPool(LADLE.pools(seriesId)).base());
         uint256 assetBalance = baseAsset.balanceOf(address(this));
         if (assetBalance < minBaseOut) revert SlippageFailure();
         // Transferring the leftover to the user
@@ -271,7 +267,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     ///     the first byte for the router.
     function onFlashLoan(
         address initiator,
-        address, // The token, not checked as we check the lender address.
+        address token,
         uint256 borrowAmount,
         uint256 fee,
         bytes calldata data
@@ -290,6 +286,9 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         // We trust the lender, so now we can check that we were the initiator.
         if (initiator != address(this)) revert FlashLoanFailure();
 
+        // Now that we trust the lender, we approve the flash loan repayment
+        IERC20(token).safeApprove(msg.sender, borrowAmount + fee);
+
         // Decode the operation to execute and then call that function.
         if (status == Operation.BORROW) {
             uint256 fyTokenToBuy = uint256(bytes32(data[25:57]));
@@ -307,13 +306,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
                     art.u128()
                 );
             } else if (status == Operation.CLOSE) {
-                bytes6 seriesId = CAULDRON.vaults(vaultId).seriesId;
                 IPool pool = IPool(LADLE.pools(seriesId));
-                // Approving the join to pull required amount of token to close the position & the flash loan
-                pool.base().approve(
-                    address(LADLE.joins(seriesId & ASSET_ID_MASK)),
-                    2 * art + fee
-                );
                 _close(ilkId, vaultId, ink, art, pool);
             }
         }
@@ -340,7 +333,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     ) internal {
         // We have borrowed FyTokens, so sell those
         IPool pool = IPool(LADLE.pools(seriesId));
-        IFYToken fyToken = pool.fyToken();
+        IERC20 fyToken = IERC20(address(pool.fyToken()));
         fyToken.safeTransfer(address(pool), borrowAmount - fee);
         pool.sellFYToken(address(pool), 0); // Sell fyToken to get USDC/DAI/ETH
         pool.base().transfer(
