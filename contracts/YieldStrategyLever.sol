@@ -140,7 +140,8 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
             seriesId, //[1:7]
             vaultId, //[7:19]
             strategyId, //[19:25]
-            bytes32(fyTokenToBuy) //[25:57]
+            bytes32(fyTokenToBuy), //[25:57]
+            bytes20(msg.sender) //[57:77]
         );
         address fyToken = address(IPool(LADLE.pools(seriesId)).fyToken());
 
@@ -296,7 +297,8 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         // Decode the operation to execute and then call that function.
         if (status == Operation.BORROW) {
             uint256 fyTokenToBuy = uint256(bytes32(data[25:57]));
-            _borrow(vaultId, seriesId, ilkId, borrowAmount, fee, fyTokenToBuy);
+            address borrower = address(bytes20(data[57:77]));
+            _borrow(vaultId, seriesId, ilkId, borrowAmount, fee, fyTokenToBuy,borrower);
         } else {
             uint256 ink = uint256(bytes32(data[25:57]));
             uint256 art = uint256(bytes32(data[57:89]));
@@ -321,13 +323,15 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
     /// @param borrowAmount The amount of FYTOKEN borrowed in the flash loan.
     /// @param fee The fee that will be issued by the flash loan.
     /// @param fyTokenToBuy the amount of fyTokenToBuy from the base.
+    /// @param borrower the user who borrow.
     function _borrow(
         bytes12 vaultId,
         bytes6 seriesId,
         bytes6 ilkId,
         uint256 borrowAmount,
         uint256 fee,
-        uint256 fyTokenToBuy
+        uint256 fyTokenToBuy,
+        address borrower
     ) internal {
         // We have borrowed FyTokens, so sell those
         IPool pool = IPool(LADLE.pools(seriesId));
@@ -342,7 +346,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         // Mint LP token & deposit to strategy
         pool.mintWithBase(
             strategyAddress,
-            msg.sender,
+            borrower,
             fyTokenToBuy,
             0,
             type(uint256).max

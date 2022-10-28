@@ -52,6 +52,8 @@ abstract contract ZeroState is Test {
     bytes6 seriesId;
     bytes6 strategyIlkId;
     address strategyTokenAddress;
+    uint128 baseAmount;
+    uint128 borrowAmount;
 
     constructor() {
         protocol = new Protocol();
@@ -84,12 +86,6 @@ abstract contract ZeroState is Test {
     }
 
     function setUp() public virtual {
-        seriesId = 0x303130370000;
-        strategyIlkId = 0x49364d4d5300;
-        strategyTokenAddress = address(
-            0x7ACFe277dEd15CabA6a8Da2972b1eb93fe1e2cCD
-        );
-
         IPool pool = IPool(ladle.pools(seriesId));
         FYToken fyToken = FYToken(address(pool.fyToken()));
         vm.label(address(fyToken), "FY Token");
@@ -119,48 +115,33 @@ abstract contract ZeroState is Test {
             strategyIlkId, // ilkId edai
             baseAmount,
             borrowAmount,
-            baseAmount / 3,
+            baseAmount / 2,
             0 //minCollateral,
         );
     }
-
-    /// Return the available balance in the join.
-    function availableBalance(bytes6 ilkIdToCheck)
-        public
-        view
-        returns (uint256 available)
-    {
-        // FlashJoin join = lever.flashJoins(ilkIdToCheck);
-        // IERC20 token = IERC20(join.asset());
-        // available = token.balanceOf(address(join)) - join.storedBalance();
-    }
 }
 
-contract ZeroStateTest is ZeroState {
+abstract contract ZeroStateTest is ZeroState {
+    bytes12 vaultId;
+
+    function setUp() public virtual override {
+        super.setUp();
+        vaultId = leverUp(baseAmount, borrowAmount);
+    }
+
     function testVault() public {
-        uint256 availableAtStart = availableBalance(strategyIlkId);
-        bytes12 vaultId = leverUp(10000e18, 5000e18);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
 
-        // Test that we left the join as we encountered it
-        assertEq(availableBalance(strategyIlkId), availableAtStart);
-
         // Assert that the balances are empty
-        assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
+        assertEq(
+            IPool(ladle.pools(seriesId)).base().balanceOf(address(lever)),
+            0
+        );
         assertEq(
             IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
             0
         );
-    }
-}
-
-contract UnwindTest is ZeroState {
-    bytes12 vaultId;
-
-    function setUp() public override {
-        super.setUp();
-        vaultId = leverUp(10000e18, 5000e18);
     }
 
     function testRepay() public {
@@ -175,7 +156,33 @@ contract UnwindTest is ZeroState {
             0
         );
 
-        assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
+        assertEq(
+            IPool(ladle.pools(seriesId)).base().balanceOf(address(lever)),
+            0
+        );
+        assertEq(
+            IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
+            0
+        );
+    }
+
+    function testRedeem() public {
+        DataTypes.Series memory series_ = cauldron.series(seriesId);
+        vm.warp(series_.maturity + 1);
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+        lever.divest(
+            YieldStrategyLever.Operation.REDEEM,
+            vaultId,
+            seriesId,
+            strategyIlkId,
+            balances.ink,
+            balances.art,
+            0
+        );
+        assertEq(
+            IPool(ladle.pools(seriesId)).base().balanceOf(address(lever)),
+            0
+        );
         assertEq(
             IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
             0
@@ -183,8 +190,6 @@ contract UnwindTest is ZeroState {
     }
 
     function testDoClose() public {
-        DataTypes.Series memory series_ = cauldron.series(seriesId);
-        vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.divest(
             YieldStrategyLever.Operation.CLOSE,
@@ -195,10 +200,128 @@ contract UnwindTest is ZeroState {
             balances.art,
             0
         );
-        assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
+        assertEq(
+            IPool(ladle.pools(seriesId)).base().balanceOf(address(lever)),
+            0
+        );
         assertEq(
             IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
             0
         );
     }
+
+    function testRedeemBeforeMaturity() public {
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+        vm.expectRevert();
+        lever.divest(
+            YieldStrategyLever.Operation.REDEEM,
+            vaultId,
+            seriesId,
+            strategyIlkId,
+            balances.ink,
+            balances.art,
+            0
+        );
+    }
+
+    function testDoCloseAfterMaturity() public {
+        DataTypes.Series memory series_ = cauldron.series(seriesId);
+        vm.warp(series_.maturity + 1);
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+        vm.expectRevert();
+        lever.divest(
+            YieldStrategyLever.Operation.CLOSE,
+            vaultId,
+            seriesId,
+            strategyIlkId,
+            balances.ink,
+            balances.art,
+            0
+        );
+    }
+
+    function testRepayAfterMaturity() public {
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+        DataTypes.Series memory series_ = cauldron.series(seriesId);
+        vm.warp(series_.maturity + 1);
+        vm.expectRevert();
+        lever.divest(
+            YieldStrategyLever.Operation.REPAY,
+            vaultId,
+            seriesId,
+            strategyIlkId,
+            balances.ink,
+            balances.art,
+            0
+        );
+    }
+
+    function testInvestWithRepay() public {
+        vm.expectRevert();
+        vaultId = lever.invest(
+            YieldStrategyLever.Operation.REPAY,
+            seriesId,
+            strategyIlkId, // ilkId edai
+            10000e18,
+            5000e18,
+            3333333333333333333333,
+            0 //minCollateral,
+        );
+    }
+
+    function testInvestWithRedeem() public {
+        vm.expectRevert();
+        vaultId = lever.invest(
+            YieldStrategyLever.Operation.REDEEM,
+            seriesId,
+            strategyIlkId, // ilkId edai
+            10000e18,
+            5000e18,
+            3333333333333333333333,
+            0 //minCollateral,
+        );
+    }
+
+    function testInvestWithClose() public {
+        vm.expectRevert();
+        vaultId = lever.invest(
+            YieldStrategyLever.Operation.CLOSE,
+            seriesId,
+            strategyIlkId, // ilkId edai
+            10000e18,
+            5000e18,
+            3333333333333333333333,
+            0 //minCollateral,
+        );
+    }
 }
+
+contract DAILeverTest is ZeroStateTest {
+    function setUp() public override {
+        seriesId = seriesIdDAI;
+        strategyIlkId = strategyIlkIdDAI;
+        baseAmount = 10000e18;
+        borrowAmount = 5000e18;
+        super.setUp();
+    }
+}
+
+contract USDCLeverTest is ZeroStateTest {
+    function setUp() public override {
+        seriesId = seriesIdUSDC;
+        strategyIlkId = strategyIlkIdUSDC;
+        baseAmount = 20000e6;
+        borrowAmount = 5000e6;
+        super.setUp();
+    }
+}
+
+// contract ETHLeverTest is ZeroStateTest {
+//     function setUp() public override {
+//         seriesId = seriesIdETH;
+//         strategyIlkId = strategyIlkIdETH;
+//         baseAmount = 20000e18;
+//         borrowAmount = 5000e18;
+//         super.setUp();
+//     }
+// }
