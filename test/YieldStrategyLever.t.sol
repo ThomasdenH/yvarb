@@ -2,9 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "./Protocol.sol";
 import "contracts/YieldStrategyLever.sol";
-import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
 import "@yield-protocol/vault-v2/contracts/FYToken.sol";
 import "@yield-protocol/vault-v2/contracts/utils/Giver.sol";
@@ -23,18 +21,12 @@ abstract contract ZeroState is Test {
     IERC20 constant DAI = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     IERC20 constant USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IERC20 constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    IERC20 constant STRATEGYTOKENDAI =
-        IERC20(0x1144e14E9B0AA9e181342c7e6E0a9BaDB4ceD295);
-    IERC20 constant STRATEGYTOKENETH =
-        IERC20(0x831dF23f7278575BA0b136296a285600cD75d076);
-    IERC20 constant STRATEGYTOKENUSDC =
-        IERC20(0x8e8D6aB093905C400D583EfD37fbeEB1ee1c0c39);
 
-    Protocol protocol;
     Giver giver;
     YieldStrategyLever lever;
     ICauldron constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
+    ILadle constant ladle = ILadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
     FlashJoin constant daiJoin =
         FlashJoin(0x4fE92119CDf873Cf8826F4E6EcfD4E578E3D44Dc); // dai
     FlashJoin constant usdcJoin =
@@ -47,16 +39,15 @@ abstract contract ZeroState is Test {
     bytes6 constant strategyIlkIdDAI = 0x333100000000;
     bytes6 constant strategyIlkIdUSDC = 0x333300000000;
     bytes6 constant strategyIlkIdETH = 0x333500000000;
-    ILadle constant ladle = ILadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
 
     bytes6 seriesId;
     bytes6 strategyIlkId;
+    bytes12 vaultId;
     address strategyTokenAddress;
     uint128 baseAmount;
     uint128 borrowAmount;
 
     constructor() {
-        protocol = new Protocol();
         giver = new Giver(cauldron);
         // Orchestrate Giver
         AccessControl cauldronAccessControl = AccessControl(
@@ -105,10 +96,7 @@ abstract contract ZeroState is Test {
     }
 
     /// @notice Create a vault.
-    function leverUp(uint128 baseAmount, uint128 borrowAmount)
-        public
-        returns (bytes12 vaultId)
-    {
+    function leverUp() public returns (bytes12) {
         vaultId = lever.invest(
             YieldStrategyLever.Operation.BORROW,
             seriesId,
@@ -118,15 +106,14 @@ abstract contract ZeroState is Test {
             baseAmount / 2,
             0 //minCollateral,
         );
+        return vaultId;
     }
 }
 
 abstract contract ZeroStateTest is ZeroState {
-    bytes12 vaultId;
-
     function setUp() public virtual override {
         super.setUp();
-        vaultId = leverUp(baseAmount, borrowAmount);
+        vaultId = leverUp();
     }
 
     function testVault() public {
