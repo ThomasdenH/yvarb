@@ -44,8 +44,9 @@ abstract contract ZeroState is Test {
     bytes6 strategyIlkId;
     bytes12 vaultId;
     address strategyTokenAddress;
-    uint128 baseAmount;
-    uint128 borrowAmount;
+    uint256 baseAmount;
+    uint256 borrowAmount;
+    uint256 fyTokenToBuy;
 
     constructor() {
         giver = new Giver(cauldron);
@@ -116,6 +117,7 @@ abstract contract ZeroStateTest is ZeroState {
         vaultId = leverUp();
     }
 
+    /// @notice Test if vault is created correctly
     function testVault() public {
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
@@ -131,6 +133,7 @@ abstract contract ZeroStateTest is ZeroState {
         );
     }
 
+    /// @notice Test if the user is able to repay
     function testRepay() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.divest(
@@ -153,6 +156,7 @@ abstract contract ZeroStateTest is ZeroState {
         );
     }
 
+    /// @notice Test if the user is able to redeem
     function testRedeem() public {
         DataTypes.Series memory series_ = cauldron.series(seriesId);
         vm.warp(series_.maturity + 1);
@@ -176,6 +180,7 @@ abstract contract ZeroStateTest is ZeroState {
         );
     }
 
+    /// @notice Test if the user is able to close
     function testDoClose() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.divest(
@@ -197,6 +202,7 @@ abstract contract ZeroStateTest is ZeroState {
         );
     }
 
+    /// @notice Test if revert happens if redeem is called before maturity
     function testRedeemBeforeMaturity() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         vm.expectRevert();
@@ -211,6 +217,7 @@ abstract contract ZeroStateTest is ZeroState {
         );
     }
 
+    /// @notice Test if revert happens if close is called after maturity
     function testDoCloseAfterMaturity() public {
         DataTypes.Series memory series_ = cauldron.series(seriesId);
         vm.warp(series_.maturity + 1);
@@ -227,6 +234,7 @@ abstract contract ZeroStateTest is ZeroState {
         );
     }
 
+    /// @notice Test if revert happens if user tries to repay after maturity
     function testRepayAfterMaturity() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         DataTypes.Series memory series_ = cauldron.series(seriesId);
@@ -243,6 +251,7 @@ abstract contract ZeroStateTest is ZeroState {
         );
     }
 
+    /// @notice Test if invest reverts if repay is added as an operation
     function testInvestWithRepay() public {
         vm.expectRevert();
         vaultId = lever.invest(
@@ -251,11 +260,12 @@ abstract contract ZeroStateTest is ZeroState {
             strategyIlkId, // ilkId edai
             10000e18,
             5000e18,
-            3333333333333333333333,
+            fyTokenToBuy,
             0 //minCollateral,
         );
     }
 
+    /// @notice Test if invest reverts if called with REDEEM operation
     function testInvestWithRedeem() public {
         vm.expectRevert();
         vaultId = lever.invest(
@@ -264,11 +274,12 @@ abstract contract ZeroStateTest is ZeroState {
             strategyIlkId, // ilkId edai
             10000e18,
             5000e18,
-            3333333333333333333333,
+            fyTokenToBuy,
             0 //minCollateral,
         );
     }
 
+    /// @notice Test if invest reverts if called with CLOSE operation
     function testInvestWithClose() public {
         vm.expectRevert();
         vaultId = lever.invest(
@@ -277,7 +288,7 @@ abstract contract ZeroStateTest is ZeroState {
             strategyIlkId, // ilkId edai
             10000e18,
             5000e18,
-            3333333333333333333333,
+            fyTokenToBuy,
             0 //minCollateral,
         );
     }
@@ -287,21 +298,23 @@ contract DAILeverTest is ZeroStateTest {
     function setUp() public override {
         seriesId = seriesIdDAI;
         strategyIlkId = strategyIlkIdDAI;
-        baseAmount = 10000e18;
-        borrowAmount = 5000e18;
+        baseAmount = 2000e18;
+        borrowAmount = 1000e18;
+        fyTokenToBuy = 333333333333333333333;
         super.setUp();
     }
 }
 
-contract USDCLeverTest is ZeroStateTest {
-    function setUp() public override {
-        seriesId = seriesIdUSDC;
-        strategyIlkId = strategyIlkIdUSDC;
-        baseAmount = 20000e6;
-        borrowAmount = 5000e6;
-        super.setUp();
-    }
-}
+// contract USDCLeverTest is ZeroStateTest {
+//     function setUp() public override {
+//         seriesId = seriesIdUSDC;
+//         strategyIlkId = strategyIlkIdUSDC;
+//         baseAmount = 20000e6;
+//         borrowAmount = 5000e6;
+//         fyTokenToBuy = 333333333333333333333;
+//         super.setUp();
+//     }
+// }
 
 // contract ETHLeverTest is ZeroStateTest {
 //     function setUp() public override {
@@ -309,6 +322,7 @@ contract USDCLeverTest is ZeroStateTest {
 //         strategyIlkId = strategyIlkIdETH;
 //         baseAmount = 20000e18;
 //         borrowAmount = 5000e18;
+//         fyTokenToBuy = 333333333333333333333;
 //         super.setUp();
 //     }
 // }
