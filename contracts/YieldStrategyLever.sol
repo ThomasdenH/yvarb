@@ -30,16 +30,21 @@ error OnlyRepayOrClose();
 ///
 ///     To get out of the levered position depending on whether we are past maturity the following happens:
 ///     1. Before maturity
-///         i. FlashBorrow fyToken
-///         ii. Payback the debt to get back the underlying
-///         iii. Burn the strategy token to get LP
-///         iv. Burn LP to get base & fyToken
-///         v. Buy fyToken using the base to repay the flash loan
+///         A. Repay
+///             i. FlashBorrow fyToken
+///             ii. Payback the debt to get back the underlying
+///             iii. Burn the strategy token to get LP
+///             iv. Burn LP to get base & fyToken
+///             v. Buy fyToken using the base to repay the flash loan
+///         B. Close
+///             i. FlashBorrow base
+///             ii. Close the debt position using the base
+///             iii. Burn the strategy token received from closing the position to get LP token
+///             iv. Burn LP token to obtain base to repay the flash loan
 ///     2. After maturity
-///         i. FlashBorrow base
-///         ii. Close the debt position using the base
-///         iii. Burn the strategy token received from closing the position to get LP token
-///         iv. Burn LP token to obtain base to repay the flash loan
+//          i. Payback debt to get back the underlying
+//          ii. Burn Strategy Tokens and send LP token to the pool
+//          iii. Burn LP token to obtain base to repay the flash loan, redeem the fyToken
 /// @notice For leveringup we could flash borrow base instead of fyToken as well
 /// @author iamsahu
 contract YieldStrategyLever is IERC3156FlashBorrower {
