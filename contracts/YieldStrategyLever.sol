@@ -308,7 +308,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
             uint256 ink = uint256(bytes32(data[25:57]));
             uint256 art = uint256(bytes32(data[57:89]));
             if (status == Operation.REPAY) {
-                _repay(vaultId, seriesId, ilkId, (borrowAmount + fee), ink.u128(), art.u128());
+                _repay(vaultId, seriesId, ilkId, (borrowAmount + fee), ink, art);
             } else if (status == Operation.CLOSE) {
                 _close(IERC20(token), vaultId, seriesId, ilkId, borrowAmount, ink, art);
             } else if (status == Operation.REDEEM) {
