@@ -105,7 +105,7 @@ abstract contract ZeroState is Test {
             strategyIlkId, // ilkId edai
             baseAmount,
             borrowAmount,
-            baseAmount / 2,
+            fyTokenToBuy,
             0 //minCollateral,
         );
         return vaultId;

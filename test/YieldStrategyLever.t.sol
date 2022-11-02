@@ -8,9 +8,9 @@ contract DAILeverTest is Tests {
     function setUp() public override {
         seriesId = seriesIdDAI;
         strategyIlkId = strategyIlkIdDAI;
-        baseAmount = 2000e18;
+        baseAmount = 10000e18;
         borrowAmount = 1000e18;
-        fyTokenToBuy = 333333333333333333333;
+        fyTokenToBuy = baseAmount / 2;
         super.setUp();
     }
 }
@@ -21,18 +21,18 @@ contract USDCLeverTest is Tests {
         strategyIlkId = strategyIlkIdUSDC;
         baseAmount = 2000e6;
         borrowAmount = 1000e6;
-        fyTokenToBuy = 333333333333333333333;
+        fyTokenToBuy = baseAmount / 3;
         super.setUp();
     }
 }
 
-// contract ETHLeverTest is Tests {
-//     function setUp() public override {
-//         seriesId = seriesIdETH;
-//         strategyIlkId = strategyIlkIdETH;
-//         baseAmount = 20000e18;
-//         borrowAmount = 5000e18;
-//         fyTokenToBuy = 333333333333333333333;
-//         super.setUp();
-//     }
-// }
+contract ETHLeverTest is Tests {
+    function setUp() public override {
+        seriesId = seriesIdETH;
+        strategyIlkId = strategyIlkIdETH;
+        baseAmount = 8e18;
+        borrowAmount = 1e18;
+        fyTokenToBuy = 1e18;
+        super.setUp();
+    }
+}
