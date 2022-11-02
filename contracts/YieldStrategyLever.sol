@@ -236,6 +236,11 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
                     art, // Loan Amount: borrow exactly the debt to repay.
                     data
                 );
+                // Selling off leftover fyToken to get base in return
+                if(IERC20(fyToken).balanceOf(address(this))>0){
+                    IERC20(fyToken).transfer(address(pool),IERC20(fyToken).balanceOf(address(this)));
+                    pool.sellFYToken(address(this),0);
+                }
             } else if (operation == Operation.CLOSE) {
                 address join = address(LADLE.joins(seriesId & ASSET_ID_MASK));
 
@@ -259,7 +264,8 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         uint256 assetBalance = baseAsset.balanceOf(address(this));
         if (assetBalance < minBaseOut) revert SlippageFailure();
         // Transferring the leftover to the user
-        IERC20(baseAsset).safeTransfer(msg.sender, assetBalance);
+        if(assetBalance > 0)
+            IERC20(baseAsset).safeTransfer(msg.sender, assetBalance);
 
         emit Divested(operation, vaultId, seriesId, msg.sender, assetBalance, art);
     }
@@ -400,8 +406,8 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         IStrategy(strategy).burn(address(pool));
 
         // Burn LP to get base & fyToken
-        (, uint256 bases, uint256 fyTokens) = pool.burn(
-            address(pool),
+        (, , uint256 fyTokens) = pool.burn(
+            address(this),
             address(this),
             0,
             type(uint256).max
@@ -409,10 +415,12 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
 
         // Buy fyToken to repay the flash loan
         if (borrowAmountPlusFee > fyTokens) {
+            uint128 fyTokenToBuy = (borrowAmountPlusFee - fyTokens).u128();
+            pool.base().transfer(address(pool), pool.buyFYTokenPreview(fyTokenToBuy));
             pool.buyFYToken(
                 address(this),
-                (borrowAmountPlusFee - fyTokens).u128(),
-                bases.u128()
+                fyTokenToBuy,
+                0
             );
         }
     }

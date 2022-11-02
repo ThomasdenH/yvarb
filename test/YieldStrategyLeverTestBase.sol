@@ -80,7 +80,8 @@ abstract contract ZeroState is Test {
     function setUp() public virtual {
         IPool pool = IPool(ladle.pools(seriesId));
         FYToken fyToken = FYToken(address(pool.fyToken()));
-        vm.label(address(fyToken), "FY Token");
+        vm.label(address(fyToken), fyToken.symbol());
+        vm.label(address(pool.base()), pool.baseToken().symbol());
         vm.label(address(pool), "Pool");
         vm.prank(timeLock);
         fyToken.setFlashFeeFactor(1);

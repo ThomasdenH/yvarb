@@ -19,20 +19,20 @@ contract USDCLeverTest is Tests {
     function setUp() public override {
         seriesId = seriesIdUSDC;
         strategyIlkId = strategyIlkIdUSDC;
-        baseAmount = 20000e6;
-        borrowAmount = 5000e6;
+        baseAmount = 2000e6;
+        borrowAmount = 1000e6;
         fyTokenToBuy = 333333333333333333333;
         super.setUp();
     }
 }
 
-contract ETHLeverTest is Tests {
-    function setUp() public override {
-        seriesId = seriesIdETH;
-        strategyIlkId = strategyIlkIdETH;
-        baseAmount = 20000e18;
-        borrowAmount = 5000e18;
-        fyTokenToBuy = 333333333333333333333;
-        super.setUp();
-    }
-}
+// contract ETHLeverTest is Tests {
+//     function setUp() public override {
+//         seriesId = seriesIdETH;
+//         strategyIlkId = strategyIlkIdETH;
+//         baseAmount = 20000e18;
+//         borrowAmount = 5000e18;
+//         fyTokenToBuy = 333333333333333333333;
+//         super.setUp();
+//     }
+// }
