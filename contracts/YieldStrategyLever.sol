@@ -225,20 +225,20 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
             );
         } else {
             if (operation == Operation.REPAY) {
-                address fyToken = address(pool.fyToken());
+                IMaturingToken fyToken = pool.fyToken();
 
                 // Repay:
                 // Series is not past maturity.
                 // Borrow to repay debt, move directly to the pool.
-                success = IERC3156FlashLender(fyToken).flashLoan(
+                success = IERC3156FlashLender(address(fyToken)).flashLoan(
                     this, // Loan Receiver
-                    fyToken, // Loan Token
+                    address(fyToken), // Loan Token
                     art, // Loan Amount: borrow exactly the debt to repay.
                     data
                 );
                 // Selling off leftover fyToken to get base in return
-                if(IERC20(fyToken).balanceOf(address(this))>0){
-                    IERC20(fyToken).transfer(address(pool),IERC20(fyToken).balanceOf(address(this)));
+                if(fyToken.balanceOf(address(this)) > 0){
+                    fyToken.transfer(address(pool),fyToken.balanceOf(address(this)));
                     pool.sellFYToken(address(this),0);
                 }
             } else if (operation == Operation.CLOSE) {
