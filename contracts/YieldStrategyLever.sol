@@ -238,8 +238,8 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
                 );
                 // Selling off leftover fyToken to get base in return
                 if(fyToken.balanceOf(address(this)) > 0){
-                    fyToken.transfer(address(pool),fyToken.balanceOf(address(this)));
-                    pool.sellFYToken(address(this),0);
+                    fyToken.transfer(address(pool), fyToken.balanceOf(address(this)));
+                    pool.sellFYToken(address(this), 0);
                 }
             } else if (operation == Operation.CLOSE) {
                 address join = address(LADLE.joins(seriesId & ASSET_ID_MASK));
@@ -416,7 +416,13 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         // Buy fyToken to repay the flash loan
         if (borrowAmountPlusFee > fyTokens) {
             uint128 fyTokenToBuy = (borrowAmountPlusFee - fyTokens).u128();
-            pool.base().transfer(address(pool), pool.buyFYTokenPreview(fyTokenToBuy));
+            // Workaround for error in buyFYTokenPreview due to smaller values
+            if(fyTokenToBuy < 500) {
+                fyTokenToBuy = 1000;
+                pool.base().transfer(address(pool), 2 + pool.buyFYTokenPreview(fyTokenToBuy));
+            }
+            else
+                pool.base().transfer(address(pool), pool.buyFYTokenPreview(fyTokenToBuy));
             pool.buyFYToken(
                 address(this),
                 fyTokenToBuy,
