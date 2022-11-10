@@ -95,10 +95,11 @@ abstract contract ZeroState is Test {
         AccessControl giverAccessControl = AccessControl(address(giver));
         giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
         giverAccessControl.grantRole(0x35775afb, address(lever));
+        vaultId = invest();
     }
 
     /// @notice Create a vault.
-    function leverUp() public returns (bytes12) {
+    function invest() public returns (bytes12) {
         vaultId = lever.invest(
             YieldStrategyLever.Operation.BORROW,
             seriesId,
@@ -110,17 +111,9 @@ abstract contract ZeroState is Test {
         );
         return vaultId;
     }
-}
-
-abstract contract Tests is ZeroState {
-    function setUp() public virtual override {
-        super.setUp();
-        vaultId = leverUp();
-    }
 
     /// @notice Test if vault is created correctly
-    function testVault() public {
-        vaultId = leverUp();
+    function testBorrow() public {
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
 
@@ -136,39 +129,19 @@ abstract contract Tests is ZeroState {
             0
         );
     }
+}
+
+abstract contract InvestedState is ZeroState {
+    function setUp() public virtual override {
+        super.setUp();
+        vaultId = invest();
+    }
 
     /// @notice Test if the user is able to repay
     function testRepay() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
         lever.divest(
             YieldStrategyLever.Operation.REPAY,
-            vaultId,
-            seriesId,
-            strategyIlkId,
-            balances.ink,
-            balances.art,
-            0
-        );
-        balances = cauldron.balances(vaultId);
-        assertEq(balances.ink, 0);
-        assertEq(balances.art, 0);
-        assertEq(
-            IPool(ladle.pools(seriesId)).base().balanceOf(address(lever)),
-            0
-        );
-        assertEq(
-            IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
-            0
-        );
-    }
-
-    /// @notice Test if the user is able to redeem
-    function testRedeem() public {
-        DataTypes.Series memory series_ = cauldron.series(seriesId);
-        vm.warp(series_.maturity + 1);
-        DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.divest(
-            YieldStrategyLever.Operation.REDEEM,
             vaultId,
             seriesId,
             strategyIlkId,
@@ -229,39 +202,6 @@ abstract contract Tests is ZeroState {
         );
     }
 
-    /// @notice Test if revert happens if close is called after maturity
-    function testDoCloseAfterMaturity() public {
-        DataTypes.Series memory series_ = cauldron.series(seriesId);
-        vm.warp(series_.maturity + 1);
-        DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        vm.expectRevert();
-        lever.divest(
-            YieldStrategyLever.Operation.CLOSE,
-            vaultId,
-            seriesId,
-            strategyIlkId,
-            balances.ink,
-            balances.art,
-            0
-        );
-    }
-
-    /// @notice Test if revert happens if user tries to repay after maturity
-    function testFailRepayAfterMaturity() public {
-        DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        DataTypes.Series memory series_ = cauldron.series(seriesId);
-        vm.warp(series_.maturity + 1);
-        lever.divest(
-            YieldStrategyLever.Operation.REPAY,
-            vaultId,
-            seriesId,
-            strategyIlkId,
-            balances.ink,
-            balances.art,
-            0
-        );
-    }
-
     /// @notice Test if invest reverts if repay is added as an operation
     function testFailInvestWithRepay() public {
         vaultId = lever.invest(
@@ -298,6 +238,69 @@ abstract contract Tests is ZeroState {
             5000e18,
             fyTokenToBuy,
             0 //minCollateral,
+        );
+    }
+}
+
+abstract contract InvestedMatureState is ZeroState {
+    function setUp() public virtual override {
+        super.setUp();
+        vaultId = invest();
+        DataTypes.Series memory series_ = cauldron.series(seriesId);
+        vm.warp(series_.maturity + 1);
+    }
+
+    /// @notice Test if the user is able to redeem
+    function testRedeem() public {
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+        lever.divest(
+            YieldStrategyLever.Operation.REDEEM,
+            vaultId,
+            seriesId,
+            strategyIlkId,
+            balances.ink,
+            balances.art,
+            0
+        );
+        balances = cauldron.balances(vaultId);
+        assertEq(balances.ink, 0);
+        assertEq(balances.art, 0);
+        assertEq(
+            IPool(ladle.pools(seriesId)).base().balanceOf(address(lever)),
+            0
+        );
+        assertEq(
+            IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
+            0
+        );
+    }
+
+    /// @notice Test if revert happens if close is called after maturity
+    function testDoCloseAfterMaturity() public {
+        DataTypes.Series memory series_ = cauldron.series(seriesId);
+        vm.expectRevert();
+        lever.divest(
+            YieldStrategyLever.Operation.CLOSE,
+            vaultId,
+            seriesId,
+            strategyIlkId,
+            balances.ink,
+            balances.art,
+            0
+        );
+    }
+
+    /// @notice Test if revert happens if user tries to repay after maturity
+    function testFailRepayAfterMaturity() public {
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+        lever.divest(
+            YieldStrategyLever.Operation.REPAY,
+            vaultId,
+            seriesId,
+            strategyIlkId,
+            balances.ink,
+            balances.art,
+            0
         );
     }
 }
