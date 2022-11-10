@@ -132,9 +132,10 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         uint256 minCollateral
     ) external returns (bytes12 vaultId) {
         if (operation != Operation.BORROW) revert OnlyBorrow();
-        IPool(LADLE.pools(seriesId)).base().safeTransferFrom(
+        IPool pool = IPool(LADLE.pools(seriesId));
+        pool.base().safeTransferFrom(
             msg.sender,
-            address(this),
+            address(pool),
             amountToInvest
         );
         // Build the vault
@@ -148,7 +149,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
             bytes32(fyTokenToBuy), //[25:57]
             bytes20(msg.sender) //[57:77]
         );
-        address fyToken = address(IPool(LADLE.pools(seriesId)).fyToken());
+        address fyToken = address(pool.fyToken());
 
         bool success = IERC3156FlashLender(fyToken).flashLoan(
             this, // Loan Receiver
@@ -159,15 +160,17 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
 
         if (!success) revert FlashLoanFailure();
 
+        DataTypes.Balances memory balances = CAULDRON.balances(vaultId);
+
         // This is the amount to deposit, so we check for slippage here. As
         // long as we end up with the desired amount, it doesn't matter what
         // slippage occurred where.
-        if (CAULDRON.balances(vaultId).ink < minCollateral)
+        if (balances.ink < minCollateral)
             revert SlippageFailure();
 
         giver.give(vaultId, msg.sender);
 
-        emit Invested(vaultId, seriesId, msg.sender, amountToInvest, CAULDRON.balances(vaultId).art);
+        emit Invested(vaultId, seriesId, msg.sender, balances.ink, balances.art);
     }
 
     /// @notice Divest, either before or after maturity.
@@ -349,10 +352,6 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         IERC20 fyToken = IERC20(address(pool.fyToken()));
         fyToken.safeTransfer(address(pool), borrowAmount - fee);
         pool.sellFYToken(address(pool), 0); // Sell fyToken to get USDC/DAI/ETH
-        pool.base().transfer(
-            address(pool),
-            pool.base().balanceOf(address(this))
-        );
         address strategyAddress = CAULDRON.assets(ilkId);
         // Mint LP token & deposit to strategy
         pool.mintWithBase(

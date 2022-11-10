@@ -17,6 +17,9 @@ abstract contract ZeroState is Test {
     address daiWhale = 0x9A315BdF513367C0377FB36545857d12e85813Ef;
     address usdcWhale = 0xDcEF968d416a41Cdac0ED8702fAC8128A64241A2;
     address wethWhale = 0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E;
+    address daiWhale2 = 0x075e72a5eDf65F0A5f44699c7654C1a76941Ddc8;
+    address usdcWhale2 = 0x0A59649758aa4d66E25f08Dd01271e891fe52199;
+    address wethWhale2 = 0x2F0b23f53734252Bda2277357e97e1517d6B042A;
 
     IERC20 constant DAI = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     IERC20 constant USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
@@ -47,6 +50,12 @@ abstract contract ZeroState is Test {
     uint256 baseAmount;
     uint256 borrowAmount;
     uint256 fyTokenToBuy;
+    uint256 initialBalance;
+    uint256 initialUserBalance;
+    uint256 finalUserBalance;
+    uint128 buyFor;
+    uint128 sellFor;
+    mapping(bytes6 => address) whaleMapping;
 
     constructor() {
         giver = new Giver(cauldron);
@@ -75,6 +84,10 @@ abstract contract ZeroState is Test {
         usdcJoin.setFlashFeeFactor(1);
         vm.prank(timeLock);
         daiJoin.setFlashFeeFactor(1);
+
+        whaleMapping[strategyIlkIdDAI] = daiWhale;
+        whaleMapping[strategyIlkIdUSDC] = usdcWhale;
+        whaleMapping[strategyIlkIdETH] = wethWhale;
     }
 
     function setUp() public virtual {
@@ -95,6 +108,15 @@ abstract contract ZeroState is Test {
         AccessControl giverAccessControl = AccessControl(address(giver));
         giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
         giverAccessControl.grantRole(0x35775afb, address(lever));
+
+        initialBalance = IPool(ladle.pools(seriesId)).base().balanceOf(
+            address(ladle.pools(seriesId))
+        );
+        // console.log(initialBalance);
+        initialUserBalance = IPool(ladle.pools(seriesId)).base().balanceOf(
+            address(this)
+        );
+
         vaultId = invest();
     }
 
@@ -115,10 +137,11 @@ abstract contract ZeroState is Test {
     /// @notice Test if vault is created correctly
     function testBorrow() public {
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
+        address strategyAddress = cauldron.assets(strategyIlkId);
+
         assertEq(vault.owner, address(this));
-
         assertEq(cauldron.balances(vaultId).art, borrowAmount);
-
+        assertEq(IERC20(strategyAddress).balanceOf(vault.owner), 0);
         // Assert that the balances are empty
         assertEq(
             IPool(ladle.pools(seriesId)).base().balanceOf(address(lever)),
@@ -129,12 +152,65 @@ abstract contract ZeroState is Test {
             0
         );
     }
+
+    function buyFYTokenFor() public {
+        vm.startPrank(whaleMapping[strategyIlkId]);
+        IPool pool = IPool(ladle.pools(seriesId));
+        uint256 amount = pool.buyFYTokenPreview(buyFor);
+        pool.base().transfer(address(pool), amount + 10);
+        // Transfer to ladle
+        pool.buyFYToken(whaleMapping[strategyIlkId], buyFor, 0);
+        vm.stopPrank();
+    }
+
+    function sellBaseFor() public {
+        vm.startPrank(whaleMapping[strategyIlkId]);
+        IPool pool = IPool(ladle.pools(seriesId));
+        uint128 baseInAmount = sellFor;
+        uint128 amount = pool.sellBasePreview(baseInAmount);
+        pool.base().transfer(address(pool), baseInAmount + 10);
+        // Transfer to ladle
+        pool.sellBase(whaleMapping[strategyIlkId], amount);
+        vm.stopPrank();
+    }
 }
 
 abstract contract InvestedState is ZeroState {
     function setUp() public virtual override {
         super.setUp();
         vaultId = invest();
+        buyFYTokenFor();
+    }
+
+    function testBorrowSecondUser() public {
+        vm.startPrank(whaleMapping[strategyIlkId]);
+
+        IPool pool = IPool(ladle.pools(seriesId));
+        pool.base().approve(address(lever), type(uint256).max);
+        bytes12 vaultId2 = lever.invest(
+            YieldStrategyLever.Operation.BORROW,
+            seriesId,
+            strategyIlkId, // ilkId edai
+            baseAmount,
+            borrowAmount,
+            fyTokenToBuy,
+            0 //minCollateral,
+        );
+
+        vm.stopPrank();
+
+        DataTypes.Vault memory vault = cauldron.vaults(vaultId2);
+        address strategyAddress = cauldron.assets(strategyIlkId);
+
+        assertEq(vault.owner, whaleMapping[strategyIlkId]);
+        assertEq(cauldron.balances(vaultId2).art, borrowAmount);
+        assertEq(IERC20(strategyAddress).balanceOf(vault.owner), 0);
+
+        // Checking if the state of 1 user's vault remains the same
+        vault = cauldron.vaults(vaultId);
+        assertEq(vault.owner, address(this));
+        assertEq(cauldron.balances(vaultId).art, borrowAmount);
+        assertEq(IERC20(strategyAddress).balanceOf(vault.owner), 0);
     }
 
     /// @notice Test if the user is able to repay
@@ -160,6 +236,10 @@ abstract contract InvestedState is ZeroState {
             IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
             0
         );
+        finalUserBalance = IPool(ladle.pools(seriesId)).base().balanceOf(
+            address(this)
+        );
+        console.logInt(int256(finalUserBalance) - int256(initialUserBalance));
     }
 
     /// @notice Test if the user is able to close
@@ -185,6 +265,10 @@ abstract contract InvestedState is ZeroState {
             IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
             0
         );
+        finalUserBalance = IPool(ladle.pools(seriesId)).base().balanceOf(
+            address(this)
+        );
+        console.logInt(int256(finalUserBalance) - int256(initialUserBalance));
     }
 
     /// @notice Test if revert happens if redeem is called before maturity
@@ -247,6 +331,8 @@ abstract contract InvestedMatureState is ZeroState {
         super.setUp();
         vaultId = invest();
         DataTypes.Series memory series_ = cauldron.series(seriesId);
+        buyFYTokenFor();
+        buyFYTokenFor();
         vm.warp(series_.maturity + 1);
     }
 
@@ -273,11 +359,16 @@ abstract contract InvestedMatureState is ZeroState {
             IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
             0
         );
+
+        finalUserBalance = IPool(ladle.pools(seriesId)).base().balanceOf(
+            address(this)
+        );
+        console.logInt(int256(finalUserBalance) - int256(initialUserBalance));
     }
 
     /// @notice Test if revert happens if close is called after maturity
     function testDoCloseAfterMaturity() public {
-        DataTypes.Series memory series_ = cauldron.series(seriesId);
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
         vm.expectRevert();
         lever.divest(
             YieldStrategyLever.Operation.CLOSE,
