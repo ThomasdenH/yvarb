@@ -179,7 +179,8 @@ abstract contract InvestedState is ZeroState {
     function setUp() public virtual override {
         super.setUp();
         vaultId = invest();
-        buyFYTokenFor();
+        // buyFYTokenFor();
+        sellBaseFor();
     }
 
     function testBorrowSecondUser() public {
