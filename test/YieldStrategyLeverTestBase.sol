@@ -56,6 +56,7 @@ abstract contract ZeroState is Test {
     uint128 buyFor;
     uint128 sellFor;
     mapping(bytes6 => address) whaleMapping;
+    mapping(bytes6 => address) whaleMapping2;
 
     constructor() {
         giver = new Giver(cauldron);
@@ -88,6 +89,10 @@ abstract contract ZeroState is Test {
         whaleMapping[strategyIlkIdDAI] = daiWhale;
         whaleMapping[strategyIlkIdUSDC] = usdcWhale;
         whaleMapping[strategyIlkIdETH] = wethWhale;
+
+        whaleMapping2[strategyIlkIdDAI] = daiWhale2;
+        whaleMapping2[strategyIlkIdUSDC] = usdcWhale2;
+        whaleMapping2[strategyIlkIdETH] = wethWhale2;
     }
 
     function setUp() public virtual {
@@ -164,13 +169,21 @@ abstract contract ZeroState is Test {
     }
 
     function sellBaseFor() public {
-        vm.startPrank(whaleMapping[strategyIlkId]);
+        vm.startPrank(whaleMapping2[strategyIlkId]);
         IPool pool = IPool(ladle.pools(seriesId));
-        uint128 baseInAmount = sellFor;
-        uint128 amount = pool.sellBasePreview(baseInAmount);
-        pool.base().transfer(address(pool), baseInAmount + 10);
-        // Transfer to ladle
-        pool.sellBase(whaleMapping[strategyIlkId], amount);
+        pool.base().transfer(address(pool), sellFor);
+        pool.sellBase(whaleMapping2[strategyIlkId], 0);
+        vm.stopPrank();
+    }
+
+    function sellFyTokenFor() public {
+        vm.startPrank(whaleMapping2[strategyIlkId]);
+        IPool pool = IPool(ladle.pools(seriesId));
+        uint128 baseInAmount = uint128(
+            pool.fyToken().balanceOf(whaleMapping2[strategyIlkId])
+        );
+        pool.base().transfer(address(pool), baseInAmount);
+        pool.sellFYToken(whaleMapping2[strategyIlkId], 0);
         vm.stopPrank();
     }
 }
@@ -178,9 +191,8 @@ abstract contract ZeroState is Test {
 abstract contract InvestedState is ZeroState {
     function setUp() public virtual override {
         super.setUp();
-        vaultId = invest();
-        // buyFYTokenFor();
         sellBaseFor();
+        sellFyTokenFor();
     }
 
     function testBorrowSecondUser() public {
@@ -192,7 +204,7 @@ abstract contract InvestedState is ZeroState {
             YieldStrategyLever.Operation.BORROW,
             seriesId,
             strategyIlkId, // ilkId edai
-            baseAmount,
+            baseAmount + 100,
             borrowAmount,
             fyTokenToBuy,
             0 //minCollateral,
@@ -240,7 +252,9 @@ abstract contract InvestedState is ZeroState {
         finalUserBalance = IPool(ladle.pools(seriesId)).base().balanceOf(
             address(this)
         );
-        console.logInt(int256(finalUserBalance) - int256(initialUserBalance));
+
+        // Checking for profits
+        assertGt(int256(finalUserBalance) - int256(initialUserBalance), 0);
     }
 
     /// @notice Test if the user is able to close
@@ -269,7 +283,8 @@ abstract contract InvestedState is ZeroState {
         finalUserBalance = IPool(ladle.pools(seriesId)).base().balanceOf(
             address(this)
         );
-        console.logInt(int256(finalUserBalance) - int256(initialUserBalance));
+        // Checking for profits
+        assertGt(int256(finalUserBalance) - int256(initialUserBalance), 0);
     }
 
     /// @notice Test if revert happens if redeem is called before maturity
@@ -330,10 +345,7 @@ abstract contract InvestedState is ZeroState {
 abstract contract InvestedMatureState is ZeroState {
     function setUp() public virtual override {
         super.setUp();
-        vaultId = invest();
         DataTypes.Series memory series_ = cauldron.series(seriesId);
-        buyFYTokenFor();
-        buyFYTokenFor();
         vm.warp(series_.maturity + 1);
     }
 
@@ -364,7 +376,8 @@ abstract contract InvestedMatureState is ZeroState {
         finalUserBalance = IPool(ladle.pools(seriesId)).base().balanceOf(
             address(this)
         );
-        console.logInt(int256(finalUserBalance) - int256(initialUserBalance));
+        // Checking for profits
+        assertGt(int256(finalUserBalance) - int256(initialUserBalance), 0);
     }
 
     /// @notice Test if revert happens if close is called after maturity
