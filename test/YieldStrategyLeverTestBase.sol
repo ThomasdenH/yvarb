@@ -25,8 +25,6 @@ abstract contract ZeroState is Test {
     IERC20 constant USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IERC20 constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
-    Giver giver;
-    YieldStrategyLever lever;
     ICauldron constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
     ILadle constant ladle = ILadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
@@ -36,12 +34,16 @@ abstract contract ZeroState is Test {
         FlashJoin(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4); // usdc
     FlashJoin constant wethJoin =
         FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0); // weth
+
     bytes6 constant seriesIdDAI = 0x303130380000;
     bytes6 constant seriesIdUSDC = 0x303230380000;
     bytes6 constant seriesIdETH = 0x303030380000;
     bytes6 constant strategyIlkIdDAI = 0x333100000000;
     bytes6 constant strategyIlkIdUSDC = 0x333300000000;
     bytes6 constant strategyIlkIdETH = 0x333500000000;
+
+    Giver giver;
+    YieldStrategyLever lever;
 
     bytes6 seriesId;
     bytes6 strategyIlkId;
@@ -55,6 +57,7 @@ abstract contract ZeroState is Test {
     uint256 finalUserBalance;
     uint128 buyFor;
     uint128 sellFor;
+
     mapping(bytes6 => address) whaleMapping;
     mapping(bytes6 => address) whaleMapping2;
 
@@ -125,6 +128,7 @@ abstract contract ZeroState is Test {
         vaultId = invest();
     }
 
+    // --------------------------Utility Functions---------------------------- //
     /// @notice Create a vault.
     function invest() public returns (bytes12) {
         vaultId = lever.invest(
@@ -137,35 +141,6 @@ abstract contract ZeroState is Test {
             0 //minCollateral,
         );
         return vaultId;
-    }
-
-    /// @notice Test if vault is created correctly
-    function testBorrow() public {
-        DataTypes.Vault memory vault = cauldron.vaults(vaultId);
-        address strategyAddress = cauldron.assets(strategyIlkId);
-
-        assertEq(vault.owner, address(this));
-        assertEq(cauldron.balances(vaultId).art, borrowAmount);
-        assertEq(IERC20(strategyAddress).balanceOf(vault.owner), 0);
-        // Assert that the balances are empty
-        assertEq(
-            IPool(ladle.pools(seriesId)).base().balanceOf(address(lever)),
-            0
-        );
-        assertEq(
-            IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
-            0
-        );
-    }
-
-    function buyFYTokenFor() public {
-        vm.startPrank(whaleMapping[strategyIlkId]);
-        IPool pool = IPool(ladle.pools(seriesId));
-        uint256 amount = pool.buyFYTokenPreview(buyFor);
-        pool.base().transfer(address(pool), amount + 10);
-        // Transfer to ladle
-        pool.buyFYToken(whaleMapping[strategyIlkId], buyFor, 0);
-        vm.stopPrank();
     }
 
     function sellBaseFor() public {
@@ -186,9 +161,31 @@ abstract contract ZeroState is Test {
         pool.sellFYToken(whaleMapping2[strategyIlkId], 0);
         vm.stopPrank();
     }
+
+    // --------------------------Tests---------------------------- //
+    /// @notice Test if vault is created correctly
+    function testBorrow() public {
+        DataTypes.Vault memory vault = cauldron.vaults(vaultId);
+        address strategyAddress = cauldron.assets(strategyIlkId);
+        assertEq(vault.owner, address(this));
+        assertEq(cauldron.balances(vaultId).art, borrowAmount);
+        assertGt(cauldron.balances(vaultId).ink, (baseAmount * 55) / 100);
+        assertEq(IERC20(strategyAddress).balanceOf(vault.owner), 0);
+        // Assert that the balances are empty
+        assertEq(
+            IPool(ladle.pools(seriesId)).base().balanceOf(address(lever)),
+            0
+        );
+        assertEq(
+            IPool(ladle.pools(seriesId)).fyToken().balanceOf(address(lever)),
+            0
+        );
+    }
 }
 
 abstract contract InvestedState is ZeroState {
+    bytes12 vaultId2;
+
     function setUp() public virtual override {
         super.setUp();
         sellBaseFor();
@@ -204,7 +201,7 @@ abstract contract InvestedState is ZeroState {
             YieldStrategyLever.Operation.BORROW,
             seriesId,
             strategyIlkId, // ilkId edai
-            baseAmount + 100,
+            baseAmount,
             borrowAmount,
             fyTokenToBuy,
             0 //minCollateral,
@@ -212,6 +209,7 @@ abstract contract InvestedState is ZeroState {
 
         vm.stopPrank();
 
+        // Checking if the state of second user's vault remains the same
         DataTypes.Vault memory vault = cauldron.vaults(vaultId2);
         address strategyAddress = cauldron.assets(strategyIlkId);
 
@@ -219,7 +217,7 @@ abstract contract InvestedState is ZeroState {
         assertEq(cauldron.balances(vaultId2).art, borrowAmount);
         assertEq(IERC20(strategyAddress).balanceOf(vault.owner), 0);
 
-        // Checking if the state of 1 user's vault remains the same
+        // Checking if the state of first user's vault remains the same
         vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
         assertEq(cauldron.balances(vaultId).art, borrowAmount);
