@@ -3,7 +3,7 @@ pragma solidity ^0.8.14;
 import "./YieldLeverBase.sol";
 import "./interfaces/IStableSwap.sol";
 import "@yield-protocol/utils-v2/contracts/interfaces/IWETH9.sol";
-
+import "@yield-protocol/yieldspace-tv/src/interfaces/IMaturingToken.sol";
 interface WstEth is IERC20 {
     function wrap(uint256 _stETHAmount) external returns (uint256);
 
@@ -21,7 +21,7 @@ interface WstEth is IERC20 {
 contract YieldStEthLever is YieldLeverBase {
     using TransferHelper for IERC20;
     using TransferHelper for IWETH9;
-    using TransferHelper for IFYToken;
+    using TransferHelper for IMaturingToken;
     using TransferHelper for WstEth;
     using CastU128I128 for uint128;
     using CastU256U128 for uint256;
@@ -86,7 +86,7 @@ contract YieldStEthLever is YieldLeverBase {
         uint256 minCollateral
     ) external payable returns (bytes12 vaultId) {
         IPool pool = IPool(ladle.pools(seriesId));
-        IFYToken fyToken = pool.fyToken();
+        IMaturingToken fyToken = pool.fyToken();
 
         // Convert ETH to WETH
         weth.deposit{value: msg.value}();
@@ -149,7 +149,7 @@ contract YieldStEthLever is YieldLeverBase {
         Operation status = Operation(uint256(uint8(data[0])));
         bytes6 seriesId = bytes6(data[1:7]);
         bytes12 vaultId = bytes12(data[7:19]);
-        IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
+        IMaturingToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
         // Test that the lender is either a fyToken contract or the Weth Join
         // Join.
         if (msg.sender != address(fyToken) && msg.sender != address(wethJoin))
@@ -210,7 +210,7 @@ contract YieldStEthLever is YieldLeverBase {
             // Get WEth by selling borrowed FYTokens. We don't need to check for a
             // minimum since we check that we have enough collateral later on.
             pool = IPool(ladle.pools(seriesId));
-            IFYToken fyToken = pool.fyToken();
+            IMaturingToken fyToken = pool.fyToken();
             fyToken.safeTransfer(address(pool), netInvestAmount);
         }
         uint256 wethReceived = pool.sellFYToken(address(this), 0);
@@ -285,7 +285,7 @@ contract YieldStEthLever is YieldLeverBase {
         // Check if we're pre or post maturity.
         if (uint32(block.timestamp) < cauldron.series(seriesId).maturity) {
             IPool pool = IPool(ladle.pools(seriesId));
-            IFYToken fyToken = pool.fyToken();
+            IMaturingToken fyToken = pool.fyToken();
             // Repay:
             // Series is not past maturity.
             // Borrow to repay debt, move directly to the pool.

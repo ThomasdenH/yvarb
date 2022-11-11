@@ -4,11 +4,11 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "contracts/YieldStrategyLever.sol";
 import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
-import "@yield-protocol/vault-v2/contracts/FYToken.sol";
-import "@yield-protocol/vault-v2/contracts/utils/Giver.sol";
-import "@yield-protocol/vault-v2/contracts/FlashJoin.sol";
-import "@yield-protocol/vault-v2/contracts/interfaces/ICauldron.sol";
-import "@yield-protocol/vault-v2/contracts/interfaces/ILadle.sol";
+import "@yield-protocol/vault-v2/FYToken.sol";
+import "@yield-protocol/vault-v2/utils/Giver.sol";
+import "@yield-protocol/vault-v2/FlashJoin.sol";
+import "@yield-protocol/vault-v2/interfaces/ICauldron.sol";
+import "@yield-protocol/vault-v2/interfaces/ILadle.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
 import "@yield-protocol/utils-v2/contracts/access/AccessControl.sol";
 
