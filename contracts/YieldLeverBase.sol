@@ -3,11 +3,11 @@ pragma solidity ^0.8.14;
 
 import "erc3156/contracts/interfaces/IERC3156FlashBorrower.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
-import "@yield-protocol/yieldspace-interfaces/IPool.sol";
-import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
-import "@yield-protocol/vault-interfaces/src/DataTypes.sol";
-import "@yield-protocol/vault-interfaces/src/ILadle.sol";
-import "@yield-protocol/vault-interfaces/src/IFYToken.sol";
+import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
+import "@yield-protocol/vault-v2/interfaces/ICauldron.sol";
+import "@yield-protocol/vault-v2/interfaces/DataTypes.sol";
+import "@yield-protocol/vault-v2/interfaces/ILadle.sol";
+import "@yield-protocol/vault-v2/interfaces/IFYToken.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
 import "@yield-protocol/utils-v2/contracts/token/TransferHelper.sol";
 import "@yield-protocol/vault-v2/utils/Giver.sol";
