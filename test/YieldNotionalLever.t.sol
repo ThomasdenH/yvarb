@@ -22,8 +22,8 @@ struct ilk_info {
 
 abstract contract ZeroState is Test {
     address constant timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;
-    address constant usdcWhale = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-    address constant daiWhale = 0xaD0135AF20fa82E106607257143d0060A7eB5cBf;
+    address constant usdcWhale = 0x0A59649758aa4d66E25f08Dd01271e891fe52199;
+    address constant daiWhale = 0x075e72a5eDf65F0A5f44699c7654C1a76941Ddc8;
     IERC20 constant USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IERC20 constant DAI = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     ICauldron constant cauldron =
@@ -38,11 +38,11 @@ abstract contract ZeroState is Test {
     Giver immutable giver;
     YieldNotionalLever lever;
 
-    bytes6 constant fyUsdc2209SeriesId = 0x303230370000;
-    bytes6 constant fyDai2209SeriesId = 0x303130370000;
+    bytes6 constant fyUsdc2209SeriesId = 0x303230380000;
+    bytes6 constant fyDai2209SeriesId = 0x303130380000;
 
-    bytes6 constant fUsdc2209IlkId = 0x313700000000;
-    bytes6 constant fDai2209IlkId = 0x313600000000;
+    bytes6 constant fUsdc2209IlkId = 0x323400000000;
+    bytes6 constant fDai2209IlkId = 0x323300000000;
 
     bytes6 constant usdcIlkId = 0x303200000000;
     bytes6 constant daiIlkId = 0x303100000000;
@@ -59,12 +59,16 @@ abstract contract ZeroState is Test {
         IERC20(DAI).transfer(address(this), 2000e18);
 
         vm.startPrank(timeLock);
-        usdcJoin.setFlashFeeFactor(1);
-        daiJoin.setFlashFeeFactor(1);
+        usdcJoin.setFlashFeeFactor(0);
+        daiJoin.setFlashFeeFactor(0);
         FYToken(address(IPool(ladle.pools(fyUsdc2209SeriesId)).fyToken()))
-            .setFlashFeeFactor(1);
+            .setFlashFeeFactor(0);
         FYToken(address(IPool(ladle.pools(fyDai2209SeriesId)).fyToken()))
-            .setFlashFeeFactor(1);
+            .setFlashFeeFactor(0);
+        usdcJoin.grantRole(0xceae3abd, address(ladle.joins(fUsdc2209IlkId)));
+        daiJoin.grantRole(0xceae3abd, address(ladle.joins(fDai2209IlkId)));
+        usdcJoin.grantRole(0x12e5ff77, address(ladle.joins(fUsdc2209IlkId)));
+        daiJoin.grantRole(0x12e5ff77, address(ladle.joins(fDai2209IlkId)));
         vm.stopPrank();
     }
 
@@ -79,7 +83,7 @@ abstract contract ZeroState is Test {
             fUsdc2209IlkId,
             YieldNotionalLever.IlkInfo({
                 join: usdcJoin,
-                maturity: 1664064000,
+                maturity: 1671840000,
                 currencyId: 3
             })
         );
@@ -89,7 +93,7 @@ abstract contract ZeroState is Test {
             fDai2209IlkId,
             YieldNotionalLever.IlkInfo({
                 join: daiJoin,
-                maturity: 1664064000,
+                maturity: 1671840000,
                 currencyId: 2
             })
         );

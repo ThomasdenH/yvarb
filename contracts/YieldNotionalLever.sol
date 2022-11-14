@@ -30,12 +30,12 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     constructor(Giver giver_) YieldLeverBase(giver_) {
         notional.setApprovalForAll(address(ladle), true);
         notional.setApprovalForAll(
-            0x0Bfd3B8570A4247157c5468861d37dA55AAb9B4b,
+            0x83e99A843607CfFFC97A3acA15422aC672a463eF,
             true
         ); // Approving the Join
 
         notional.setApprovalForAll(
-            0x399bA81A1f1Ed0221c39179C50d4d4Bc85C3F3Ab,
+            0xA9078E573EC536c4066A5E89F715553Ed67B13E0,
             true
         ); // Approving the join
     }
@@ -306,7 +306,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 art, // Loan Amount: borrow exactly the debt to repay.
                 data
             );
+            
             if (!success) revert FlashLoanFailure();
+            
             uint256 balance = token.balanceOf(address(this));
             token.safeTransfer(msg.sender, balance);
         }
@@ -390,12 +392,14 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint256 ink,
         uint256 art
     ) internal {
+        
         ladle.close(
             vaultId,
             address(this),
             -ink.u128().i128(),
             -art.u128().i128()
         );
+        
     }
 
     /// @dev Called by the sender after a transfer to verify it was received. Ensures only `id` tokens are received.
