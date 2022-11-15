@@ -5,9 +5,9 @@ import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastI128U128.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastU256U128.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastU256I256.sol";
+import "@yield-protocol/vault-v2/other/notional/ERC1155.sol";
 import "./YieldLeverBase.sol";
 import "./NotionalTypes.sol";
-import "@yield-protocol/vault-v2/other/notional/ERC1155.sol";
 
 contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     using TransferHelper for IERC20;
@@ -18,7 +18,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     using CastU256I256 for uint256;
     Notional constant notional =
         Notional(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
-
+    bytes6 constant ASSET_ID_MASK = 0xFFFF00000000;
     struct IlkInfo {
         FlashJoin join;
         uint40 maturity;
@@ -29,37 +29,14 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
     constructor(Giver giver_) YieldLeverBase(giver_) {
         notional.setApprovalForAll(address(ladle), true);
-        notional.setApprovalForAll(
-            0x83e99A843607CfFFC97A3acA15422aC672a463eF,
-            true
-        ); // Approving the Join
-
-        notional.setApprovalForAll(
-            0xA9078E573EC536c4066A5E89F715553Ed67B13E0,
-            true
-        ); // Approving the join
     }
 
     // TODO: Make it auth controlled when deploying
     function setIlkInfo(bytes6 ilkId, IlkInfo calldata underlying) external {
         IERC20 token = IERC20(underlying.join.asset());
-        token.approve(address(underlying.join), type(uint256).max);
         token.approve(address(notional), type(uint256).max);
         ilkInfo[ilkId] = underlying;
-    }
-
-    // TODO: Make it auth controlled when deploying
-    function approveJoin(address joinAddress) external {
-        notional.setApprovalForAll(joinAddress, true);
-    }
-
-    /// @notice Approve maximally for an fyToken.
-    /// @param seriesId The id of the pool to approve to.
-    function approveFyToken(bytes6 seriesId) external {
-        IPool(ladle.pools(seriesId)).fyToken().approve(
-            address(ladle),
-            type(uint256).max
-        );
+        notional.setApprovalForAll(address(ladle.joins(ilkId)), true);
     }
 
     /// @notice Invest by creating a levered vault.
@@ -76,6 +53,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint256 borrowAmount
     ) external returns (bytes12 vaultId) {
         (vaultId, ) = ladle.build(seriesId, ilkId, 0);
+
         // Since we know the sizes exactly, packing values in this way is more
         // efficient than using `abi.encode`.
         //
@@ -103,125 +81,6 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         // The leftover assets originated in the join, so just deposit them back
         uint256 balance = token.balanceOf(address(this));
         token.safeTransfer(address(info.join), balance);
-    }
-
-    /// @notice Called by a flash lender, which can be `usdcJoin` or
-    ///     `daiJoin` or 'fyToken`. The primary purpose is to check conditions
-    ///     and route to the correct internal function.
-    ///
-    ///     This function reverts if not called through a flashloan initiated
-    ///     by this contract.
-    /// @param initiator The initator of the flash loan, must be `address(this)`.
-    /// @param borrowAmount The amount of fyTokens received.
-    /// @param fee The fee that is subtracted in addition to the borrowed
-    ///     amount when repaying.
-    /// @param data The data we encoded for the functions. Here, we only check
-    ///     the first byte for the router.
-    function onFlashLoan(
-        address initiator,
-        address, // The token, not checked as we check the lender address.
-        uint256 borrowAmount,
-        uint256 fee,
-        bytes calldata data
-    ) external override returns (bytes32) {
-        // For security, we need to check two things: 1. that the lender is
-        // trusted and 2. that they supplied our address as the initiator.
-
-        Operation status = Operation(uint256(uint8(data[0])));
-        bytes6 seriesId = bytes6(data[1:7]);
-        // 2. If we trust the lender, we can check that the initiator is correct
-        if (initiator != address(this)) revert FlashLoanFailure();
-
-        // Decode the operation to execute and then call that function.
-        if (status == Operation.BORROW) {
-            bytes6 ilkId = bytes6(data[7:13]);
-            // 1. Check the caller
-            require(msg.sender == address(ilkInfo[ilkId].join));
-
-            bytes12 vaultId = bytes12(data[13:25]);
-            uint256 baseAmount = uint256(bytes32(data[25:57]));
-            borrow(vaultId, seriesId, ilkId, borrowAmount, fee, baseAmount);
-        } else if (status == Operation.REPAY) {
-            // 1. Check the caller
-            IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
-            require(msg.sender == address(fyToken));
-
-            bytes6 ilkId = bytes6(data[7:13]);
-            bytes12 vaultId = bytes12(data[13:25]);
-            repay(vaultId, seriesId, ilkId, borrowAmount + fee, data);
-        } else if (status == Operation.CLOSE) {
-            bytes12 vaultId = bytes12(data[7:19]);
-            uint256 ink = uint256(bytes32(data[19:51]));
-            uint256 art = uint256(bytes32(data[51:83]));
-            bytes6 ilkId = bytes6(data[83:89]);
-            // 1. Check the caller
-            require(msg.sender == address(ilkInfo[ilkId].join));
-
-            close(vaultId, ink, art);
-        }
-        return FLASH_LOAN_RETURN;
-    }
-
-    /// @notice This function is called from within the flash loan. The high
-    ///     level functionality is as follows:
-    ///         - We have supplied 'dai' or 'usdc'.
-    ///         - We deposit it to get fCash and put it in the vault.
-    ///         - Against it, we borrow enough fyDai or fyUSDC to repay the flash loan.
-    /// @param vaultId The vault id to put collateral into and borrow from.
-    /// @param seriesId The pool (and thereby series) to borrow from.
-    /// @param ilkId Id of the Ilk
-    /// @param borrowAmount The amount of DAI/USDC borrowed in the flash loan.
-    /// @param fee The fee that will be issued by the flash loan.
-    /// @param baseAmount The amount of own collateral to supply.
-    function borrow(
-        bytes12 vaultId,
-        bytes6 seriesId,
-        bytes6 ilkId,
-        uint256 borrowAmount,
-        uint256 fee,
-        uint256 baseAmount
-    ) internal {
-        // Reuse variable to denote how much to invest. Done to prevent stack
-        // too deep error while being gas efficient.
-        baseAmount += (borrowAmount - fee);
-        uint88 fCashAmount;
-        bytes32 encodedTrade;
-        {
-            IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
-            // Deposit into notional to get the fCash
-            (fCashAmount, , encodedTrade) = notional.getfCashLendFromDeposit(
-                ilkIdInfo.currencyId,
-                baseAmount, // total to invest
-                ilkIdInfo.maturity,
-                0,
-                block.timestamp,
-                true
-            );
-
-            BalanceActionWithTrades[]
-                memory actions = new BalanceActionWithTrades[](1);
-            actions[0] = BalanceActionWithTrades({
-                actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
-                currencyId: ilkIdInfo.currencyId,
-                depositActionAmount: baseAmount, // total to invest
-                withdrawAmountInternalPrecision: 0,
-                withdrawEntireCashBalance: false, // Return all residual cash to lender
-                redeemToUnderlying: false, // Convert cToken to token
-                trades: new bytes32[](1)
-            });
-            actions[0].trades[0] = encodedTrade;
-            notional.batchBalanceAndTradeAction(address(this), actions);
-        }
-
-        IPool pool = IPool(ladle.pools(seriesId));
-        uint128 maxFyOut = pool.buyBasePreview(borrowAmount.u128());
-        ladle.pour(
-            vaultId,
-            address(pool),
-            (uint128(fCashAmount)).i128(),
-            (maxFyOut).i128()
-        );
-        pool.buyBase(address(this), borrowAmount.u128(), maxFyOut);
     }
 
     /// @notice Unwind a position.
@@ -284,7 +143,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             // We have borrowed exactly enough for the debt and bought back
             // exactly enough for the loan + fee, so there is no balance of
             // FYToken left. Check:
-            require(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
+            require(fyToken.balanceOf(address(this)) == 0);
         } else {
             // Close:
             // Series is not past maturity.
@@ -292,10 +151,10 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             bytes memory data = bytes.concat(
                 bytes1(bytes1(uint8(uint256(Operation.CLOSE)))), // [0:1]
                 seriesId, // [1:7]
-                vaultId, // [7:19]
-                bytes32(ink), // [19:51]
-                bytes32(art), // [51:83]
-                ilkId // [83:89]
+                ilkId, // [7:13]
+                vaultId, // [13:25]
+                bytes32(ink), // [25:57]
+                bytes32(art) // [57:89]
             );
             bool success;
             IlkInfo memory info = ilkInfo[ilkId];
@@ -306,9 +165,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 art, // Loan Amount: borrow exactly the debt to repay.
                 data
             );
-            
+
             if (!success) revert FlashLoanFailure();
-            
+
             uint256 balance = token.balanceOf(address(this));
             token.safeTransfer(msg.sender, balance);
         }
@@ -316,12 +175,127 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         giver.give(vaultId, msg.sender);
     }
 
+    /// @notice Called by a flash lender, which can be `usdcJoin` or
+    ///     `daiJoin` or 'fyToken`. The primary purpose is to check conditions
+    ///     and route to the correct internal function.
+    ///
+    ///     This function reverts if not called through a flashloan initiated
+    ///     by this contract.
+    /// @param initiator The initator of the flash loan, must be `address(this)`.
+    /// @param borrowAmount The amount of fyTokens received.
+    /// @param fee The fee that is subtracted in addition to the borrowed
+    ///     amount when repaying.
+    /// @param data The data we encoded for the functions. Here, we only check
+    ///     the first byte for the router.
+    function onFlashLoan(
+        address initiator,
+        address token, // The token, not checked as we check the lender address.
+        uint256 borrowAmount,
+        uint256 fee,
+        bytes calldata data
+    ) external override returns (bytes32) {
+        // For security, we need to check two things: 1. that the lender is
+        // trusted and 2. that they supplied our address as the initiator.
+
+        Operation status = Operation(uint256(uint8(data[0])));
+        bytes6 seriesId = bytes6(data[1:7]);
+        bytes6 ilkId = bytes6(data[7:13]);
+        bytes12 vaultId = bytes12(data[13:25]);
+        // Test that the lender is either a fyToken contract or the join.
+        if (
+            msg.sender != address(IPool(ladle.pools(seriesId)).fyToken()) &&
+            msg.sender != address(ladle.joins(seriesId & ASSET_ID_MASK))
+        ) revert FlashLoanFailure();
+        // We trust the lender, so now we can check that we were the initiator.
+        if (initiator != address(this)) revert FlashLoanFailure();
+        // Decode the operation to execute and then call that function.
+        if (status == Operation.BORROW) {
+            uint256 baseAmount = uint256(bytes32(data[25:57]));
+            IERC20(token).approve(msg.sender, borrowAmount + fee);
+            _borrow(vaultId, seriesId, ilkId, borrowAmount, fee, baseAmount);
+        } else if (status == Operation.REPAY) {
+            IERC20(token).approve(msg.sender, borrowAmount + fee);
+            _repay(vaultId, seriesId, ilkId, borrowAmount + fee, data);
+        } else if (status == Operation.CLOSE) {
+            uint256 ink = uint256(bytes32(data[25:57]));
+            uint256 art = uint256(bytes32(data[57:89]));
+            // borrowAmount is twice as we need approval for closing the debt position & closing the flash loan
+            IERC20(token).approve(
+                msg.sender,
+                borrowAmount + borrowAmount + fee
+            );
+            _close(vaultId, ink, art);
+        }
+        return FLASH_LOAN_RETURN;
+    }
+
+    /// @notice This function is called from within the flash loan. The high
+    ///     level functionality is as follows:
+    ///         - We have supplied 'dai' or 'usdc'.
+    ///         - We deposit it to get fCash and put it in the vault.
+    ///         - Against it, we borrow enough fyDai or fyUSDC to repay the flash loan.
+    /// @param vaultId The vault id to put collateral into and borrow from.
+    /// @param seriesId The pool (and thereby series) to borrow from.
+    /// @param ilkId Id of the Ilk
+    /// @param borrowAmount The amount of DAI/USDC borrowed in the flash loan.
+    /// @param fee The fee that will be issued by the flash loan.
+    /// @param baseAmount The amount of own collateral to supply.
+    function _borrow(
+        bytes12 vaultId,
+        bytes6 seriesId,
+        bytes6 ilkId,
+        uint256 borrowAmount,
+        uint256 fee,
+        uint256 baseAmount
+    ) internal {
+        // Reuse variable to denote how much to invest. Done to prevent stack
+        // too deep error while being gas efficient.
+        baseAmount += (borrowAmount - fee);
+        uint88 fCashAmount;
+        bytes32 encodedTrade;
+
+        IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
+        // Deposit into notional to get the fCash
+        (fCashAmount, , encodedTrade) = notional.getfCashLendFromDeposit(
+            ilkIdInfo.currencyId,
+            baseAmount, // total to invest
+            ilkIdInfo.maturity,
+            0,
+            block.timestamp,
+            true
+        );
+
+        BalanceActionWithTrades[]
+            memory actions = new BalanceActionWithTrades[](1);
+        actions[0] = BalanceActionWithTrades({
+            actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
+            currencyId: ilkIdInfo.currencyId,
+            depositActionAmount: baseAmount, // total to invest
+            withdrawAmountInternalPrecision: 0,
+            withdrawEntireCashBalance: false, // Return all residual cash to lender
+            redeemToUnderlying: false, // Convert cToken to token
+            trades: new bytes32[](1)
+        });
+        actions[0].trades[0] = encodedTrade;
+        notional.batchBalanceAndTradeAction(address(this), actions);
+
+        IPool pool = IPool(ladle.pools(seriesId));
+        uint128 maxFyOut = pool.buyBasePreview(borrowAmount.u128());
+        ladle.pour(
+            vaultId,
+            address(pool),
+            (uint128(fCashAmount)).i128(),
+            (maxFyOut).i128()
+        );
+        pool.buyBase(address(this), borrowAmount.u128(), maxFyOut);
+    }
+
     /// @param vaultId The vault to repay.
     /// @param seriesId The seriesId corresponding to the vault.
     /// @param ilkId Id of the Ilk
     /// @param borrowPlusFee The amount of fyDai/fyUsdc that we have borrowed,
     ///     plus the fee. This should be our final balance.
-    function repay(
+    function _repay(
         bytes12 vaultId,
         bytes6 seriesId,
         bytes6 ilkId,
@@ -330,42 +304,40 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     ) internal {
         // Repay the vault, get collateral back.
         IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
-        {
-            uint256 ink = uint256(bytes32(data[25:57]));
-            uint256 art = uint256(bytes32(data[57:89]));
-            ladle.pour(
-                vaultId,
-                address(this),
-                -ink.u128().i128(),
-                -art.u128().i128()
-            );
-            {
-                // Trade fCash to receive USDC/DAI
-                BalanceActionWithTrades[]
-                    memory actions = new BalanceActionWithTrades[](1);
-                actions[0] = BalanceActionWithTrades({
-                    actionType: DepositActionType.None,
-                    currencyId: ilkIdInfo.currencyId,
-                    depositActionAmount: 0,
-                    withdrawAmountInternalPrecision: 0,
-                    withdrawEntireCashBalance: true,
-                    redeemToUnderlying: true,
-                    trades: new bytes32[](1)
-                });
 
-                (, , , bytes32 encodedTrade) = notional
-                    .getPrincipalFromfCashBorrow(
-                        ilkIdInfo.currencyId,
-                        ink,
-                        ilkIdInfo.maturity,
-                        0,
-                        block.timestamp
-                    );
+        uint256 ink = uint256(bytes32(data[25:57]));
+        uint256 art = uint256(bytes32(data[57:89]));
+        cauldron.series(seriesId).fyToken.approve(address(ladle), art);
+        ladle.pour(
+            vaultId,
+            address(this),
+            -ink.u128().i128(),
+            -art.u128().i128()
+        );
 
-                actions[0].trades[0] = encodedTrade;
-                notional.batchBalanceAndTradeAction(address(this), actions);
-            }
-        }
+        // Trade fCash to receive USDC/DAI
+        BalanceActionWithTrades[]
+            memory actions = new BalanceActionWithTrades[](1);
+        actions[0] = BalanceActionWithTrades({
+            actionType: DepositActionType.None,
+            currencyId: ilkIdInfo.currencyId,
+            depositActionAmount: 0,
+            withdrawAmountInternalPrecision: 0,
+            withdrawEntireCashBalance: true,
+            redeemToUnderlying: true,
+            trades: new bytes32[](1)
+        });
+
+        (, , , bytes32 encodedTrade) = notional.getPrincipalFromfCashBorrow(
+            ilkIdInfo.currencyId,
+            ink,
+            ilkIdInfo.maturity,
+            0,
+            block.timestamp
+        );
+
+        actions[0].trades[0] = encodedTrade;
+        notional.batchBalanceAndTradeAction(address(this), actions);
 
         // buyFyToken
         IPool pool = IPool(ladle.pools(seriesId));
@@ -378,7 +350,6 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         address borrower = address(bytes20(data[121:141]));
         uint256 balance = token.balanceOf(address(this));
         require(balance >= minOut, "balance is not minout");
-
         token.safeTransfer(borrower, balance);
     }
 
@@ -386,20 +357,18 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     /// @param vaultId The ID of the vault to close.
     /// @param ink The collateral to take from the vault.
     /// @param art The debt to repay. This is denominated in fyTokens, even
-    ///     though the payment is done in terms of WEth.
-    function close(
+    ///     though the payment is done in terms of USDC/DAI.
+    function _close(
         bytes12 vaultId,
         uint256 ink,
         uint256 art
     ) internal {
-        
         ladle.close(
             vaultId,
             address(this),
             -ink.u128().i128(),
             -art.u128().i128()
         );
-        
     }
 
     /// @dev Called by the sender after a transfer to verify it was received. Ensures only `id` tokens are received.
