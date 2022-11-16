@@ -16,3 +16,6 @@
 [submodule "lib/yieldspace-tv"]
 	path = lib/yieldspace-tv
 	url = https://github.com/yieldprotocol/yieldspace-tv
+[submodule "lib/yieldspace-interfaces"]
+	path = lib/yieldspace-interfaces
+	url = https://github.com/@yield-protocol/yieldspace-interfaces
