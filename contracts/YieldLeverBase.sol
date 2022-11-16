@@ -3,15 +3,17 @@ pragma solidity ^0.8.14;
 
 import "erc3156/contracts/interfaces/IERC3156FlashBorrower.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
-import "@yield-protocol/yieldspace-interfaces/IPool.sol";
-import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
-import "@yield-protocol/vault-interfaces/src/DataTypes.sol";
-import "@yield-protocol/vault-interfaces/src/ILadle.sol";
-import "@yield-protocol/vault-interfaces/src/IFYToken.sol";
+import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
+import "@yield-protocol/vault-v2/interfaces/ICauldron.sol";
+import "@yield-protocol/vault-v2/interfaces/DataTypes.sol";
+import "@yield-protocol/vault-v2/interfaces/ILadle.sol";
+import "@yield-protocol/vault-v2/interfaces/IFYToken.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
 import "@yield-protocol/utils-v2/contracts/token/TransferHelper.sol";
 import "@yield-protocol/vault-v2/utils/Giver.sol";
 import "@yield-protocol/vault-v2/FlashJoin.sol";
+import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
+import "@yield-protocol/utils-v2/contracts/cast/CastU256U128.sol";
 
 error FlashLoanFailure();
 error SlippageFailure();
@@ -21,7 +23,6 @@ contract YieldLeverBase is IERC3156FlashBorrower {
     ///     operations.
     ILadle public constant ladle =
         ILadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
-
     /// @notice The Yield Cauldron, handles debt and collateral balances.
     ICauldron public constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
@@ -46,11 +47,11 @@ contract YieldLeverBase is IERC3156FlashBorrower {
     }
 
     function onFlashLoan(
-        address, // initiator,
+        address initiator,
         address, // The token, not checked as we check the lender address.
-        uint256, // borrowAmount,
-        uint256, // fee,
-        bytes calldata // data
+        uint256 borrowAmount,
+        uint256 fee,
+        bytes calldata data
     ) external virtual returns (bytes32) {
         return FLASH_LOAN_RETURN;
     }
