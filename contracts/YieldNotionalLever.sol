@@ -9,6 +9,9 @@ import "@yield-protocol/vault-v2/other/notional/ERC1155.sol";
 import "./YieldLeverBase.sol";
 import "./NotionalTypes.sol";
 
+/// @title A contract to help users build levered position on notional
+/// @author iamsahu
+/// @notice Each external function has the details on how this works
 contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     using TransferHelper for IERC20;
     using TransferHelper for IFYToken;
@@ -32,17 +35,23 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     }
 
     // TODO: Make it auth controlled when deploying
-    function setIlkInfo(bytes6 ilkId, IlkInfo calldata underlying) external {
-        IERC20 token = IERC20(underlying.join.asset());
+    /// @notice Stores information regarding ilks which are enabled on the lever
+    /// @param ilkId the id of the ilk
+    /// @param ilkInfo_ Contains the information regarding the ilk to be set
+    function setIlkInfo(bytes6 ilkId, IlkInfo calldata ilkInfo_) external {
+        IERC20 token = IERC20(ilkInfo_.join.asset());
         token.approve(address(notional), type(uint256).max);
-        ilkInfo[ilkId] = underlying;
+        ilkInfo[ilkId] = ilkInfo_;
         notional.setApprovalForAll(address(ladle.joins(ilkId)), true);
     }
 
     /// @notice Invest by creating a levered vault.
-    ///
-    ///     We invest `USDC` or `DAI`. For this the user should have given approval
-    ///     first. We borrow `borrowAmount` extra. We use it to deposit in notional and get fCash, which we use as collateral.
+    ///         Here are the steps:
+    ///         1. Transfer `baseAmount` of USDC/DAI from the user
+    ///         2. Flashloan `borrowAmount` of USDC/DAI from the join
+    ///         3. Deposit USDC/DAI into notional market to get relevant fCash
+    ///         4. Pour the received fCash to borrow fyToken
+    ///         5. Buy base using the borrowed fyToken to pay back the flash loan
     /// @param baseAmount The amount of own liquidity to supply.
     /// @param borrowAmount The amount of additional liquidity to borrow.
     /// @param seriesId The series to create the vault for.
@@ -60,9 +69,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         // Encode data of
         // OperationType    1 byte      [0:1]
         // seriesId         6 bytes     [1:7]
-        // ilkId            6 bytes     [7:13]
-        // vaultId          12 bytes    [13:25]
-        // baseAmount       16 bytes    [25:41]
+        // vaultId          12 bytes    [7:19]
+        // ilkId            6 bytes     [19:25]
+        // baseAmount       32 bytes    [25:57]
         bytes memory data = bytes.concat(
             bytes1(uint8(uint256(Operation.BORROW))),
             seriesId,
@@ -74,7 +83,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         bool success;
         IlkInfo memory info = ilkInfo[ilkId];
         IERC20 token = IERC20(info.join.asset());
+        // Transfer the underlying USDC/DAI already approved by the user
         token.safeTransferFrom(msg.sender, address(this), baseAmount);
+        // Flash loan the underlying USDC/DAI
         success = info.join.flashLoan(this, address(token), borrowAmount, data);
         if (!success) revert FlashLoanFailure();
         giver.give(vaultId, msg.sender);
@@ -86,9 +97,15 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     /// @notice Unwind a position.
     ///
     ///     If pre maturity, borrow liquidity tokens to repay `art` debt and
-    ///     take `ink` collateral.
+    ///     take `ink` collateral. Here are the steps:
+    ///     1. Flash loan debt amount of fyToken
+    ///     2. Repay the debt to get collateral (fCash)
+    ///     3. Use fCash to get the underlying(USDC/DAI) in return from Notional
+    ///     4. Use the received underlying to buyFYToken equivalent to the amount which was flash loaned
     ///
-    ///     If post maturity, borrow USDC/DAI to pay off the debt directly.
+    ///     If post maturity, borrow USDC/DAI to pay off the debt directly. Here are the steps
+    ///     1. Flash loan amount of USDC/DAI equivalent to the debt
+    ///     2. Pay the debt to get collateral in return which is used to payback the flash loan
     ///
     ///     This function will take the vault from you using `Giver`, so make
     ///     sure you have given it permission to do that.
@@ -194,9 +211,6 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint256 fee,
         bytes calldata data
     ) external override returns (bytes32) {
-        // For security, we need to check two things: 1. that the lender is
-        // trusted and 2. that they supplied our address as the initiator.
-
         Operation status = Operation(uint256(uint8(data[0])));
         bytes6 seriesId = bytes6(data[1:7]);
         bytes6 ilkId = bytes6(data[7:13]);
@@ -231,9 +245,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
     /// @notice This function is called from within the flash loan. The high
     ///     level functionality is as follows:
-    ///         - We have supplied 'dai' or 'usdc'.
-    ///         - We deposit it to get fCash and put it in the vault.
-    ///         - Against it, we borrow enough fyDai or fyUSDC to repay the flash loan.
+    ///         1. We have supplied 'dai' or 'usdc'.
+    ///         2. We deposit it to get fCash and put it in the vault.
+    ///         3. Against it, we borrow enough fyDai or fyUSDC to repay the flash loan.
     /// @param vaultId The vault id to put collateral into and borrow from.
     /// @param seriesId The pool (and thereby series) to borrow from.
     /// @param ilkId Id of the Ilk
@@ -250,7 +264,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     ) internal {
         // Reuse variable to denote how much to invest. Done to prevent stack
         // too deep error while being gas efficient.
-        baseAmount += (borrowAmount - fee);
+        unchecked {
+            baseAmount += (borrowAmount - fee);
+        }
         uint88 fCashAmount;
         bytes32 encodedTrade;
 
@@ -291,6 +307,11 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     }
 
     /// @param vaultId The vault to repay.
+    /// @notice Here are the steps:
+    ///         1. Use the flash loaned fyToken to repay the debt & withdraw collateral (fCash)
+    ///         2. Trade the collateral(fCash) on Notional to get the underlying(USDC/DAI) in return
+    ///         3. Buy fyToken using the received underlying to repay the flash loan
+    ///         4. Transfer remaining underlying to the user
     /// @param seriesId The seriesId corresponding to the vault.
     /// @param ilkId Id of the Ilk
     /// @param borrowPlusFee The amount of fyDai/fyUsdc that we have borrowed,

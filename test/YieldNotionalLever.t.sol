@@ -78,7 +78,7 @@ abstract contract ZeroState is Test {
 
         fIlkId = fUsdcIlkId;
         fSeriesId = fyUsdcSeriesId;
-        
+
         USDC.approve(address(lever), type(uint256).max);
         DAI.approve(address(lever), type(uint256).max);
 
@@ -104,9 +104,6 @@ abstract contract ZeroState is Test {
 
         giver.grantRole(0xe4fd9dc5, timeLock);
         giver.grantRole(0x35775afb, address(lever));
-
-        // lever.approveFyToken(fyUsdcSeriesId);
-        // lever.approveFyToken(fyDaiSeriesId);
     }
 
     /// @notice Create a vault.
