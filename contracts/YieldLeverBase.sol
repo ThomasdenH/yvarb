@@ -4,6 +4,7 @@ pragma solidity ^0.8.14;
 import "erc3156/contracts/interfaces/IERC3156FlashBorrower.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
+import "@yield-protocol/yieldspace-tv/src/interfaces/IMaturingToken.sol";
 import "@yield-protocol/vault-v2/interfaces/ICauldron.sol";
 import "@yield-protocol/vault-v2/interfaces/DataTypes.sol";
 import "@yield-protocol/vault-v2/interfaces/ILadle.sol";

@@ -135,7 +135,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         // Check if we're pre or post maturity.
         if (uint32(block.timestamp) < cauldron.series(seriesId).maturity) {
             IPool pool = IPool(ladle.pools(seriesId));
-            IFYToken fyToken = pool.fyToken();
+            IMaturingToken fyToken = pool.fyToken();
             // Close:
             // Series is not past maturity.
             // Borrow to repay debt, move directly to the pool.
