@@ -22,12 +22,20 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     Notional constant notional =
         Notional(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
     bytes6 constant ASSET_ID_MASK = 0xFFFF00000000;
+
+    /// @notice Struct to store fcash related information for an ilk
+    /// @param join The join of the underlying asset
+    /// @param maturity The maturity date of fCash
+    /// @param currencyId The id used for the fCash in notional
+    /// @dev We choose to store join redundantly as it is cheaper to load
+    ///     than to use an if statement to choose based on the currency id
     struct IlkInfo {
         FlashJoin join;
         uint40 maturity;
         uint16 currencyId;
     }
 
+    /// @notice stores the information of the enabled ilks on the lever
     mapping(bytes6 => IlkInfo) public ilkInfo;
 
     constructor(Giver giver_) YieldLeverBase(giver_) {
@@ -35,9 +43,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     }
 
     // TODO: Make it auth controlled when deploying
-    /// @notice Stores information regarding ilks which are enabled on the lever
+    /// @notice Stores information regarding ilks (t) which are enabled on the lever
     /// @param ilkId the id of the ilk
-    /// @param ilkInfo_ Contains the information regarding the ilk to be set
+    /// @param ilkInfo_ fCash related information for the ilk to being added
     function setIlkInfo(bytes6 ilkId, IlkInfo calldata ilkInfo_) external {
         IERC20 token = IERC20(ilkInfo_.join.asset());
         token.approve(address(notional), type(uint256).max);
@@ -215,6 +223,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         bytes6 seriesId = bytes6(data[1:7]);
         bytes6 ilkId = bytes6(data[7:13]);
         bytes12 vaultId = bytes12(data[13:25]);
+
         // Test that the lender is either a fyToken contract or the join.
         if (
             msg.sender != address(IPool(ladle.pools(seriesId)).fyToken()) &&
