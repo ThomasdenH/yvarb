@@ -254,7 +254,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
     /// @notice This function is called from within the flash loan. The high
     ///     level functionality is as follows:
-    ///         1. We have supplied 'dai' or 'usdc
+    ///         1. We have supplied dai/usdc & flash loaned dai/usdc
     ///         2. We deposit it to get fCash and put it in the vault.
     ///         3. Against it, we borrow enough fyDai or fyUSDC to repay the flash loan.
     /// @param vaultId The vault id to put collateral into and borrow from.
@@ -394,6 +394,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     }
 
     /// @notice Close a vault after maturity.
+    ///         Use the flashloaned USDC/DAI to close the position and payback the flash loan
     /// @param vaultId The ID of the vault to close.
     /// @param ink The collateral to take from the vault.
     /// @param art The debt to repay. This is denominated in fyTokens, even
