@@ -254,7 +254,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
     /// @notice This function is called from within the flash loan. The high
     ///     level functionality is as follows:
-    ///         1. We have supplied 'dai' or 'usdc'.
+    ///         1. We have supplied 'dai' or 'usdc
     ///         2. We deposit it to get fCash and put it in the vault.
     ///         3. Against it, we borrow enough fyDai or fyUSDC to repay the flash loan.
     /// @param vaultId The vault id to put collateral into and borrow from.
@@ -281,14 +281,6 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
         IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
         // Deposit into notional to get the fCash
-        (fCashAmount, , encodedTrade) = notional.getfCashLendFromDeposit(
-            ilkIdInfo.currencyId,
-            baseAmount, // total to invest
-            ilkIdInfo.maturity,
-            0,
-            block.timestamp,
-            true
-        );
 
         BalanceActionWithTrades[]
             memory actions = new BalanceActionWithTrades[](1);
@@ -301,17 +293,31 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             redeemToUnderlying: false, // Convert cToken to token
             trades: new bytes32[](1)
         });
+        // gas: 127997
+        (fCashAmount, , encodedTrade) = notional.getfCashLendFromDeposit(
+            ilkIdInfo.currencyId,
+            baseAmount, // total to invest
+            ilkIdInfo.maturity,
+            0,
+            block.timestamp,
+            true
+        );
+
         actions[0].trades[0] = encodedTrade;
+        // gas: 302658
         notional.batchBalanceAndTradeAction(address(this), actions);
 
         IPool pool = IPool(ladle.pools(seriesId));
+        // gas: 87609
         uint128 maxFyOut = pool.buyBasePreview(borrowAmount.u128());
+        // gas: 172109
         ladle.pour(
             vaultId,
             address(pool),
             (uint128(fCashAmount)).i128(),
             (maxFyOut).i128()
         );
+        // gas: 196566
         pool.buyBase(address(this), borrowAmount.u128(), maxFyOut);
     }
 
@@ -338,6 +344,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint256 ink = uint256(bytes32(data[25:57]));
         uint256 art = uint256(bytes32(data[57:89]));
         cauldron.series(seriesId).fyToken.approve(address(ladle), art);
+        // gas: 103205
         ladle.pour(
             vaultId,
             address(this),
@@ -357,7 +364,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             redeemToUnderlying: true,
             trades: new bytes32[](1)
         });
-
+        // gas: 105844
         (, , , bytes32 encodedTrade) = notional.getPrincipalFromfCashBorrow(
             ilkIdInfo.currencyId,
             ink,
@@ -367,13 +374,16 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         );
 
         actions[0].trades[0] = encodedTrade;
+        // gas: 231822
         notional.batchBalanceAndTradeAction(address(this), actions);
 
         // buyFyToken
         IPool pool = IPool(ladle.pools(seriesId));
+        // gas: 76833
         uint128 tokenToTran = pool.buyFYTokenPreview(borrowPlusFee.u128());
         IERC20 token = IERC20(ilkIdInfo.join.asset());
         token.safeTransfer(address(pool), tokenToTran);
+        // gas: 136916
         pool.buyFYToken(address(this), borrowPlusFee.u128(), tokenToTran);
 
         uint256 minOut = uint256(bytes32(data[89:121]));
