@@ -25,9 +25,7 @@ contract YieldStEthLever is YieldLeverBase {
     using TransferHelper for WstEth;
     using CastU128I128 for uint128;
     using CastU256U128 for uint256;
-    /// @notice WEth.
-    IWETH9 public constant weth =
-        IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    
     /// @notice StEth, represents Ether stakes on Lido.
     IERC20 public constant steth =
         IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);

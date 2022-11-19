@@ -15,11 +15,13 @@ import "@yield-protocol/vault-v2/utils/Giver.sol";
 import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastU256U128.sol";
+import "@yield-protocol/utils-v2/contracts/interfaces/IWETH9.sol";
 
 error FlashLoanFailure();
 error SlippageFailure();
 
 contract YieldLeverBase is IERC3156FlashBorrower {
+    using TransferHelper for IWETH9;
     /// @notice The Yield Ladle, the primary entry point for most high-level
     ///     operations.
     ILadle public constant ladle =
@@ -27,7 +29,9 @@ contract YieldLeverBase is IERC3156FlashBorrower {
     /// @notice The Yield Cauldron, handles debt and collateral balances.
     ICauldron public constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
-
+/// @notice WEth.
+    IWETH9 public constant weth =
+        IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     /// @notice The operation to execute in the flash loan.
     enum Operation {
         BORROW,
