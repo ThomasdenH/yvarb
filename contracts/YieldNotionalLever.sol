@@ -38,6 +38,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     }
 
     /// @notice stores the information of the enabled ilks on the lever
+    mapping(bytes6 => IlkInfo) public ilkInfo;
 
     constructor(Giver giver_) YieldLeverBase(giver_) {
         notional.setApprovalForAll(address(ladle), true);
