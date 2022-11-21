@@ -13,13 +13,17 @@ import "@yield-protocol/vault-v2/FlashJoin.sol";
 import "@yield-protocol/vault-v2/interfaces/ICauldron.sol";
 import "@yield-protocol/vault-v2/interfaces/IFYToken.sol";
 import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
+import "@yield-protocol/vault-v2/other/notional/NotionalJoin.sol";
 
 abstract contract ZeroState is Test {
     address constant timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;
     address constant usdcWhale = 0x0A59649758aa4d66E25f08Dd01271e891fe52199;
     address constant daiWhale = 0x075e72a5eDf65F0A5f44699c7654C1a76941Ddc8;
+    address constant ethWhale = 0x00000000219ab540356cBB839Cbe05303d7705Fa;
+
     IERC20 constant USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IERC20 constant DAI = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+    IERC20 constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     ICauldron constant cauldron =
         ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
     FlashJoin constant daiJoin =
@@ -34,12 +38,16 @@ abstract contract ZeroState is Test {
 
     bytes6 constant fyusdcSeriesId = 0x303230380000;
     bytes6 constant fydaiSeriesId = 0x303130380000;
+    bytes6 constant fyethSeriesId = 0x303030390000;
 
     bytes6 constant fusdcIlkId = 0x323400000000;
     bytes6 constant fdaiIlkId = 0x323300000000;
+    bytes6 constant fethIlkId = 0x323900000000;
 
-    bytes6 constant usdcIlkId = 0x303200000000;
+    bytes6 constant ethIlkId = 0x303000000000;
     bytes6 constant daiIlkId = 0x303100000000;
+    bytes6 constant usdcIlkId = 0x303200000000;
+
     bytes12 public vaultId;
     bytes6 public fIlkId;
     bytes6 public fSeriesId;
@@ -52,37 +60,29 @@ abstract contract ZeroState is Test {
 
     constructor() {
         protocol = new Protocol();
-        giver = new Giver(cauldron);
-        vm.prank(timeLock);
-        AccessControl(address(cauldron)).grantRole(0x798a828b, address(giver));
+        giver = Giver(0xa98F3211997FDB072B6a8E2C2A26C34BC447f873);
 
         vm.prank(usdcWhale);
         IERC20(USDC).transfer(address(this), 2000e6);
         vm.prank(daiWhale);
         IERC20(DAI).transfer(address(this), 2000e18);
-
-        vm.startPrank(timeLock);
-        usdcJoin.setFlashFeeFactor(0);
-        daiJoin.setFlashFeeFactor(0);
-        FYToken(address(IPool(ladle.pools(fyusdcSeriesId)).fyToken()))
-            .setFlashFeeFactor(0);
-        FYToken(address(IPool(ladle.pools(fydaiSeriesId)).fyToken()))
-            .setFlashFeeFactor(0);
-        vm.stopPrank();
+        vm.prank(ethWhale);
+        payable(address(this)).transfer(2000e18);
     }
 
     function setUp() public virtual {
         lever = new YieldNotionalLever(giver);
 
-        fIlkId = fusdcIlkId;
-        fSeriesId = fyusdcSeriesId;
-        ilkId = usdcIlkId;
-        baseAmount = 2000e6;
-        borrowAmount = 5000e6;
+        fIlkId = fethIlkId;
+        fSeriesId = fyethSeriesId;
+        ilkId = ethIlkId;
+        baseAmount = 2000e18;
+        borrowAmount = 30e18;
         USDC.approve(address(lever), type(uint256).max);
         DAI.approve(address(lever), type(uint256).max);
+        WETH.approve(address(lever), type(uint256).max);
 
-        giver.grantRole(0xe4fd9dc5, timeLock);
+        vm.prank(timeLock);
         giver.grantRole(0x35775afb, address(lever));
         if (ilkId == usdcIlkId)
             initialUserBalance = USDC.balanceOf(address(this));
@@ -99,7 +99,7 @@ abstract contract ZeroState is Test {
         // Expect at least 80% of the value to end up as collateral
         // uint256 eulerAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
 
-        vaultId = lever.invest(
+        vaultId = lever.invest{value:baseAmount}(
             seriesId,
             ilkId, // ilkId
             baseAmount,
@@ -118,6 +118,9 @@ abstract contract ZeroState is Test {
         // IERC20 token = IERC20(notionalJoin.asset());
         // available = token.balanceOf(address(notionalJoin)) - notionalJoin.storedBalance();
     }
+
+    // Function to receive Ether. msg.data must be empty
+    receive() external payable {}
 }
 
 contract VaultTest is ZeroState {
@@ -174,6 +177,10 @@ contract DivestTest is ZeroState {
         DataTypes.Series memory series_ = cauldron.series(fSeriesId);
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
+
+        NotionalJoin tempJoin = new NotionalJoin(0x1344A36A1B56144C3Bc62E7757377D288fDE0369,0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0,1679616000,1);
+        vm.etch(address(0xC4cb2489a845384277564613A0906f50dD66e482), address(tempJoin).code);
+
         lever.divest(vaultId, fSeriesId, fIlkId, balances.ink, balances.art, 0);
 
         // Test that we left the join as we encountered it

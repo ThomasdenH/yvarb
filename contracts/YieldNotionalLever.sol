@@ -100,12 +100,15 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             vaultId,
             bytes32(baseAmount)
         );
-
         bool success;
         IlkInfo memory info = ilkInfo[ilkId];
         IERC20 token = IERC20(info.join.asset());
-        // Transfer the underlying USDC/DAI already approved by the user
-        token.safeTransferFrom(msg.sender, address(this), baseAmount);
+
+        if (ilkInfo[ilkId].currencyId != 1) {
+            // Transfer the underlying USDC/DAI already approved by the user
+            token.safeTransferFrom(msg.sender, address(this), baseAmount);
+        }
+
         // Flash loan the underlying USDC/DAI
         success = info.join.flashLoan(this, address(token), borrowAmount, data);
         if (!success) revert FlashLoanFailure();
@@ -317,8 +320,16 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         );
 
         actions[0].trades[0] = encodedTrade;
-        // gas: 302658
-        notional.batchBalanceAndTradeAction(address(this), actions);
+        if (ilkIdInfo.currencyId == 1) {
+            weth.withdraw(borrowAmount);
+            // gas: 302658
+            notional.batchBalanceAndTradeAction{value: baseAmount}(
+                address(this),
+                actions
+            );
+        } else {
+            notional.batchBalanceAndTradeAction(address(this), actions);
+        }
 
         IPool pool = IPool(ladle.pools(seriesId));
         // gas: 87609
@@ -393,8 +404,10 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         // buyFyToken
         IPool pool = IPool(ladle.pools(seriesId));
         // gas: 76833
-        uint128 baseToSell = pool.buyFYTokenPreview(borrowPlusFee.u128());
+        uint128 baseToSell = pool.buyFYTokenPreview(borrowPlusFee.u128()) + 1;
         IERC20 token = IERC20(ilkIdInfo.join.asset());
+        if(ilkIdInfo.currencyId==1)
+            weth.deposit{value:baseToSell}();
         token.safeTransfer(address(pool), baseToSell);
         // gas: 136916
         pool.buyFYToken(address(this), borrowPlusFee.u128(), baseToSell);
@@ -446,4 +459,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     ) external pure override returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155BatchReceived.selector;
     }
+
+    // Function to receive Ether. msg.data must be empty
+    receive() external payable {}
 }
