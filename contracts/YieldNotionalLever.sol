@@ -105,6 +105,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         IERC20 token = IERC20(info.join.asset());
 
         if (ilkInfo[ilkId].currencyId != 1) {
+            // Since notional accepts only ETH we don't have to do any transfer from the user
             // Transfer the underlying USDC/DAI already approved by the user
             token.safeTransferFrom(msg.sender, address(this), baseAmount);
         }
@@ -321,6 +322,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
         actions[0].trades[0] = encodedTrade;
         if (ilkIdInfo.currencyId == 1) {
+            // Converting WETH to ETH since notional accepts ETH
             weth.withdraw(borrowAmount);
             // gas: 302658
             notional.batchBalanceAndTradeAction{value: baseAmount}(
@@ -406,8 +408,8 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         // gas: 76833
         uint128 baseToSell = pool.buyFYTokenPreview(borrowPlusFee.u128()) + 1;
         IERC20 token = IERC20(ilkIdInfo.join.asset());
-        if(ilkIdInfo.currencyId==1)
-            weth.deposit{value:baseToSell}();
+        // Since our pools accept only WETH
+        if (ilkIdInfo.currencyId == 1) weth.deposit{value: baseToSell}();
         token.safeTransfer(address(pool), baseToSell);
         // gas: 136916
         pool.buyFYToken(address(this), borrowPlusFee.u128(), baseToSell);
