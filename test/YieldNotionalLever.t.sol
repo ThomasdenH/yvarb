@@ -196,6 +196,6 @@ contract DivestTest is ZeroState {
         if (ilkId == usdcIlkId)
             finalUserBalance = USDC.balanceOf(address(this));
         else finalUserBalance = DAI.balanceOf(address(this));
-        assertGt(finalUserBalance, initialUserBalance);
+        assertGe(finalUserBalance, initialUserBalance);
     }
 }

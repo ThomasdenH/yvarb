@@ -57,10 +57,16 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     }
 
     /// @notice Invest by creating a levered vault.
-    ///         Here are the steps:
+    ///         Here are the steps for USDC/DAI:
     ///         1. Transfer `baseAmount` of USDC/DAI from the user
     ///         2. Flashloan `borrowAmount` of USDC/DAI from the join
     ///         3. Deposit USDC/DAI into notional market to get relevant fCash
+    ///         4. Pour the received fCash to borrow fyToken
+    ///         5. Buy base using the borrowed fyToken to pay back the flash loan
+    ///         Here are the steps for ETH:
+    ///         1. Flashloan `borrowAmount` of WETH from the join
+    ///         2. Withdraw WETH to get ETH
+    ///         3. Deposit ETH into notional market to get relevant fCash
     ///         4. Pour the received fCash to borrow fyToken
     ///         5. Buy base using the borrowed fyToken to pay back the flash loan
     /// @param baseAmount The amount of own liquidity to supply.
@@ -110,7 +116,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             token.safeTransferFrom(msg.sender, address(this), baseAmount);
         }
 
-        // Flash loan the underlying USDC/DAI
+        // Flash loan the underlying USDC/DAI/WETH
         success = info.join.flashLoan(this, address(token), borrowAmount, data);
         if (!success) revert FlashLoanFailure();
         giver.give(vaultId, msg.sender);
@@ -125,11 +131,12 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     ///     take `ink` collateral. Here are the steps:
     ///     1. Flash loan debt amount of fyToken
     ///     2. Repay the debt to get collateral (fCash)
-    ///     3. Use fCash to get the underlying(USDC/DAI) in return from Notional
+    ///     3. Use fCash to get the underlying(USDC/DAI/ETH) in return from Notional
+    ///         3.1 In case of ETH convert it into WETH
     ///     4. Use the received underlying to buyFYToken equivalent to the amount which was flash loaned
     ///
-    ///     If post maturity, borrow USDC/DAI to pay off the debt directly. Here are the steps
-    ///     1. Flash loan amount of USDC/DAI equivalent to the debt
+    ///     If post maturity, borrow USDC/DAI/WETH to pay off the debt directly. Here are the steps
+    ///     1. Flash loan amount of USDC/DAI/WETH equivalent to the debt
     ///     2. Pay the debt to get collateral in return which is used to payback the flash loan
     ///
     ///     This function will take the vault from you using `Giver`, so make
@@ -271,8 +278,9 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
     /// @notice This function is called from within the flash loan. The high
     ///     level functionality is as follows:
-    ///         1. We have supplied dai/usdc & flash loaned dai/usdc
-    ///         2. We deposit it to get fCash and put it in the vault.
+    ///         1. We have supplied dai/usdc/eth & flash loaned dai/usdc/weth
+    ///         2. We deposit it into Notional to get fCash and put it in the vault.
+    ///             2.1 In case of WETH we first convert it to ETH before depositing it into Notional
     ///         3. Against it, we borrow enough fyDai or fyUSDC to repay the flash loan.
     /// @param vaultId The vault id to put collateral into and borrow from.
     /// @param seriesId The pool (and thereby series) to borrow from.
@@ -350,12 +358,13 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     /// @param vaultId The vault to repay.
     /// @notice Here are the steps:
     ///         1. Use the flash loaned fyToken to repay the debt & withdraw collateral (fCash)
-    ///         2. Trade the collateral(fCash) on Notional to get the underlying(USDC/DAI) in return
+    ///         2. Trade the collateral(fCash) on Notional to get the underlying(USDC/DAI/ETH) in return
+    ///            2.1 In case of ETH we convert it to WETH before buying fyToken
     ///         3. Buy fyToken using the received underlying to repay the flash loan
     ///         4. Transfer remaining underlying to the user
     /// @param seriesId The seriesId corresponding to the vault.
     /// @param ilkId Id of the Ilk
-    /// @param borrowPlusFee The amount of fyDai/fyUsdc that we have borrowed,
+    /// @param borrowPlusFee The amount of fyDai/fyUsdc/fyETH that we have borrowed,
     ///     plus the fee. This should be our final balance.
     function _repay(
         bytes12 vaultId,
@@ -422,11 +431,11 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     }
 
     /// @notice Close a vault after maturity.
-    ///         Use the flashloaned USDC/DAI to close the position and payback the flash loan
+    ///         Use the flashloaned USDC/DAI/WETH to close the position and payback the flash loan
     /// @param vaultId The ID of the vault to close.
     /// @param ink The collateral to take from the vault.
     /// @param art The debt to repay. This is denominated in fyTokens, even
-    ///     though the payment is done in terms of USDC/DAI.
+    ///     though the payment is done in terms of USDC/DAI,WETH
     function _close(
         bytes12 vaultId,
         uint256 ink,
