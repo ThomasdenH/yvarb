@@ -99,7 +99,7 @@ abstract contract ZeroState is Test {
         // Expect at least 80% of the value to end up as collateral
         // uint256 eulerAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
 
-        vaultId = lever.invest{value:baseAmount}(
+        vaultId = lever.invest{value: baseAmount}(
             seriesId,
             ilkId, // ilkId
             baseAmount,
@@ -178,8 +178,17 @@ contract DivestTest is ZeroState {
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
 
-        NotionalJoin tempJoin = new NotionalJoin(0x1344A36A1B56144C3Bc62E7757377D288fDE0369,0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0,1679616000,1);
-        vm.etch(address(0xC4cb2489a845384277564613A0906f50dD66e482), address(tempJoin).code);
+        NotionalJoin tempJoin = new NotionalJoin(
+            0x1344A36A1B56144C3Bc62E7757377D288fDE0369,
+            0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+            0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0,
+            1679616000,
+            1
+        );
+        vm.etch(
+            address(0xC4cb2489a845384277564613A0906f50dD66e482),
+            address(tempJoin).code
+        );
 
         lever.divest(vaultId, fSeriesId, fIlkId, balances.ink, balances.art, 0);
 

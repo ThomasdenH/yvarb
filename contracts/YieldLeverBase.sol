@@ -46,7 +46,22 @@ contract YieldLeverBase is IERC3156FlashBorrower {
     /// @notice By IERC3156, the flash loan should return this constant.
     bytes32 public constant FLASH_LOAN_RETURN =
         keccak256("ERC3156FlashBorrower.onFlashLoan");
+    event Invested(
+        bytes12 indexed vaultId,
+        bytes6 seriesId,
+        address indexed investor,
+        uint256 investment,
+        uint256 debt
+    );
 
+    event Divested(
+        Operation indexed operation,
+        bytes12 indexed vaultId,
+        bytes6 seriesId,
+        address indexed investor,
+        uint256 profit,
+        uint256 debt
+    );
     constructor(Giver giver_) {
         giver = giver_;
     }

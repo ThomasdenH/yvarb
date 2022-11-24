@@ -122,7 +122,15 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         giver.give(vaultId, msg.sender);
         // The leftover assets originated in the join, so just deposit them back
         uint256 balance = token.balanceOf(address(this));
-        token.safeTransfer(address(info.join), balance);
+        if (balance > 0) token.safeTransfer(address(info.join), balance);
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+        emit Invested(
+            vaultId,
+            seriesId,
+            msg.sender,
+            balances.ink,
+            balances.art
+        );
     }
 
     /// @notice Unwind a position.
@@ -193,6 +201,15 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             // exactly enough for the loan + fee, so there is no balance of
             // FYToken left. Check:
             require(fyToken.balanceOf(address(this)) == 0);
+
+            emit Divested(
+                Operation.REPAY,
+                vaultId,
+                seriesId,
+                msg.sender,
+                ink,
+                art
+            );
         } else {
             // Close:
             // Series is not past maturity.
@@ -219,6 +236,15 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
 
             uint256 balance = token.balanceOf(address(this));
             token.safeTransfer(msg.sender, balance);
+
+            emit Divested(
+                Operation.CLOSE,
+                vaultId,
+                seriesId,
+                msg.sender,
+                ink,
+                art
+            );
         }
         // Give the vault back to the sender, just in case there is anything left
         giver.give(vaultId, msg.sender);
