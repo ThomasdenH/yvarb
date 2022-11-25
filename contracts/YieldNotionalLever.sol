@@ -114,6 +114,13 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             // Since notional accepts only ETH we don't have to do any transfer from the user
             // Transfer the underlying USDC/DAI already approved by the user
             token.safeTransferFrom(msg.sender, address(this), baseAmount);
+        } else {
+            if (msg.value == 0) {
+                // Transfer weth from user
+                token.safeTransferFrom(msg.sender, address(this), baseAmount);
+                // Convert weth to eth
+                weth.withdraw(baseAmount);
+            }
         }
 
         // Flash loan the underlying USDC/DAI/WETH
@@ -124,6 +131,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint256 balance = token.balanceOf(address(this));
         if (balance > 0) token.safeTransfer(address(info.join), balance);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
+
         emit Invested(
             vaultId,
             seriesId,

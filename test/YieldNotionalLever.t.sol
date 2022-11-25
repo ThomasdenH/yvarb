@@ -20,6 +20,7 @@ abstract contract ZeroState is Test {
     address constant usdcWhale = 0x0A59649758aa4d66E25f08Dd01271e891fe52199;
     address constant daiWhale = 0x075e72a5eDf65F0A5f44699c7654C1a76941Ddc8;
     address constant ethWhale = 0x00000000219ab540356cBB839Cbe05303d7705Fa;
+    address constant wethWhale = 0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E;
 
     IERC20 constant USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IERC20 constant DAI = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
@@ -63,9 +64,11 @@ abstract contract ZeroState is Test {
         giver = Giver(0xa98F3211997FDB072B6a8E2C2A26C34BC447f873);
 
         vm.prank(usdcWhale);
-        IERC20(USDC).transfer(address(this), 2000e6);
+        USDC.transfer(address(this), 2000e6);
         vm.prank(daiWhale);
-        IERC20(DAI).transfer(address(this), 2000e18);
+        DAI.transfer(address(this), 2000e18);
+        vm.prank(wethWhale);
+        WETH.transfer(address(this), 2000e18);
         vm.prank(ethWhale);
         payable(address(this)).transfer(2000e18);
     }
@@ -91,6 +94,25 @@ abstract contract ZeroState is Test {
 
     /// @notice Create a vault.
     function leverUp(
+        uint256 baseAmount,
+        uint256 borrowAmount,
+        bytes6 ilkId,
+        bytes6 seriesId
+    ) public returns (bytes12) {
+        // Expect at least 80% of the value to end up as collateral
+        // uint256 eulerAmount = pool.sellFYTokenPreview(baseAmount + borrowAmount);
+
+        vaultId = lever.invest(
+            seriesId,
+            ilkId, // ilkId
+            baseAmount,
+            borrowAmount
+        );
+        return vaultId;
+    }
+
+    /// @notice Create a vault withEth.
+    function leverUpETH(
         uint256 baseAmount,
         uint256 borrowAmount,
         bytes6 ilkId,
@@ -127,6 +149,26 @@ contract VaultTest is ZeroState {
     function testVault() public {
         uint256 availableAtStart = availableBalance(fIlkId);
         vaultId = leverUp(baseAmount, borrowAmount, fIlkId, fSeriesId);
+        DataTypes.Vault memory vault = cauldron.vaults(vaultId);
+        assertEq(vault.owner, address(this));
+        assertGt(cauldron.balances(vaultId).art, borrowAmount);
+        assertGt(cauldron.balances(vaultId).ink, baseAmount + borrowAmount);
+        // Test that we left the join as we encountered it
+        // assertEq(availableBalance(fIlkId), availableAtStart);
+        // Assert that the balances are empty
+        assertEq(IERC20(USDC).balanceOf(address(lever)), 0);
+        assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
+        assertEq(
+            IPool(ladle.pools(fSeriesId)).fyToken().balanceOf(address(lever)),
+            0
+        );
+    }
+}
+
+contract ETHVaultTest is ZeroState {
+    function testVault() public {
+        uint256 availableAtStart = availableBalance(fIlkId);
+        vaultId = leverUpETH(baseAmount, borrowAmount, fIlkId, fSeriesId);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
         assertGt(cauldron.balances(vaultId).art, borrowAmount);
