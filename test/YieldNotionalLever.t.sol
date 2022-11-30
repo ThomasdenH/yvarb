@@ -46,9 +46,9 @@ abstract contract ZeroState is Test {
     bytes6 constant fdaiIlkId = 0x323300000000;
     bytes6 constant fethIlkId = 0x323900000000;
 
-    bytes6 constant ethIlkId = 0x303000000000;
-    bytes6 constant daiIlkId = 0x303100000000;
     bytes6 constant usdcIlkId = 0x303200000000;
+    bytes6 constant daiIlkId = 0x303100000000;
+    bytes6 constant ethIlkId = 0x303000000000;
 
     bytes12 public vaultId;
     bytes6 public fIlkId;
@@ -68,16 +68,6 @@ abstract contract ZeroState is Test {
     function setUp() public virtual {
         vm.createSelectFork("MAINNET", 16082976);
         lever = new YieldNotionalLever(giver);
-
-        fIlkId = fdaiIlkId;
-        fSeriesId = fydaiSeriesId;
-        ilkId = daiIlkId;
-
-        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
-        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
-
-        baseAmount = 10000 * unit;
-        borrowAmount = 5000 * unit;
 
         USDC.approve(address(lever), type(uint256).max);
         DAI.approve(address(lever), type(uint256).max);
@@ -157,14 +147,26 @@ abstract contract ZeroState is Test {
     receive() external payable {}
 }
 
-contract VaultTest is ZeroState {
+abstract contract VaultTest is ZeroState {
+    function setUp() public virtual override {
+        super.setUp();
+    }
+
     function testVault() public {
         uint256 availableAtStart = availableBalance(fIlkId);
         vaultId = leverUp(baseAmount, borrowAmount, fIlkId, fSeriesId);
         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
         assertEq(vault.owner, address(this));
+
         assertGt(cauldron.balances(vaultId).art, borrowAmount);
-        assertGt(cauldron.balances(vaultId).ink, baseAmount + borrowAmount);
+
+        if (IERC20Metadata(cauldron.assets(ilkId)).decimals() == 6)
+            assertGt(cauldron.balances(vaultId).ink, baseAmount + borrowAmount);
+        else
+            assertGt(
+                cauldron.balances(vaultId).ink,
+                (baseAmount + borrowAmount) / 1e10
+            );
         // Test that we left the join as we encountered it
         // assertEq(availableBalance(fIlkId), availableAtStart);
         // Assert that the balances are empty
@@ -177,28 +179,8 @@ contract VaultTest is ZeroState {
     }
 }
 
-// contract ETHVaultTest is ZeroState {
-//     function testVault() public {
-//         uint256 availableAtStart = availableBalance(fIlkId);
-//         vaultId = leverUpETH(baseAmount, borrowAmount, fIlkId, fSeriesId);
-//         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
-//         assertEq(vault.owner, address(this));
-//         assertGt(cauldron.balances(vaultId).art, borrowAmount);
-//         assertGt(cauldron.balances(vaultId).ink, baseAmount + borrowAmount);
-//         // Test that we left the join as we encountered it
-//         // assertEq(availableBalance(fIlkId), availableAtStart);
-//         // Assert that the balances are empty
-//         assertEq(IERC20(USDC).balanceOf(address(lever)), 0);
-//         assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
-//         assertEq(
-//             IPool(ladle.pools(fSeriesId)).fyToken().balanceOf(address(lever)),
-//             0
-//         );
-//     }
-// }
-
-contract DivestTest is ZeroState {
-    function setUp() public override {
+abstract contract DivestTest is ZeroState {
+    function setUp() public virtual override {
         super.setUp();
         vaultId = leverUp(baseAmount, borrowAmount, fIlkId, fSeriesId);
     }
@@ -248,5 +230,135 @@ contract DivestTest is ZeroState {
             finalUserBalance = USDC.balanceOf(address(this));
         else finalUserBalance = DAI.balanceOf(address(this));
         assertGe(finalUserBalance, initialUserBalance);
+    }
+}
+
+contract USDCVaultTest is VaultTest {
+    function setUp() public override {
+        ilkId = usdcIlkId;
+        fIlkId = fusdcIlkId;
+        fSeriesId = fyusdcSeriesId;
+
+        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
+        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
+
+        baseAmount = 10000 * unit;
+        borrowAmount = 5000 * unit;
+
+        super.setUp();
+    }
+}
+
+contract DAIVaultTest is VaultTest {
+    function setUp() public override {
+        ilkId = daiIlkId;
+        fIlkId = fdaiIlkId;
+        fSeriesId = fydaiSeriesId;
+
+        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
+        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
+
+        baseAmount = 10000 * unit;
+        borrowAmount = 5000 * unit;
+        super.setUp();
+    }
+}
+
+contract USDCDivestTest is DivestTest {
+    function setUp() public override {
+        ilkId = usdcIlkId;
+        fIlkId = fusdcIlkId;
+        fSeriesId = fyusdcSeriesId;
+
+        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
+        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
+
+        baseAmount = 10000 * unit;
+        borrowAmount = 5000 * unit;
+
+        super.setUp();
+    }
+}
+
+contract ETHVaultTest is ZeroState {
+    function setUp() public override {
+        ilkId = ethIlkId;
+        fIlkId = fethIlkId;
+        fSeriesId = fyethSeriesId;
+
+        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
+        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
+
+        baseAmount = 5 * unit;
+        borrowAmount = 1 * unit;
+        super.setUp();
+    }
+
+    function testVault() public {
+        uint256 availableAtStart = availableBalance(fIlkId);
+        vaultId = leverUpETH(baseAmount, borrowAmount, fIlkId, fSeriesId);
+        DataTypes.Vault memory vault = cauldron.vaults(vaultId);
+        assertEq(vault.owner, address(this));
+        assertGt(cauldron.balances(vaultId).art, borrowAmount);
+        assertGt(
+            cauldron.balances(vaultId).ink,
+            (baseAmount + borrowAmount) / 1e10
+        );
+        // Test that we left the join as we encountered it
+        // assertEq(availableBalance(fIlkId), availableAtStart);
+        // Assert that the balances are empty
+        assertEq(IERC20(USDC).balanceOf(address(lever)), 0);
+        assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
+        assertEq(
+            IPool(ladle.pools(fSeriesId)).fyToken().balanceOf(address(lever)),
+            0
+        );
+    }
+}
+
+contract WETHVaultTest is VaultTest {
+    function setUp() public override {
+        ilkId = ethIlkId;
+        fIlkId = fethIlkId;
+        fSeriesId = fyethSeriesId;
+
+        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
+        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
+
+        baseAmount = 5 * unit;
+        borrowAmount = 1 * unit;
+        super.setUp();
+    }
+}
+
+contract DAIDivestTest is DivestTest {
+    function setUp() public override {
+        ilkId = daiIlkId;
+        fIlkId = fdaiIlkId;
+        fSeriesId = fydaiSeriesId;
+
+        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
+        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
+
+        baseAmount = 10000 * unit;
+        borrowAmount = 5000 * unit;
+
+        super.setUp();
+    }
+}
+
+contract WETHDivestTest is DivestTest {
+    function setUp() public override {
+        ilkId = ethIlkId;
+        fIlkId = fethIlkId;
+        fSeriesId = fyethSeriesId;
+
+        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
+        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
+
+        baseAmount = 5 * unit;
+        borrowAmount = 1 * unit;
+
+        super.setUp();
     }
 }

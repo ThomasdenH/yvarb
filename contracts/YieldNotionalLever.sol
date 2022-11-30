@@ -375,7 +375,6 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 notional.batchBalanceAndTradeAction(address(this), actions);
             }
         }
-
         IPool pool = IPool(ladle.pools(seriesId));
         // gas: 87609
         uint128 maxFyOut = pool.buyBasePreview(borrowAmount.u128());

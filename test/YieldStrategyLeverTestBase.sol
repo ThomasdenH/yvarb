@@ -99,6 +99,7 @@ abstract contract ZeroState is Test {
     }
 
     function setUp() public virtual {
+        vm.createSelectFork("MAINNET", 16082976);
         IPool pool = IPool(ladle.pools(seriesId));
         FYToken fyToken = FYToken(address(pool.fyToken()));
         vm.label(address(fyToken), fyToken.symbol());
