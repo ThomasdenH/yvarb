@@ -3,5 +3,6 @@ src = 'contracts'
 out = 'out'
 libs = ['lib']
 gas_reports = ['YieldStEthLever', 'YieldNotionalLever', 'YieldEulerLever']
+rpc_endpoints = { MAINNET = "${MAINNET_RPC}", ARBITRUM = "${ARBITRUM_RPC}" }
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

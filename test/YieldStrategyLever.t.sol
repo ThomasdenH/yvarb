@@ -8,11 +8,11 @@ contract DAILeverInvestedStateTest is InvestedState {
     function setUp() public override {
         seriesId = seriesIdDAI;
         strategyIlkId = strategyIlkIdDAI;
-        baseAmount = 10000e18;
-        borrowAmount = 1000e18;
-        fyTokenToBuy = baseAmount / 2;
-        buyFor =  500000e18;
-        sellFor = 100000e18;
+        baseAmount = 10000000000000000000000;
+        borrowAmount = 1000000000000000000000;
+        fyTokenToBuy = 1000000000000000000000;
+        buyFor = 5000e18;
+        sellFor = 1000e18;
         super.setUp();
     }
 }
@@ -21,11 +21,11 @@ contract DAILeverInvestedMatureStateTest is InvestedMatureState {
     function setUp() public override {
         seriesId = seriesIdDAI;
         strategyIlkId = strategyIlkIdDAI;
-        baseAmount = 10000e18;
-        borrowAmount = 1000e18;
-        fyTokenToBuy = baseAmount / 2;
-        buyFor = 100000e18;
-        sellFor = 100000e18;
+        baseAmount = 10000000000000000000000;
+        borrowAmount = 1000000000000000000000;
+        fyTokenToBuy = 1000000000000000000000;
+        buyFor = 5000e18;
+        sellFor = 1000e18;
         super.setUp();
     }
 }

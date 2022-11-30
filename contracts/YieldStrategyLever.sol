@@ -415,7 +415,7 @@ contract YieldStrategyLever is IERC3156FlashBorrower {
         // Buy fyToken to repay the flash loan
         if (borrowAmountPlusFee > fyTokens) {
             uint128 fyTokenToBuy = (borrowAmountPlusFee - fyTokens).u128();
-            pool.base().transfer(address(pool), pool.buyFYTokenPreview(fyTokenToBuy));
+            pool.base().transfer(address(pool), pool.buyFYTokenPreview(fyTokenToBuy) + 1);
             pool.buyFYToken(
                 address(this),
                 fyTokenToBuy,

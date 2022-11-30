@@ -44,27 +44,25 @@ abstract contract ZeroState is Test {
 
     constructor() {
         protocol = new Protocol();
+
         fyToken = FYToken(0x386a0A72FfEeB773381267D69B61aCd1572e074D);
         flashJoin = FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0); // weth
         cauldron = ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
 
         // Set the flash fee factor
         vm.prank(timeLock);
-        fyToken.setFlashFeeFactor(1);
+
+        fyToken.setFlashFeeFactor(0);
 
         vm.prank(timeLock);
-        flashJoin.setFlashFeeFactor(1);
+        flashJoin.setFlashFeeFactor(0);
 
-        giver = new Giver(cauldron);
-        // Orchestrate Giver
-        AccessControl cauldronAccessControl = AccessControl(
-            0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
-        );
-        vm.prank(timeLock);
-        cauldronAccessControl.grantRole(0x798a828b, address(giver));
+        giver = Giver(0xa98F3211997FDB072B6a8E2C2A26C34BC447f873);
     }
 
     function setUp() public virtual {
+        vm.createSelectFork("MAINNET", 16082976);
+
         lever = new YieldStEthLever(giver);
         lever.approveFyToken(seriesId);
 
@@ -78,9 +76,8 @@ abstract contract ZeroState is Test {
         address(this).call{value: 1e18}("");
         // vm.prank(fyTokenWhale);
         // fyToken.transfer(address(lever), 3e18);
-        AccessControl giverAccessControl = AccessControl(address(giver));
-        giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
-        giverAccessControl.grantRole(0x35775afb, address(lever));
+        vm.prank(timeLock);
+        giver.grantRole(Giver.seize.selector, address(lever));
     }
 
     /// Return the available balance in the join.

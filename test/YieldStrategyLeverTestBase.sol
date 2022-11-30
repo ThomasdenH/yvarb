@@ -62,7 +62,7 @@ abstract contract ZeroState is Test {
     mapping(bytes6 => address) whaleMapping2;
 
     constructor() {
-        giver = new Giver(cauldron);
+        giver = Giver(0xa98F3211997FDB072B6a8E2C2A26C34BC447f873);
         // Orchestrate Giver
         AccessControl cauldronAccessControl = AccessControl(
             0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
@@ -75,19 +75,14 @@ abstract contract ZeroState is Test {
         vm.label(address(usdcJoin), "usdc Join");
         vm.label(address(ladle.pools(seriesId)), "Pool");
 
-        vm.prank(daiWhale);
-        DAI.transfer(address(this), 100000e18);
-        vm.prank(usdcWhale);
-        USDC.transfer(address(this), 100000e6);
-        vm.prank(wethWhale);
-        WETH.transfer(address(this), 100000e18);
+        
 
         vm.prank(timeLock);
-        wethJoin.setFlashFeeFactor(1);
+        wethJoin.setFlashFeeFactor(0);
         vm.prank(timeLock);
-        usdcJoin.setFlashFeeFactor(1);
+        usdcJoin.setFlashFeeFactor(0);
         vm.prank(timeLock);
-        daiJoin.setFlashFeeFactor(1);
+        daiJoin.setFlashFeeFactor(0);
 
         whaleMapping[strategyIlkIdDAI] = daiWhale;
         whaleMapping[strategyIlkIdUSDC] = usdcWhale;
@@ -99,13 +94,22 @@ abstract contract ZeroState is Test {
     }
 
     function setUp() public virtual {
+        vm.createSelectFork("MAINNET", 16082976);
+
+        vm.prank(daiWhale);
+        DAI.transfer(address(this), 100000e18);
+        vm.prank(usdcWhale);
+        USDC.transfer(address(this), 100000e6);
+        vm.prank(wethWhale);
+        WETH.transfer(address(this), 100000e18);
+
         IPool pool = IPool(ladle.pools(seriesId));
         FYToken fyToken = FYToken(address(pool.fyToken()));
         vm.label(address(fyToken), fyToken.symbol());
         vm.label(address(pool.base()), pool.baseToken().symbol());
         vm.label(address(pool), "Pool");
         vm.prank(timeLock);
-        fyToken.setFlashFeeFactor(1);
+        fyToken.setFlashFeeFactor(0);
 
         lever = new YieldStrategyLever(giver);
 
@@ -113,9 +117,8 @@ abstract contract ZeroState is Test {
         USDC.approve(address(lever), type(uint256).max);
         WETH.approve(address(lever), type(uint256).max);
 
-        AccessControl giverAccessControl = AccessControl(address(giver));
-        giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
-        giverAccessControl.grantRole(0x35775afb, address(lever));
+        vm.prank(timeLock);
+        giver.grantRole(Giver.seize.selector, address(lever));
 
         initialBalance = IPool(ladle.pools(seriesId)).base().balanceOf(
             address(ladle.pools(seriesId))
