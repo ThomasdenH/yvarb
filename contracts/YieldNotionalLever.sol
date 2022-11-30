@@ -352,7 +352,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
                 redeemToUnderlying: false, // Convert cToken to token
                 trades: new bytes32[](1)
             });
-            // gas: 127997
+
             (fCashAmount, , encodedTrade) = notional.getfCashLendFromDeposit(
                 ilkIdInfo.currencyId,
                 baseAmount, // total to invest
@@ -366,7 +366,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             if (ilkIdInfo.currencyId == 1) {
                 // Converting WETH to ETH since notional accepts ETH
                 weth.withdraw(borrowAmount);
-                // gas: 302658
+
                 notional.batchBalanceAndTradeAction{value: baseAmount}(
                     address(this),
                     actions
@@ -376,16 +376,16 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             }
         }
         IPool pool = IPool(ladle.pools(seriesId));
-        // gas: 87609
+
         uint128 maxFyOut = pool.buyBasePreview(borrowAmount.u128());
-        // gas: 172109
+
         ladle.pour(
             vaultId,
             address(pool),
             (uint128(fCashAmount)).i128(),
             (maxFyOut).i128()
         );
-        // gas: 196566
+
         pool.buyBase(address(this), borrowAmount.u128(), maxFyOut);
     }
 
@@ -413,7 +413,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint256 ink = uint256(bytes32(data[25:57]));
         uint256 art = uint256(bytes32(data[57:89]));
         cauldron.series(seriesId).fyToken.approve(address(ladle), art);
-        // gas: 103205
+
         ladle.pour(
             vaultId,
             address(this),
@@ -433,7 +433,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             redeemToUnderlying: true,
             trades: new bytes32[](1)
         });
-        // gas: 105844
+
         (, , , bytes32 encodedTrade) = notional.getPrincipalFromfCashBorrow(
             ilkIdInfo.currencyId,
             ink,
@@ -443,18 +443,18 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         );
 
         actions[0].trades[0] = encodedTrade;
-        // gas: 231822
+
         notional.batchBalanceAndTradeAction(address(this), actions);
 
         // buyFyToken
         IPool pool = IPool(ladle.pools(seriesId));
-        // gas: 76833
+
         uint128 baseToSell = pool.buyFYTokenPreview(borrowPlusFee.u128()) + 1;
         IERC20 token = IERC20(ilkIdInfo.join.asset());
         // Since our pools accept only WETH
         if (ilkIdInfo.currencyId == 1) weth.deposit{value: baseToSell}();
         token.safeTransfer(address(pool), baseToSell);
-        // gas: 136916
+
         pool.buyFYToken(address(this), borrowPlusFee.u128(), baseToSell);
 
         uint256 minOut = uint256(bytes32(data[89:121]));
