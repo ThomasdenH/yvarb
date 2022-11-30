@@ -51,6 +51,7 @@ abstract contract ZeroState is Test {
 
         // Set the flash fee factor
         vm.prank(timeLock);
+
         fyToken.setFlashFeeFactor(0);
 
         vm.prank(timeLock);
@@ -61,6 +62,7 @@ abstract contract ZeroState is Test {
 
     function setUp() public virtual {
         vm.createSelectFork("MAINNET", 16082976);
+
         lever = new YieldStEthLever(giver);
         lever.approveFyToken(seriesId);
 
