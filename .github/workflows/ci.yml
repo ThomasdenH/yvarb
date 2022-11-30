@@ -23,7 +23,17 @@ jobs:
         run: forge build
 
       - name: Run tests
-        run: forge test -vvv --fork-url ${{ secrets.MAINNET_RPC }}
+        run: forge test -vvv
+        env:
+          ARBITRUM_RPC: $${{ secrets.ARBITRUM_RPC}}
+          MAINNET_RPC: ${{ secrets.MAINNET_RPC }}
+          MOCK: true
+          NETWORK: MAINNET
 
       - name: Check gas consumption
-        run: forge snapshot --check --fork-url ${{ secrets.MAINNET_RPC }}
+        run: forge snapshot --check
+        env:
+          ARBITRUM_RPC: $${{ secrets.ARBITRUM_RPC}}
+          MAINNET_RPC: ${{ secrets.MAINNET_RPC }}
+          MOCK: true
+          NETWORK: MAINNET
