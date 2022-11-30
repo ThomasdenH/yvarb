@@ -184,7 +184,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         if (uint32(block.timestamp) < cauldron.series(seriesId).maturity) {
             IPool pool = IPool(ladle.pools(seriesId));
             IMaturingToken fyToken = pool.fyToken();
-            // Close:
+            // Repay:
             // Series is not past maturity.
             // Borrow to repay debt, move directly to the pool.
             bytes memory data = bytes.concat(
@@ -330,49 +330,50 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         uint256 fee,
         uint256 baseAmount
     ) internal {
+        uint88 fCashAmount;
         // Reuse variable to denote how much to invest. Done to prevent stack
         // too deep error while being gas efficient.
         unchecked {
             baseAmount += (borrowAmount - fee);
-        }
-        uint88 fCashAmount;
-        bytes32 encodedTrade;
 
-        IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
-        // Deposit into notional to get the fCash
+            bytes32 encodedTrade;
 
-        BalanceActionWithTrades[]
-            memory actions = new BalanceActionWithTrades[](1);
-        actions[0] = BalanceActionWithTrades({
-            actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
-            currencyId: ilkIdInfo.currencyId,
-            depositActionAmount: baseAmount, // total to invest
-            withdrawAmountInternalPrecision: 0,
-            withdrawEntireCashBalance: false, // Return all residual cash to lender
-            redeemToUnderlying: false, // Convert cToken to token
-            trades: new bytes32[](1)
-        });
-        // gas: 127997
-        (fCashAmount, , encodedTrade) = notional.getfCashLendFromDeposit(
-            ilkIdInfo.currencyId,
-            baseAmount, // total to invest
-            ilkIdInfo.maturity,
-            0,
-            block.timestamp,
-            true
-        );
+            IlkInfo memory ilkIdInfo = ilkInfo[ilkId];
+            // Deposit into notional to get the fCash
 
-        actions[0].trades[0] = encodedTrade;
-        if (ilkIdInfo.currencyId == 1) {
-            // Converting WETH to ETH since notional accepts ETH
-            weth.withdraw(borrowAmount);
-            // gas: 302658
-            notional.batchBalanceAndTradeAction{value: baseAmount}(
-                address(this),
-                actions
+            BalanceActionWithTrades[]
+                memory actions = new BalanceActionWithTrades[](1);
+            actions[0] = BalanceActionWithTrades({
+                actionType: DepositActionType.DepositUnderlying, // Deposit underlying, not cToken
+                currencyId: ilkIdInfo.currencyId,
+                depositActionAmount: baseAmount, // total to invest
+                withdrawAmountInternalPrecision: 0,
+                withdrawEntireCashBalance: false, // Return all residual cash to lender
+                redeemToUnderlying: false, // Convert cToken to token
+                trades: new bytes32[](1)
+            });
+            // gas: 127997
+            (fCashAmount, , encodedTrade) = notional.getfCashLendFromDeposit(
+                ilkIdInfo.currencyId,
+                baseAmount, // total to invest
+                ilkIdInfo.maturity,
+                0,
+                block.timestamp,
+                true
             );
-        } else {
-            notional.batchBalanceAndTradeAction(address(this), actions);
+
+            actions[0].trades[0] = encodedTrade;
+            if (ilkIdInfo.currencyId == 1) {
+                // Converting WETH to ETH since notional accepts ETH
+                weth.withdraw(borrowAmount);
+                // gas: 302658
+                notional.batchBalanceAndTradeAction{value: baseAmount}(
+                    address(this),
+                    actions
+                );
+            } else {
+                notional.batchBalanceAndTradeAction(address(this), actions);
+            }
         }
 
         IPool pool = IPool(ladle.pools(seriesId));

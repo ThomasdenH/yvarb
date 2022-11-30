@@ -66,7 +66,7 @@ abstract contract ZeroState is Test {
         vm.prank(usdcWhale);
         USDC.transfer(address(this), 2000e6);
         vm.prank(daiWhale);
-        DAI.transfer(address(this), 2000e18);
+        DAI.transfer(address(this), 10000e18);
         vm.prank(wethWhale);
         WETH.transfer(address(this), 2000e18);
         vm.prank(ethWhale);
@@ -74,13 +74,14 @@ abstract contract ZeroState is Test {
     }
 
     function setUp() public virtual {
+        vm.createSelectFork("MAINNET", 16082976);
         lever = new YieldNotionalLever(giver);
 
-        fIlkId = fethIlkId;
-        fSeriesId = fyethSeriesId;
-        ilkId = ethIlkId;
-        baseAmount = 2000e18;
-        borrowAmount = 30e18;
+        fIlkId = fdaiIlkId;
+        fSeriesId = fydaiSeriesId;
+        ilkId = daiIlkId;
+        baseAmount = 10000e18;
+        borrowAmount = 5000e18;
         USDC.approve(address(lever), type(uint256).max);
         DAI.approve(address(lever), type(uint256).max);
         WETH.approve(address(lever), type(uint256).max);
@@ -165,25 +166,25 @@ contract VaultTest is ZeroState {
     }
 }
 
-contract ETHVaultTest is ZeroState {
-    function testVault() public {
-        uint256 availableAtStart = availableBalance(fIlkId);
-        vaultId = leverUpETH(baseAmount, borrowAmount, fIlkId, fSeriesId);
-        DataTypes.Vault memory vault = cauldron.vaults(vaultId);
-        assertEq(vault.owner, address(this));
-        assertGt(cauldron.balances(vaultId).art, borrowAmount);
-        assertGt(cauldron.balances(vaultId).ink, baseAmount + borrowAmount);
-        // Test that we left the join as we encountered it
-        // assertEq(availableBalance(fIlkId), availableAtStart);
-        // Assert that the balances are empty
-        assertEq(IERC20(USDC).balanceOf(address(lever)), 0);
-        assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
-        assertEq(
-            IPool(ladle.pools(fSeriesId)).fyToken().balanceOf(address(lever)),
-            0
-        );
-    }
-}
+// contract ETHVaultTest is ZeroState {
+//     function testVault() public {
+//         uint256 availableAtStart = availableBalance(fIlkId);
+//         vaultId = leverUpETH(baseAmount, borrowAmount, fIlkId, fSeriesId);
+//         DataTypes.Vault memory vault = cauldron.vaults(vaultId);
+//         assertEq(vault.owner, address(this));
+//         assertGt(cauldron.balances(vaultId).art, borrowAmount);
+//         assertGt(cauldron.balances(vaultId).ink, baseAmount + borrowAmount);
+//         // Test that we left the join as we encountered it
+//         // assertEq(availableBalance(fIlkId), availableAtStart);
+//         // Assert that the balances are empty
+//         assertEq(IERC20(USDC).balanceOf(address(lever)), 0);
+//         assertEq(IERC20(DAI).balanceOf(address(lever)), 0);
+//         assertEq(
+//             IPool(ladle.pools(fSeriesId)).fyToken().balanceOf(address(lever)),
+//             0
+//         );
+//     }
+// }
 
 contract DivestTest is ZeroState {
     function setUp() public override {
@@ -219,18 +220,6 @@ contract DivestTest is ZeroState {
         DataTypes.Series memory series_ = cauldron.series(fSeriesId);
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-
-        NotionalJoin tempJoin = new NotionalJoin(
-            0x1344A36A1B56144C3Bc62E7757377D288fDE0369,
-            0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-            0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0,
-            1679616000,
-            1
-        );
-        vm.etch(
-            address(0xC4cb2489a845384277564613A0906f50dD66e482),
-            address(tempJoin).code
-        );
 
         lever.divest(vaultId, fSeriesId, fIlkId, balances.ink, balances.art, 0);
 
