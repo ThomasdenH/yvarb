@@ -6,6 +6,7 @@ import "contracts/YieldNotionalLever.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/vault-v2/FYToken.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
+import "@yield-protocol/utils-v2/contracts/token/IERC20Metadata.sol";
 import "@yield-protocol/utils-v2/contracts/access/AccessControl.sol";
 import "./Protocol.sol";
 import "@yield-protocol/vault-v2/utils/Giver.sol";
@@ -62,15 +63,6 @@ abstract contract ZeroState is Test {
     constructor() {
         protocol = new Protocol();
         giver = Giver(0xa98F3211997FDB072B6a8E2C2A26C34BC447f873);
-
-        vm.prank(usdcWhale);
-        USDC.transfer(address(this), 2000e6);
-        vm.prank(daiWhale);
-        DAI.transfer(address(this), 10000e18);
-        vm.prank(wethWhale);
-        WETH.transfer(address(this), 2000e18);
-        vm.prank(ethWhale);
-        payable(address(this)).transfer(2000e18);
     }
 
     function setUp() public virtual {
@@ -80,14 +72,33 @@ abstract contract ZeroState is Test {
         fIlkId = fdaiIlkId;
         fSeriesId = fydaiSeriesId;
         ilkId = daiIlkId;
-        baseAmount = 10000e18;
-        borrowAmount = 5000e18;
+
+        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
+        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
+
+        baseAmount = 10000 * unit;
+        borrowAmount = 5000 * unit;
+
         USDC.approve(address(lever), type(uint256).max);
         DAI.approve(address(lever), type(uint256).max);
         WETH.approve(address(lever), type(uint256).max);
-
+        if (ilkId == usdcIlkId) {
+            vm.prank(usdcWhale);
+            USDC.transfer(address(this), baseAmount);
+        }
+        if (ilkId == daiIlkId) {
+            vm.prank(daiWhale);
+            DAI.transfer(address(this), baseAmount);
+        }
+        if (ilkId == ethIlkId) {
+            vm.prank(wethWhale);
+            WETH.transfer(address(this), baseAmount);
+            vm.prank(ethWhale);
+            payable(address(this)).transfer(baseAmount);
+        }
         vm.prank(timeLock);
-        giver.grantRole(0x35775afb, address(lever));
+        giver.grantRole(Giver.seize.selector, address(lever));
+
         if (ilkId == usdcIlkId)
             initialUserBalance = USDC.balanceOf(address(this));
         else initialUserBalance = DAI.balanceOf(address(this));

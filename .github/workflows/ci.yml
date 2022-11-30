@@ -22,8 +22,8 @@ jobs:
       - name: Build contracts
         run: forge build
 
-      - name: Check gas consumption
-        run: forge snapshot --check --fork-url ${{ secrets.ALCHEMY_MAINNET_RPC }}
-
       - name: Run tests
-        run: forge test -vvv --fork-url ${{ secrets.ALCHEMY_MAINNET_RPC }}
+        run: forge test -vvv --fork-url ${{ secrets.MAINNET_RPC }}
+
+      - name: Check gas consumption
+        run: forge snapshot --check --fork-url ${{ secrets.MAINNET_RPC }}
