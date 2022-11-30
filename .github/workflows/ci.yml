@@ -23,7 +23,7 @@ jobs:
         run: forge build
 
       - name: Run tests
-        run: forge test -vvvv
+        run: forge test -vvvvv
         env:
           ARBITRUM_RPC: $${{ secrets.ARBITRUM_RPC}}
           MAINNET_RPC: ${{ secrets.MAINNET_RPC }}
