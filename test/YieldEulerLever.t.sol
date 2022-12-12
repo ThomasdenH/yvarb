@@ -10,9 +10,9 @@ import "@yield-protocol/utils-v2/contracts/access/AccessControl.sol";
 import "./Protocol.sol";
 import "@yield-protocol/vault-v2/utils/Giver.sol";
 import "@yield-protocol/vault-v2/FlashJoin.sol";
-import "@yield-protocol/vault-interfaces/src/ICauldron.sol";
-import "@yield-protocol/yieldspace-interfaces/IPool.sol";
-import "@yield-protocol/vault-interfaces/src/ILadle.sol";
+import "@yield-protocol/vault-v2/interfaces/ICauldron.sol";
+import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
+import "@yield-protocol/vault-v2/interfaces/ILadle.sol";
 
 abstract contract ZeroState is Test {
     address timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;

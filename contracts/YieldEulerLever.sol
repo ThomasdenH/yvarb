@@ -279,7 +279,7 @@ contract YieldEulerLever is YieldLeverBase {
 
         // Check if we're pre or post maturity.
         if (uint32(block.timestamp) < cauldron.series(seriesId).maturity) {
-            IFYToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
+            IMaturingToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
             // Close:
             // Series is not past maturity.
             // Borrow to repay debt, move directly to the pool.
