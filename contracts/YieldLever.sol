@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 
 /// # Security of this contract
 /// This contract owns nothing between transactions. Any funds or vaults owned
@@ -8,7 +8,9 @@
 /// the contract can actually take ownership of a vault, but only when called
 /// by the owner of the vault in the first place.
 
-pragma solidity ^0.8.11;
+pragma solidity ^0.8.13;
+
+import "forge-std/console.sol";
 
 struct Vault {
     address owner;
@@ -29,8 +31,22 @@ struct Balances {
     uint128 ink; // Collateral amount
 }
 
+struct Debt {
+    uint96 max; // Maximum debt accepted for a given underlying, across all series
+    uint24 min; // Minimum debt accepted for a given underlying, across all series
+    uint8 dec; // Multiplying factor (10**dec) for max and min
+    uint128 sum; // Current debt for a given underlying, across all series
+}
+
+struct SpotOracle {
+    address oracle; // Address for the spot price oracle
+    uint32 ratio; // Collateralization ratio to multiply the price for
+    // bytes8 free
+}
+
 interface YieldLadle {
   function pools(bytes6 seriesId) external view returns (address);
+  function joins(bytes6 ilkId) external view returns (address);
   function build(bytes6 seriesId, bytes6 ilkId, uint8 salt)
         external payable
         returns(bytes12, Vault memory);
@@ -68,7 +84,6 @@ interface yVault is IERC20 {
 }
 
 interface IToken {
-    function loanTokenAddress() external view returns (address);
     function flashBorrow(
         uint256 borrowAmount,
         address borrower,
@@ -82,26 +97,48 @@ interface Cauldron {
   function series(bytes6 seriesId) external view returns (Series memory);
   function vaults(bytes12 vaultId) external view returns (Vault memory);
   function balances(bytes12 vaultId) external view returns (Balances memory);
+  function debt(bytes6 baseId, bytes6 ilkId) external view returns (Debt memory);
   function debtToBase(bytes6 seriesId, uint128 art)
         external
         returns (uint128 base);
   function give(bytes12 vaultId, address receiver)
         external
         returns(Vault memory vault);
+  function spotOracles(bytes6 baseId, bytes6 ilkId) external view returns (SpotOracle memory);
+  event VaultGiven(bytes12 indexed vaultId, address indexed receiver);
 }
 
 contract YieldLever {
-  yVault constant yvUSDC = yVault(0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE);
-  bytes6 constant ilkId = bytes6(0x303900000000); // for yvUSDC
-  IToken constant iUSDC = IToken(0x32E4c68B3A4a813b710595AebA7f6B7604Ab9c15); 
-  IERC20 constant usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-  address constant usdcJoin = address(0x0d9A1A773be5a83eEbda23bf98efB8585C3ae4f4);
-  YieldLadle constant ladle = YieldLadle(0x6cB18fF2A33e981D1e38A663Ca056c0a5265066A);
-  address constant yvUSDCJoin = address(0x403ae7384E89b086Ea2935d5fAFed07465242B38);
-  Cauldron constant cauldron = Cauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
+  bytes6 ilkId; // for yvUSDC
+  yVault yvUSDC;
+  IToken iUSDC; 
+  IERC20 usdc;
+  address usdcJoin;
+  YieldLadle ladle;
+  address yvUSDCJoin;
+  Cauldron cauldron;
 
-  /// @dev YieldLever is not expected to hold any USDC
-  constructor() {
+  bytes6 constant usdcId = bytes6(bytes32("02"));
+
+  /// @dev YieldLever is not expected to hold any USDC, so approve transfers for any amount.
+  constructor(
+    bytes6 ilkId_,
+    yVault yvUSDC_,
+    IToken iUSDC_,
+    IERC20 usdc_,
+    address usdcJoin_,
+    YieldLadle ladle_,
+    address yvUSDCJoin_,
+    Cauldron cauldron_
+  ) {
+    ilkId = ilkId_;
+    yvUSDC = yvUSDC_;
+    iUSDC = iUSDC_;
+    usdc = usdc_;
+    usdcJoin = usdcJoin_;
+    ladle = ladle_;
+    yvUSDCJoin = yvUSDCJoin_;
+    cauldron = cauldron_;
     usdc.approve(address(yvUSDC), type(uint256).max);
   }
 
@@ -117,12 +154,16 @@ contract YieldLever {
   ///   enough to cover the flash loan.
   /// @param seriesId - The series Id to invest in. For example, 0x303230360000
   ///   for FYUSDC06LP.
+  /// @return vauldId - The ID of the created vault.
    function invest(
     uint256 baseAmount,
     uint128 borrowAmount,
     uint128 maxFyAmount,
     bytes6 seriesId
-  ) external {
+  ) external returns (bytes12) {
+    // Check that it is a USDC series.
+    require(cauldron.series(seriesId).baseId == usdcId);
+
     // Take USDC from the msg sender. We know USDC reverts on failure.
     // In future iterations, YieldLever can integrate with the Ladle by using
     // USDC it received previously in the same transaction, if available.
@@ -149,6 +190,8 @@ contract YieldLever {
     
     // Finally, give the vault to the sender
     cauldron.give(vaultId, msg.sender);
+
+    return vaultId;
   }
 
   /// @notice This function is called inside the flash loan and handles the
