@@ -4,3 +4,5 @@
 @yield-protocol/vault-v2/=lib/vault-v2/packages/foundry/contracts
 forge-std/=lib/forge-std/src/
 erc3156/=lib/erc3156/
+@uniswap/v3-periphery/=lib/v3-periphery
+@uniswap/v3-core/=lib/v3-core

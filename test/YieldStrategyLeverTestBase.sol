@@ -63,26 +63,10 @@ abstract contract ZeroState is Test {
 
     constructor() {
         giver = Giver(0xa98F3211997FDB072B6a8E2C2A26C34BC447f873);
-        // Orchestrate Giver
-        AccessControl cauldronAccessControl = AccessControl(
-            0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
-        );
-        vm.prank(timeLock);
-        cauldronAccessControl.grantRole(0x798a828b, address(giver));
 
         vm.label(address(wethJoin), "weth Join");
         vm.label(address(daiJoin), "dai Join");
         vm.label(address(usdcJoin), "usdc Join");
-        vm.label(address(ladle.pools(seriesId)), "Pool");
-
-        
-
-        vm.prank(timeLock);
-        wethJoin.setFlashFeeFactor(0);
-        vm.prank(timeLock);
-        usdcJoin.setFlashFeeFactor(0);
-        vm.prank(timeLock);
-        daiJoin.setFlashFeeFactor(0);
 
         whaleMapping[strategyIlkIdDAI] = daiWhale;
         whaleMapping[strategyIlkIdUSDC] = usdcWhale;
@@ -95,7 +79,13 @@ abstract contract ZeroState is Test {
 
     function setUp() public virtual {
         vm.createSelectFork("MAINNET", 16082976);
-
+        vm.label(address(ladle.pools(seriesId)), "Pool");
+        // Orchestrate Giver
+        AccessControl cauldronAccessControl = AccessControl(
+            0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867
+        );
+        vm.prank(timeLock);
+        cauldronAccessControl.grantRole(0x798a828b, address(giver));
         vm.prank(daiWhale);
         DAI.transfer(address(this), 100000e18);
         vm.prank(usdcWhale);

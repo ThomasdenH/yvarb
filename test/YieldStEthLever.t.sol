@@ -23,14 +23,15 @@ abstract contract ZeroState is Test {
     Giver giver;
 
     IPool pool = IPool(0x9D34dF69958675450ab8E53c8Df5531203398Dc9);
-    FlashJoin flashJoin;
+    FlashJoin flashJoin = FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0); // weth;
     bytes6 seriesId = 0x303030380000;
-    ICauldron cauldron;
+    ICauldron cauldron = ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
 
     IERC20 constant weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     WstEth constant wsteth = WstEth(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
     IERC20 constant steth = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
-    FYToken immutable fyToken;
+    FYToken constant fyToken =
+        FYToken(0x386a0A72FfEeB773381267D69B61aCd1572e074D);
 
     IStableSwap constant stableSwap =
         IStableSwap(0x828b154032950C8ff7CF8085D841723Db2696056);
@@ -44,19 +45,6 @@ abstract contract ZeroState is Test {
 
     constructor() {
         protocol = new Protocol();
-
-        fyToken = FYToken(0x386a0A72FfEeB773381267D69B61aCd1572e074D);
-        flashJoin = FlashJoin(0x3bDb887Dc46ec0E964Df89fFE2980db0121f0fD0); // weth
-        cauldron = ICauldron(0xc88191F8cb8e6D4a668B047c1C8503432c3Ca867);
-
-        // Set the flash fee factor
-        vm.prank(timeLock);
-
-        fyToken.setFlashFeeFactor(0);
-
-        vm.prank(timeLock);
-        flashJoin.setFlashFeeFactor(0);
-
         giver = Giver(0xa98F3211997FDB072B6a8E2C2A26C34BC447f873);
     }
 
@@ -69,19 +57,18 @@ abstract contract ZeroState is Test {
         //Label
         vm.label(address(lever), "YieldLever");
 
-        // vm.prank(fyTokenWhale);
-        // fyToken.transfer(address(this), 2e18);
-
         vm.prank(ethWhale);
         address(this).call{value: 1e18}("");
-        // vm.prank(fyTokenWhale);
-        // fyToken.transfer(address(lever), 3e18);
         vm.prank(timeLock);
         giver.grantRole(Giver.seize.selector, address(lever));
     }
 
     /// Return the available balance in the join.
-    function availableBalance(FlashJoin join) public view returns (uint256 available) {
+    function availableBalance(FlashJoin join)
+        public
+        view
+        returns (uint256 available)
+    {
         IERC20 token = IERC20(join.asset());
         available = token.balanceOf(address(join)) - join.storedBalance();
     }

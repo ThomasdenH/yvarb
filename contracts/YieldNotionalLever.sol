@@ -23,7 +23,6 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     using CastU256I256 for uint256;
     Notional constant notional =
         Notional(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
-    bytes6 constant ASSET_ID_MASK = 0xFFFF00000000;
 
     /// @notice Struct to store fcash related information for an ilk
     /// @param join The join of the underlying asset
@@ -285,7 +284,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         // Test that the lender is either a fyToken contract or the join.
         if (
             msg.sender != address(IPool(ladle.pools(seriesId)).fyToken()) &&
-            msg.sender != address(ladle.joins(seriesId & ASSET_ID_MASK))
+            msg.sender != address(ladle.joins(cauldron.series(seriesId).baseId))
         ) revert FlashLoanFailure();
         // We trust the lender, so now we can check that we were the initiator.
         if (initiator != address(this)) revert FlashLoanFailure();
