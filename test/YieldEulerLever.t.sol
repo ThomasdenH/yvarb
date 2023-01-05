@@ -90,15 +90,13 @@ abstract contract ZeroState is Test {
     }
 
     function setUp() public virtual {
-        lever = new YieldEulerLever(ilkId, baseId, giver);
+        lever = new YieldEulerLever(giver);
 
         vm.label(address(lever), "LEVER");
 
         AccessControl giverAccessControl = AccessControl(address(giver));
         giverAccessControl.grantRole(0xe4fd9dc5, timeLock);
         giverAccessControl.grantRole(0x35775afb, address(lever));
-
-        lever.approveFyToken(seriesId);
     }
 
     /// @notice Create a vault.
@@ -111,6 +109,7 @@ abstract contract ZeroState is Test {
         IERC20(eDai).approve(address(lever), 100000e18);
         vaultId = lever.invest(
             seriesId,
+            ilkId,
             baseAmount,
             borrowAmount,
             0 //minCollateral,
@@ -138,13 +137,13 @@ contract UnwindTest is ZeroState {
 
     function testRepay() public {
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.divest(seriesId, vaultId, balances.ink, balances.art);
+        lever.divest(vaultId, seriesId, ilkId, balances.ink, balances.art);
     }
 
     function testDoClose() public {
         DataTypes.Series memory series_ = cauldron.series(seriesId);
         vm.warp(series_.maturity);
         DataTypes.Balances memory balances = cauldron.balances(vaultId);
-        lever.divest(seriesId, vaultId, balances.ink, balances.art);
+        lever.divest(vaultId, seriesId, ilkId, balances.ink, balances.art);
     }
 }
