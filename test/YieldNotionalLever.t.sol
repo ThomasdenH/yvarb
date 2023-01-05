@@ -56,6 +56,8 @@ abstract contract ZeroState is Test {
     bytes6 public ilkId;
     uint256 public baseAmount;
     uint256 public borrowAmount;
+    uint256 public base;
+    uint256 public borrow;
 
     uint256 public initialUserBalance;
     uint256 public finalUserBalance;
@@ -67,11 +69,18 @@ abstract contract ZeroState is Test {
 
     function setUp() public virtual {
         vm.createSelectFork("MAINNET", 16082976);
+        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
+        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
+
+        baseAmount = base * unit;
+        borrowAmount = borrow * unit;
+
         lever = new YieldNotionalLever(giver);
 
         USDC.approve(address(lever), type(uint256).max);
         DAI.approve(address(lever), type(uint256).max);
         WETH.approve(address(lever), type(uint256).max);
+
         if (ilkId == usdcIlkId) {
             vm.prank(usdcWhale);
             USDC.transfer(address(this), baseAmount);
@@ -86,6 +95,7 @@ abstract contract ZeroState is Test {
             vm.prank(ethWhale);
             payable(address(this)).transfer(baseAmount);
         }
+
         vm.prank(timeLock);
         giver.grantRole(Giver.seize.selector, address(lever));
 
@@ -239,11 +249,8 @@ contract USDCVaultTest is VaultTest {
         fIlkId = fusdcIlkId;
         fSeriesId = fyusdcSeriesId;
 
-        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
-        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
-
-        baseAmount = 10000 * unit;
-        borrowAmount = 5000 * unit;
+        base = 10000;
+        borrow = 5000;
 
         super.setUp();
     }
@@ -255,11 +262,8 @@ contract DAIVaultTest is VaultTest {
         fIlkId = fdaiIlkId;
         fSeriesId = fydaiSeriesId;
 
-        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
-        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
-
-        baseAmount = 10000 * unit;
-        borrowAmount = 5000 * unit;
+        base = 10000;
+        borrow = 5000;
         super.setUp();
     }
 }
@@ -270,11 +274,8 @@ contract USDCDivestTest is DivestTest {
         fIlkId = fusdcIlkId;
         fSeriesId = fyusdcSeriesId;
 
-        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
-        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
-
-        baseAmount = 10000 * unit;
-        borrowAmount = 5000 * unit;
+        base = 10000;
+        borrow = 5000;
 
         super.setUp();
     }
@@ -286,11 +287,8 @@ contract ETHVaultTest is ZeroState {
         fIlkId = fethIlkId;
         fSeriesId = fyethSeriesId;
 
-        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
-        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
-
-        baseAmount = 5 * unit;
-        borrowAmount = 1 * unit;
+        base = 5;
+        borrow = 1;
         super.setUp();
     }
 
@@ -322,11 +320,8 @@ contract WETHVaultTest is VaultTest {
         fIlkId = fethIlkId;
         fSeriesId = fyethSeriesId;
 
-        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
-        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
-
-        baseAmount = 5 * unit;
-        borrowAmount = 1 * unit;
+        base = 5;
+        borrow = 1;
         super.setUp();
     }
 }
@@ -337,11 +332,8 @@ contract DAIDivestTest is DivestTest {
         fIlkId = fdaiIlkId;
         fSeriesId = fydaiSeriesId;
 
-        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
-        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
-
-        baseAmount = 10000 * unit;
-        borrowAmount = 5000 * unit;
+        base = 10000;
+        borrow = 5000;
 
         super.setUp();
     }
@@ -353,11 +345,8 @@ contract WETHDivestTest is DivestTest {
         fIlkId = fethIlkId;
         fSeriesId = fyethSeriesId;
 
-        DataTypes.Series memory seriesData = cauldron.series(fSeriesId);
-        uint256 unit = 10**IERC20Metadata(cauldron.assets(ilkId)).decimals();
-
-        baseAmount = 5 * unit;
-        borrowAmount = 1 * unit;
+        base = 5;
+        borrow = 1;
 
         super.setUp();
     }
