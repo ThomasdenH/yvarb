@@ -31,15 +31,27 @@ contract YieldEulerLever is YieldLeverBase {
         IEulerMarkets(0x3520d5a913427E6F0D6A83E07ccD4A4da316e4d3);
     /// @notice Euler protocol address
     address constant euler = 0x27182842E098f60e3D576794A5bFFb0777E025d3;
-
     struct ETokenInfo {
         IEulerEToken eToken;
         FlashJoin join;
     }
 
     mapping(bytes6 => ETokenInfo) public eTokenInfo;
+    mapping(bytes6 => address) public ilkToAsset;
 
-    constructor(Giver giver_) YieldLeverBase(giver_) {}
+    constructor(
+        bytes6 daiId,
+        address dai_,
+        bytes6 usdcId,
+        address usdc_,
+        bytes6 wethId,
+        address weth_,
+        Giver giver_
+    ) YieldLeverBase(giver_) {
+        ilkToAsset[daiId] = dai_;
+        ilkToAsset[usdcId] = usdc_;
+        ilkToAsset[wethId] = weth_;
+    }
 
     /// @notice Invest by creating a levered vault.
     /// @param seriesId The series to create the vault for.
@@ -95,8 +107,9 @@ contract YieldEulerLever is YieldLeverBase {
             info.join = FlashJoin(address(ladle.joins(baseId)));
             IERC20(info.join.asset()).approve(euler, type(uint256).max);
         }
+
         // Transfer the tokens from user based on the ilk
-        IERC20(address(eTokenInfo[ilkId].eToken)).safeTransferFrom(
+        IERC20(ilkToAsset[ilkId]).safeTransferFrom(
             msg.sender,
             address(this),
             amountToInvest
@@ -108,9 +121,10 @@ contract YieldEulerLever is YieldLeverBase {
         // Encode data of
         // OperationType    1 byte      [0:1]
         // seriesId         6 bytes     [1:7]
-        // vaultId          12 bytes    [7:19]
-        // amountToInvest       32 bytes    [19:51]
-        // minCollateral    32 bytes    [51:83]
+        // ilkId          6 bytes    [7:13]
+        // vaultId          12 bytes    [13:25]
+        // amountToInvest       32 bytes    [25:57]
+        // minCollateral    32 bytes    [57:89]
         bytes memory data = bytes.concat(
             bytes1(uint8(uint256(Operation.BORROW))),
             seriesId,
@@ -128,7 +142,22 @@ contract YieldEulerLever is YieldLeverBase {
         );
 
         if (!success) revert FlashLoanFailure();
+        DataTypes.Balances memory balances = cauldron.balances(vaultId);
+
+        // This is the amount to deposit, so we check for slippage here. As
+        // long as we end up with the desired amount, it doesn't matter what
+        // slippage occurred where.
+        if (balances.ink < minCollateral) revert SlippageFailure();
+
         giver.give(vaultId, msg.sender);
+
+        emit Invested(
+            vaultId,
+            seriesId,
+            msg.sender,
+            balances.ink,
+            balances.art
+        );
     }
 
     /// @notice divest a position.
@@ -144,6 +173,8 @@ contract YieldEulerLever is YieldLeverBase {
     /// @param vaultId The vault to use.
     /// @param ink The amount of collateral to recover.
     /// @param art The debt to repay.
+    /// @param minBaseOut Used to minimize slippage. The transaction will revert
+    ///     if we don't obtain at least this much of the base asset.
     /// @dev It is more gas efficient to let the user supply the `seriesId`,
     ///     but it should match the pool.
     function divest(
@@ -151,7 +182,8 @@ contract YieldEulerLever is YieldLeverBase {
         bytes6 seriesId,
         bytes6 ilkId,
         uint256 ink,
-        uint256 art
+        uint256 art,
+        uint256 minBaseOut
     ) external {
         // Test that the caller is the owner of the vault.
         // This is important as we will take the vault from the user.
@@ -160,6 +192,7 @@ contract YieldEulerLever is YieldLeverBase {
         // Give the vault to the contract
         giver.seize(vaultId, address(this));
 
+        bool success;
         // Check if we're pre or post maturity.
         if (uint32(block.timestamp) < cauldron.series(seriesId).maturity) {
             IMaturingToken fyToken = IPool(ladle.pools(seriesId)).fyToken();
@@ -174,18 +207,26 @@ contract YieldEulerLever is YieldLeverBase {
                 bytes32(ink), // [19:51]
                 bytes32(art) // [51:83]
             );
-            bool success = IERC3156FlashLender(address(fyToken)).flashLoan(
+
+            success = IERC3156FlashLender(address(fyToken)).flashLoan(
                 this, // Loan Receiver
                 address(fyToken), // Loan Token
                 art, // Loan Amount: borrow exactly the debt to repay.
                 data
             );
-            if (!success) revert FlashLoanFailure();
-
             // We have borrowed exactly enough for the debt and bought back
             // exactly enough for the loan + fee, so there is no balance of
             // FYToken left. Check:
             require(IERC20(address(fyToken)).balanceOf(address(this)) == 0);
+
+            emit Divested(
+                Operation.REPAY,
+                vaultId,
+                seriesId,
+                msg.sender,
+                ink,
+                art
+            );
         } else {
             // Close:
             // Series is past maturity.
@@ -199,14 +240,13 @@ contract YieldEulerLever is YieldLeverBase {
                 bytes32(art) // [57:89]
             );
 
-            bool success = eTokenInfo[ilkId].join.flashLoan(
+            success = eTokenInfo[ilkId].join.flashLoan(
                 this, // Loan Receiver
                 eTokenInfo[ilkId].join.asset(), // Loan Token
                 art, // Loan Amount
                 data
             );
 
-            if (!success) revert FlashLoanFailure();
             uint256 balance = IERC20(eTokenInfo[ilkId].join.asset()).balanceOf(
                 address(this)
             );
@@ -216,8 +256,17 @@ contract YieldEulerLever is YieldLeverBase {
                     msg.sender,
                     balance
                 );
-        }
 
+            emit Divested(
+                Operation.CLOSE,
+                vaultId,
+                seriesId,
+                msg.sender,
+                ink,
+                art
+            );
+        }
+        if (!success) revert FlashLoanFailure();
         // Give the vault back to the sender, just in case there is anything left
         giver.give(vaultId, msg.sender);
     }
@@ -233,6 +282,7 @@ contract YieldEulerLever is YieldLeverBase {
         bytes calldata data
     ) external override returns (bytes32) {
         Operation status = Operation(uint256(uint8(data[0])));
+
         bytes6 seriesId = bytes6(data[1:7]);
         bytes6 ilkId = bytes6(data[7:13]);
         bytes12 vaultId = bytes12(data[13:25]);
@@ -245,6 +295,7 @@ contract YieldEulerLever is YieldLeverBase {
             msg.sender != address(pool.fyToken()) &&
             msg.sender != address(ladle.joins(cauldron.series(seriesId).baseId))
         ) revert FlashLoanFailure();
+
         // We trust the lender, so now we can check that we were the initiator.
         if (initiator != address(this)) revert FlashLoanFailure();
 
@@ -255,6 +306,7 @@ contract YieldEulerLever is YieldLeverBase {
                 vaultId,
                 ilkId,
                 ladle.pools(seriesId),
+                baseAmount,
                 borrowAmount,
                 fee,
                 minCollateral
@@ -294,13 +346,14 @@ contract YieldEulerLever is YieldLeverBase {
         bytes12 vaultId,
         bytes6 ilkId,
         address poolAddress,
+        uint256 amountToInvest,
         uint256 borrow,
         uint256 fee,
         uint256 minCollateral
     ) internal {
         // Deposit to get Euler token in return which would be used to payback flashloan
         IEulerEToken eToken = eTokenInfo[ilkId].eToken;
-        eToken.deposit(0, borrow - fee);
+        eToken.deposit(0, amountToInvest + borrow - fee);
 
         uint256 eBalance = IERC20(address(eToken)).balanceOf(address(this));
 

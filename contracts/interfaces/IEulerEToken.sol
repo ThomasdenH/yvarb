@@ -10,5 +10,7 @@ interface IEulerEToken {
     /// @notice Address of underlying asset
     function underlyingAsset() external view returns (address);
 
-    function withdraw(uint subAccountId, uint amount) external;
+    function withdraw(uint256 subAccountId, uint256 amount) external;
+
+    function balanceOf(address account) external view returns (uint256);
 }
