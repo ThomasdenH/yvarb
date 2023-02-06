@@ -5,13 +5,13 @@ import "forge-std/Test.sol";
 import "contracts/YieldStEthLever.sol";
 import "contracts/interfaces/IStableSwap.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
-import "@yield-protocol/vault-v2/FYToken.sol";
+import "@yield-protocol/vault-v2/contracts/FYToken.sol";
 import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
 import "@yield-protocol/utils-v2/contracts/access/AccessControl.sol";
 import "./Protocol.sol";
-import "@yield-protocol/vault-v2/utils/Giver.sol";
-import "@yield-protocol/vault-v2/FlashJoin.sol";
-import "@yield-protocol/vault-v2/interfaces/ICauldron.sol";
+import "@yield-protocol/vault-v2/contracts/utils/Giver.sol";
+import "@yield-protocol/vault-v2/contracts/FlashJoin.sol";
+import "@yield-protocol/vault-v2/contracts/interfaces/ICauldron.sol";
 import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
 
 abstract contract ZeroState is Test {
