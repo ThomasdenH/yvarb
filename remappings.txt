@@ -1,7 +1,7 @@
 @yield-protocol/utils-v2/=lib/yield-utils-v2/
 @yield-protocol/yieldspace-tv/=lib/yieldspace-tv/
 @yield-protocol/yieldspace-interfaces/=lib/yieldspace-interfaces/
-@yield-protocol/vault-v2/=lib/vault-v2/packages/foundry/contracts
+@yield-protocol/vault-v2/=lib/vault-v2/packages/foundry/
 forge-std/=lib/forge-std/src/
 erc3156/=lib/erc3156/
 @uniswap/v3-periphery/=lib/v3-periphery

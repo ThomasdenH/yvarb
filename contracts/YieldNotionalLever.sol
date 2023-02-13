@@ -5,8 +5,8 @@ import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastI128U128.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastU256U128.sol";
 import "@yield-protocol/utils-v2/contracts/cast/CastU256I256.sol";
-import "@yield-protocol/vault-v2/other/notional/ERC1155.sol";
-import "@yield-protocol/vault-v2/other/notional/interfaces/INotionalJoin.sol";
+import "@yield-protocol/vault-v2/contracts/other/notional/ERC1155.sol";
+import "@yield-protocol/vault-v2/contracts/other/notional/interfaces/INotionalJoin.sol";
 import "@yield-protocol/utils-v2/contracts/interfaces/IWETH9.sol";
 import "./YieldLeverBase.sol";
 import "./NotionalTypes.sol";
@@ -376,7 +376,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
         }
         IPool pool = IPool(ladle.pools(seriesId));
 
-        uint128 maxFyOut = pool.buyBasePreview(borrowAmount.u128());
+        uint128 maxFyOut = pool.buyBasePreview(borrowAmount.u128() + 5);
 
         ladle.pour(
             vaultId,
@@ -385,7 +385,7 @@ contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
             (maxFyOut).i128()
         );
 
-        pool.buyBase(address(this), borrowAmount.u128(), maxFyOut);
+        pool.buyBase(address(this), borrowAmount.u128() + 5, maxFyOut);
     }
 
     /// @param vaultId The vault to repay.
