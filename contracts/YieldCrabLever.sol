@@ -3,7 +3,7 @@ pragma solidity ^0.8.14;
 
 import "./YieldLeverBase.sol";
 import "@yield-protocol/yieldspace-tv/src/interfaces/IMaturingToken.sol";
-import "@yield-protocol/utils-v2/contracts/interfaces/IWETH9.sol";
+import "@yield-protocol/utils-v2/src/interfaces/IWETH9.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 interface ICrabStrategy {
@@ -62,8 +62,7 @@ interface ICrabStrategy {
 contract YieldCrabLever is YieldLeverBase {
     using TransferHelper for IERC20;
     using TransferHelper for IMaturingToken;
-    using CastU128I128 for uint128;
-    using CastU256U128 for uint256;
+    using Cast for *;
 
     ICrabStrategy public constant crabStrategy =
         ICrabStrategy(0x3B960E47784150F5a63777201ee2B15253D713e8);

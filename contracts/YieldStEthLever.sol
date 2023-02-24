@@ -2,7 +2,7 @@
 pragma solidity ^0.8.14;
 import "./YieldLeverBase.sol";
 import "./interfaces/IStableSwap.sol";
-import "@yield-protocol/utils-v2/contracts/interfaces/IWETH9.sol";
+import "@yield-protocol/utils-v2/src/interfaces/IWETH9.sol";
 import "@yield-protocol/yieldspace-tv/src/interfaces/IMaturingToken.sol";
 interface WstEth is IERC20 {
     function wrap(uint256 _stETHAmount) external returns (uint256);
@@ -23,8 +23,7 @@ contract YieldStEthLever is YieldLeverBase {
     using TransferHelper for IWETH9;
     using TransferHelper for IMaturingToken;
     using TransferHelper for WstEth;
-    using CastU128I128 for uint128;
-    using CastU256U128 for uint256;
+    using Cast for *;
     
     /// @notice StEth, represents Ether stakes on Lido.
     IERC20 public constant steth =

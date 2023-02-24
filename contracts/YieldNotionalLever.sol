@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 
-import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
-import "@yield-protocol/utils-v2/contracts/cast/CastI128U128.sol";
-import "@yield-protocol/utils-v2/contracts/cast/CastU256U128.sol";
-import "@yield-protocol/utils-v2/contracts/cast/CastU256I256.sol";
+import "@yield-protocol/utils-v2/src/utils/Cast.sol";
 import "@yield-protocol/vault-v2/contracts/other/notional/ERC1155.sol";
 import "@yield-protocol/vault-v2/contracts/other/notional/interfaces/INotionalJoin.sol";
-import "@yield-protocol/utils-v2/contracts/interfaces/IWETH9.sol";
+import "@yield-protocol/utils-v2/src/interfaces/IWETH9.sol";
 import "./YieldLeverBase.sol";
 import "./NotionalTypes.sol";
 
@@ -17,10 +14,8 @@ import "./NotionalTypes.sol";
 contract YieldNotionalLever is YieldLeverBase, ERC1155TokenReceiver {
     using TransferHelper for IERC20;
     using TransferHelper for IFYToken;
-    using CastU128I128 for uint128;
-    using CastI128U128 for int128;
-    using CastU256U128 for uint256;
-    using CastU256I256 for uint256;
+    using Cast for *;
+
     Notional constant notional =
         Notional(0x1344A36A1B56144C3Bc62E7757377D288fDE0369);
 

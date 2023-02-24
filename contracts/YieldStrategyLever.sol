@@ -5,10 +5,9 @@ import "erc3156/contracts/interfaces/IERC3156FlashBorrower.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
 import "./interfaces/IStrategy.sol";
-import "@yield-protocol/utils-v2/contracts/cast/CastU128I128.sol";
-import "@yield-protocol/utils-v2/contracts/cast/CastU256U128.sol";
-import "@yield-protocol/utils-v2/contracts/token/IERC20.sol";
-import "@yield-protocol/utils-v2/contracts/token/TransferHelper.sol";
+import "@yield-protocol/utils-v2/src/utils/Cast.sol";
+import "@yield-protocol/utils-v2/src/token/IERC20.sol";
+import "@yield-protocol/utils-v2/src/token/TransferHelper.sol";
 import "@yield-protocol/vault-v2/contracts/interfaces/ICauldron.sol";
 import "@yield-protocol/vault-v2/contracts/interfaces/ILadle.sol";
 import "@yield-protocol/vault-v2/contracts/interfaces/IFYToken.sol";
@@ -50,8 +49,7 @@ error OnlyRepayOrClose();
 contract YieldStrategyLever is IERC3156FlashBorrower {
     using TransferHelper for IERC20;
     using TransferHelper for IFYToken;
-    using CastU128I128 for uint128;
-    using CastU256U128 for uint256;
+    using Cast for *;
 
     /// @notice The operation to execute in the flash loan.
     ///     - BORROW: Invest
