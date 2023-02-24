@@ -1,7 +1,9 @@
-[default]
+[profile.default]
 src = 'contracts'
 out = 'out'
-
-fuzz_runs = 2048
-fuzz_max_local_rejects = 524288
-fuzz_max_global_rejects = 524288
+libs = ['lib']
+gas_reports = ['YieldStEthLever', 'YieldNotionalLever', 'YieldEulerLever']
+rpc_endpoints = { MAINNET = "${MAINNET_RPC}", ARBITRUM = "${ARBITRUM_RPC}" ,TENDERLY = "${TENDERLY_RPC}"}
+[etherscan]
+mainnet = { key = "${ETHERSCAN_MAINNET_KEY}" }
+# See more config options https://github.com/foundry-rs/foundry/tree/master/config
