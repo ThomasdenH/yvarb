@@ -2,8 +2,8 @@
 pragma solidity ^0.8.14;
 
 import "@yield-protocol/utils-v2/src/utils/Cast.sol";
-import "@yield-protocol/vault-v2/contracts/other/notional/ERC1155.sol";
-import "@yield-protocol/vault-v2/contracts/other/notional/interfaces/INotionalJoin.sol";
+import "@yield-protocol/vault-v2/src/other/notional/ERC1155.sol";
+import "@yield-protocol/vault-v2/src/other/notional/interfaces/INotionalJoin.sol";
 import "@yield-protocol/utils-v2/src/interfaces/IWETH9.sol";
 import "./YieldLeverBase.sol";
 import "./NotionalTypes.sol";

@@ -4,17 +4,17 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "contracts/YieldNotionalLever.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
-import "@yield-protocol/vault-v2/contracts/FYToken.sol";
+import "@yield-protocol/vault-v2/src/FYToken.sol";
 import "@yield-protocol/utils-v2/src/token/IERC20.sol";
 import "@yield-protocol/utils-v2/src/token/IERC20Metadata.sol";
 import "@yield-protocol/utils-v2/src/access/AccessControl.sol";
 import "./Protocol.sol";
-import "@yield-protocol/vault-v2/contracts/utils/Giver.sol";
-import "@yield-protocol/vault-v2/contracts/FlashJoin.sol";
-import "@yield-protocol/vault-v2/contracts/interfaces/ICauldron.sol";
-import "@yield-protocol/vault-v2/contracts/interfaces/IFYToken.sol";
+import "@yield-protocol/vault-v2/src/utils/Giver.sol";
+import "@yield-protocol/vault-v2/src/FlashJoin.sol";
+import "@yield-protocol/vault-v2/src/interfaces/ICauldron.sol";
+import "@yield-protocol/vault-v2/src/interfaces/IFYToken.sol";
 import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
-import "@yield-protocol/vault-v2/contracts/other/notional/NotionalJoin.sol";
+import "@yield-protocol/vault-v2/src/other/notional/NotionalJoin.sol";
 
 abstract contract ZeroState is Test {
     address constant timeLock = 0x3b870db67a45611CF4723d44487EAF398fAc51E3;

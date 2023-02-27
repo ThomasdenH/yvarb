@@ -8,10 +8,10 @@ import "./interfaces/IStrategy.sol";
 import "@yield-protocol/utils-v2/src/utils/Cast.sol";
 import "@yield-protocol/utils-v2/src/token/IERC20.sol";
 import "@yield-protocol/utils-v2/src/token/TransferHelper.sol";
-import "@yield-protocol/vault-v2/contracts/interfaces/ICauldron.sol";
-import "@yield-protocol/vault-v2/contracts/interfaces/ILadle.sol";
-import "@yield-protocol/vault-v2/contracts/interfaces/IFYToken.sol";
-import "@yield-protocol/vault-v2/contracts/utils/Giver.sol";
+import "@yield-protocol/vault-v2/src/interfaces/ICauldron.sol";
+import "@yield-protocol/vault-v2/src/interfaces/ILadle.sol";
+import "@yield-protocol/vault-v2/src/interfaces/IFYToken.sol";
+import "@yield-protocol/vault-v2/src/utils/Giver.sol";
 
 error FlashLoanFailure();
 error SlippageFailure();
