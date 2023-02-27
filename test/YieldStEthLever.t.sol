@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "contracts/YieldStEthLever.sol";
-import "contracts/interfaces/IStableSwap.sol";
+import "src/YieldStEthLever.sol";
+import "src/interfaces/IStableSwap.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/vault-v2/src/FYToken.sol";
 import "@yield-protocol/utils-v2/src/token/IERC20.sol";

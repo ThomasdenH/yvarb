@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "contracts/YieldNotionalLever.sol";
+import "src/YieldNotionalLever.sol";
 import "erc3156/contracts/interfaces/IERC3156FlashLender.sol";
 import "@yield-protocol/vault-v2/src/FYToken.sol";
 import "@yield-protocol/utils-v2/src/token/IERC20.sol";

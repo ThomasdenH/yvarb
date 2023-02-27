@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "contracts/YieldStrategyLever.sol";
+import "src/YieldStrategyLever.sol";
 import "@yield-protocol/yieldspace-tv/src/interfaces/IPool.sol";
 import "@yield-protocol/vault-v2/src/FYToken.sol";
 import "@yield-protocol/vault-v2/src/utils/Giver.sol";

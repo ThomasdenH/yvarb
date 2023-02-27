@@ -1,6 +1,6 @@
 {
 	"name": "@yield-protocol/yvarb",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"description": "Yield Levers",
 	"main": "truffle-config.js",
 	"directories": {
@@ -13,8 +13,8 @@
 	},
 	"author": "Yield Inc.",
 	"files": [
-		"contracts/*sol",
-		"contracts/**/*sol"
+		"src/*sol",
+		"src/**/*sol"
 	],
 	"license": "ISC",
 	"dependencies": {
