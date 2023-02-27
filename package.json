@@ -1,6 +1,6 @@
 {
 	"name": "@yield-protocol/yvarb",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"description": "Yield Levers",
 	"main": "truffle-config.js",
 	"directories": {
